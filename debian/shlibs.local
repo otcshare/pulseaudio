@@ -1,0 +1,5 @@
+libpulse-browse 0 libpulse-browse0 (>= 0.9.8)
+libpulse 0 libpulse0 (= ${binary:Version})
+libpulse-simple 0 libpulse0 (= ${binary:Version})
+libpulsecommon 0.9.17 libpulse0 (= ${binary:Version})
+libpulsecore 0.9.17 pulseaudio (= ${binary:Version})

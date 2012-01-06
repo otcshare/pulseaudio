@@ -1,0 +1,7 @@
+pulseaudio (0.9.21-7slp2+10) unstable; urgency=low
+
+  * Initial release
+  * Git: pkgs/p/pulseaudio
+  * Tag: pulseaudio_0.9.21-7slp2+10
+
+ -- Seungbae Shin <seungbae.shin@samsung.com>  Wed, 07 Dec 2011 12:10:02 +0900

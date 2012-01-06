@@ -1,0 +1,5 @@
+usr/lib/libpulse.so
+usr/lib/libpulse-simple.so
+usr/lib/pkgconfig/libpulse-simple.pc
+usr/lib/pkgconfig/libpulse.pc
+usr/include/pulse/*
