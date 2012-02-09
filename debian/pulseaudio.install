@@ -1,7 +1,4 @@
 etc/rc.d/*
-etc/pulse/default.pa
-etc/pulse/system.pa
-etc/pulse/daemon.conf
 etc/dbus-1/system.d/pulseaudio-system.conf
 usr/bin/pulseaudio
 usr/bin/start-pulseaudio-x11
@@ -62,7 +59,6 @@ usr/lib/pulse-*/modules/module-virtual-sink.so
 usr/lib/pulse-*/modules/module-virtual-source.so
 usr/share/man/man5/default.pa.5
 usr/share/locale
-usr/share/pulseaudio
 usr/lib/libpulsecore-*.so
 usr/share/lintian/overrides/pulseaudio
 opt/etc/pulse/*.dat
