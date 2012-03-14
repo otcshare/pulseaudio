@@ -8,6 +8,7 @@ Group:      Multimedia/PulseAudio
 License:    LGPLv2+
 URL:        http://pulseaudio.org
 Source0:    http://0pointer.de/lennart/projects/pulseaudio/pulseaudio-%{version}.tar.gz
+Patch0:     initialize-hw-volume-pinetrail.patch
 Requires:   udev 
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
@@ -19,6 +20,7 @@ BuildRequires:  pkgconfig(inputproto)
 BuildRequires:  pkgconfig(x11)
 BuildRequires:  pkgconfig(ice)
 BuildRequires:  pkgconfig(sm)
+BuildRequires:  pkgconfig(vconf)
 BuildRequires:  pkgconfig(xtst)
 BuildRequires:  pkgconfig(sndfile)
 BuildRequires:  pkgconfig(alsa)
@@ -102,6 +104,8 @@ Description: %{summary}
 
 %prep
 %setup -q
+# initialize-hw-volume-pinetrail.patch
+%patch0 -p1
 
 
 %build
@@ -113,7 +117,6 @@ make %{?jobs:-j%jobs}
 %install
 rm -rf %{buildroot}
 %make_install
-
 
 install -D -m0755 pulseaudio.sh.in %{buildroot}%{_sysconfdir}/rc.d/init.d/pulseaudio.sh
 
@@ -129,6 +132,12 @@ popd
 rm -rf  %{buildroot}/etc/xdg/autostart/pulseaudio-kde.desktop
 rm -rf  %{buildroot}/usr/bin/start-pulseaudio-kde
 rm -rf %{buildroot}/%{_libdir}/pulse-%{pulseversion}/modules/module-device-manager.so
+
+#move pulseaudio config files to mmfw-conf
+rm -rf %{buildroot}/etc/pulse/client.conf
+rm -rf %{buildroot}/etc/pulse/default.pa
+rm -rf %{buildroot}/etc/pulse/system.pa
+rm -rf %{buildroot}/etc/pulse/daemon.conf
 
 %find_lang pulseaudio
 %fdupes  %{buildroot}/%{_datadir}
@@ -167,9 +176,6 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 
 
 %dir %{_sysconfdir}/pulse/
-%config(noreplace) %{_sysconfdir}/pulse/daemon.conf
-%config(noreplace) %{_sysconfdir}/pulse/default.pa
-%config(noreplace) %{_sysconfdir}/pulse/system.pa
 %{_sysconfdir}/rc.d/init.d/pulseaudio.sh
 %{_bindir}/esdcompat
 %{_bindir}/pulseaudio
@@ -251,7 +257,6 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %files libs
 %defattr(-,root,root,-)
 #%doc %{_mandir}/man1/pax11publish.1.gz
-%config(noreplace) %{_sysconfdir}/pulse/client.conf
 %{_libdir}/libpulse.so.*
 %{_libdir}/libpulse-simple.so.*
 %{_libdir}/libpulsecommon-*.so
@@ -306,4 +311,4 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-publish.so  
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-xsmp.so  
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-cork-request.so  
-  
+
