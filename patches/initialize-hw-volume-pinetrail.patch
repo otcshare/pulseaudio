@@ -1,0 +1,11 @@
+diff -Nur pulseaudio-0.9.21/pulseaudio.sh.in pulseaudio-0.9.21-patch/pulseaudio.sh.in
+--- pulseaudio-0.9.21/pulseaudio.sh.in	2012-01-06 23:50:52.000000000 +0800
++++ pulseaudio-0.9.21-patch/pulseaudio.sh.in	2012-01-31 14:47:31.132661988 +0800
+@@ -1,4 +1,7 @@
+ #!/bin/sh
++if [ -x /usr/sbin/alsactl ] ; then
++    alsactl init
++fi
+ if [ -x /usr/bin/pulseaudio ]; then         
+         /usr/bin/pulseaudio --log-level=4 --system -D
+ 	vconftool set -t int memory/hibernation/pulseaudio_ready 1

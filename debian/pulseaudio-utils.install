@@ -1,0 +1,9 @@
+usr/bin/pacat
+usr/bin/pacmd
+usr/bin/pactl
+usr/bin/paplay
+usr/bin/pamon
+usr/bin/parec
+usr/bin/parecord
+usr/bin/pasuspender
+usr/share/lintian/overrides/pulseaudio-utils

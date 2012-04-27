@@ -1,0 +1,93 @@
+diff -Nur pulseaudio-0.9.21/src/modules/alsa/mixer/paths/analog-input.conf.common pulseaudio-0.9.21-new/src/modules/alsa/mixer/paths/analog-input.conf.common
+--- pulseaudio-0.9.21/src/modules/alsa/mixer/paths/analog-input.conf.common	2012-02-27 21:15:16.000000000 -0800
++++ pulseaudio-0.9.21-new/src/modules/alsa/mixer/paths/analog-input.conf.common	2012-04-05 21:46:59.862870993 -0700
+@@ -59,48 +59,48 @@
+ 
+ ;;; 'Input Source'
+ 
+-[Element Input Source]
+-enumeration = select
+-
+-[Option Input Source:Mic]
+-name = input-microphone
+-priority = 20
+-
+-[Option Input Source:Microphone]
+-name = input-microphone
+-priority = 20
+-
+-[Option Input Source:Front Mic]
+-name = input-microphone
+-priority = 19
+-
+-[Option Input Source:Front Microphone]
+-name = input-microphone
+-priority = 19
+-
+-[Option Input Source:Internal Mic]
+-name = input-microphone
+-priority = 19
+-
+-[Option Input Source:Line]
+-name = input-linein
+-priority = 18
+-
+-[Option Input Source:Line-In]
+-name = input-linein
+-priority = 18
++#[Element Input Source]
++#enumeration = select
+ 
+-[Option Input Source:Line In]
+-name = input-linein
+-priority = 18
+-
+-[Option Input Source:Docking-Station]
+-name = input-docking
+-priority = 17
+-
+-[Option Input Source:AUX IN]
+-name = input
+-priority = 10
++#[Option Input Source:Mic]
++#name = input-microphone
++#priority = 20
++
++#[Option Input Source:Microphone]
++#name = input-microphone
++#priority = 20
++
++#[Option Input Source:Front Mic]
++#name = input-microphone
++#priority = 19
++
++#[Option Input Source:Front Microphone]
++#name = input-microphone
++#priority = 19
++
++#[Option Input Source:Internal Mic]
++#name = input-microphone
++#priority = 19
++
++#[Option Input Source:Line]
++#name = input-linein
++#priority = 18
++
++#[Option Input Source:Line-In]
++#name = input-linein
++#priority = 18
++
++#[Option Input Source:Line In]
++#name = input-linein
++#priority = 18
++
++#[Option Input Source:Docking-Station]
++#name = input-docking
++#priority = 17
++
++#[Option Input Source:AUX IN]
++#name = input
++#priority = 10
+ 
+ ;;; 'Capture Source'
+ 

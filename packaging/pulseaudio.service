@@ -1,0 +1,10 @@
+[Unit]
+Description=pulseaudio service
+After=syslog.target dbus.service
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/pulseaudio --system -D
+
+[Install]
+WantedBy=multi-user.target

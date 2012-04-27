@@ -1,0 +1,72 @@
+diff -Nur pulseaudio-0.9.21/src/modules/bluetooth/module-bluetooth-device.c pulseaudio-0.9.21-new/src/modules/bluetooth/module-bluetooth-device.c
+--- pulseaudio-0.9.21/src/modules/bluetooth/module-bluetooth-device.c	2012-02-27 21:15:16.000000000 -0800
++++ pulseaudio-0.9.21-new/src/modules/bluetooth/module-bluetooth-device.c	2012-03-29 00:51:10.025859307 -0700
+@@ -2671,7 +2671,6 @@
+ 
+         pa_hashmap_put(data.profiles, p->name, p);
+     }
+-#ifdef BT_FULL_AUDIO_FEATURE
+     if (pa_bluetooth_uuid_has(device->uuids, HSP_HS_UUID) ||
+         pa_bluetooth_uuid_has(device->uuids, HFP_HS_UUID)) {
+         p = pa_card_profile_new("hsp", _("Telephony Duplex (HSP/HFP)"), sizeof(enum profile));
+@@ -2700,7 +2699,6 @@
+ 
+         pa_hashmap_put(data.profiles, p->name, p);
+     }
+-#endif
+ 
+     pa_assert(!pa_hashmap_isempty(data.profiles));
+ 
+diff -Nur pulseaudio-0.9.21/src/modules/bluetooth/module-bluetooth-discover.c pulseaudio-0.9.21-new/src/modules/bluetooth/module-bluetooth-discover.c
+--- pulseaudio-0.9.21/src/modules/bluetooth/module-bluetooth-discover.c	2012-02-27 21:15:16.000000000 -0800
++++ pulseaudio-0.9.21-new/src/modules/bluetooth/module-bluetooth-discover.c	2012-03-29 02:54:17.726873417 -0700
+@@ -88,7 +88,6 @@
+         d->audio_sink_state >= PA_BT_AUDIO_STATE_CONNECTED ||
+          d->audio_source_state >= PA_BT_AUDIO_STATE_CONNECTED ||
+          d->hfgw_state > PA_BT_AUDIO_STATE_CONNECTED)) {
+-
+         if (!mi) {
+             pa_module *m = NULL;
+             char *args;
+@@ -106,7 +105,6 @@
+             }
+ #endif
+ 
+-#ifdef NOKIA
+             if (pa_modargs_get_value(u->modargs, "sco_sink", NULL) &&
+                 pa_modargs_get_value(u->modargs, "sco_source", NULL)) {
+                 char *tmp;
+@@ -117,18 +115,15 @@
+                 pa_xfree(args);
+                 args = tmp;
+             }
+-#endif
+ 
+-#ifdef BT_FULL_AUDIO_FEATURE
+ 
+             if (d->audio_source_state >= PA_BT_AUDIO_STATE_CONNECTED)
+                 args = pa_sprintf_malloc("%s profile=\"a2dp_source\" auto_connect=no", args);
+ 
+             if (d->hfgw_state > PA_BT_AUDIO_STATE_CONNECTED)
+                 args = pa_sprintf_malloc("%s profile=\"hfgw\"", args);
+-#endif
+-			if (d->audio_sink_state >= PA_BT_AUDIO_STATE_CONNECTED)
+-				args = pa_sprintf_malloc("%s profile=\"a2dp\"",args );
++	/*		if (d->audio_sink_state >= PA_BT_AUDIO_STATE_CONNECTED)
++				args = pa_sprintf_malloc("%s profile=\"a2dp\"",args ); */
+ 
+             pa_log_debug("Loading module-bluetooth-device %s", args);
+             m = pa_module_load(u->module->core, "module-bluetooth-device", args);
+@@ -147,6 +142,12 @@
+     } else {
+ 
+         if (mi) {
++            if ( d->hfgw_state == PA_BT_AUDIO_STATE_CONNECTED) {
++                pa_log_debug("Do not unload module for %s if hfgw_status is connected, mi->module=%d", d->path, mi->module);
++		/*if the module exists, do not unload it*/
++	        if (pa_idxset_get_by_index(u->core->modules,mi->module))
++ 		    return PA_HOOK_OK;
++            }
+ 
+             /* Hmm, disconnection? Then let's unload our module */
+ 
