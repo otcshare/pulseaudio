@@ -2,13 +2,12 @@
 
 Name:       pulseaudio
 Summary:    Improved Linux sound server
-Version:    0.9.21
-Release:    1
+Version: 0.9.21
+Release:    7
 Group:      Multimedia/PulseAudio
 License:    LGPLv2+
 URL:        http://pulseaudio.org
 Source0:    http://0pointer.de/lennart/projects/pulseaudio/pulseaudio-%{version}.tar.gz
-Patch0:     initialize-hw-volume-pinetrail.patch
 Requires:   udev 
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
@@ -20,7 +19,6 @@ BuildRequires:  pkgconfig(inputproto)
 BuildRequires:  pkgconfig(x11)
 BuildRequires:  pkgconfig(ice)
 BuildRequires:  pkgconfig(sm)
-BuildRequires:  pkgconfig(vconf)
 BuildRequires:  pkgconfig(xtst)
 BuildRequires:  pkgconfig(sndfile)
 BuildRequires:  pkgconfig(alsa)
@@ -30,6 +28,7 @@ BuildRequires:  pkgconfig(bluez)
 BuildRequires:  pkgconfig(xi)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(dlog)
+BuildRequires:  pkgconfig(vconf)
 BuildRequires:  m4
 BuildRequires:  libtool-ltdl-devel
 BuildRequires:  libtool
@@ -104,8 +103,6 @@ Description: %{summary}
 
 %prep
 %setup -q
-# initialize-hw-volume-pinetrail.patch
-%patch0 -p1
 
 
 %build
@@ -118,9 +115,10 @@ make %{?jobs:-j%jobs}
 rm -rf %{buildroot}
 %make_install
 
+
 install -D -m0755 pulseaudio.sh.in %{buildroot}%{_sysconfdir}/rc.d/init.d/pulseaudio.sh
 
-pushd %{buildroot}/opt/etc/pulse
+pushd %{buildroot}/etc/pulse/filter
 ln -sf filter_8000_44100.dat filter_11025_44100.dat
 ln -sf filter_8000_44100.dat filter_12000_44100.dat
 ln -sf filter_8000_44100.dat filter_16000_44100.dat
@@ -132,12 +130,6 @@ popd
 rm -rf  %{buildroot}/etc/xdg/autostart/pulseaudio-kde.desktop
 rm -rf  %{buildroot}/usr/bin/start-pulseaudio-kde
 rm -rf %{buildroot}/%{_libdir}/pulse-%{pulseversion}/modules/module-device-manager.so
-
-#move pulseaudio config files to mmfw-conf
-rm -rf %{buildroot}/etc/pulse/client.conf
-rm -rf %{buildroot}/etc/pulse/default.pa
-rm -rf %{buildroot}/etc/pulse/system.pa
-rm -rf %{buildroot}/etc/pulse/daemon.conf
 
 %find_lang pulseaudio
 %fdupes  %{buildroot}/%{_datadir}
@@ -172,7 +164,13 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %files
 %defattr(-,root,root,-)
 %doc LICENSE GPL LGPL
-/opt/etc/pulse/*.dat
+/etc/pulse/filter/*.dat
+%exclude /etc/pulse/client.conf
+%exclude /etc/pulse/daemon.conf
+%exclude /etc/pulse/default.pa
+%exclude /etc/pulse/system.pa
+%exclude %{_datadir}/pulseaudio/alsa-mixer/paths/*
+%exclude %{_datadir}/pulseaudio/alsa-mixer/profile-sets/* 
 
 
 %dir %{_sysconfdir}/pulse/
@@ -184,8 +182,6 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/libpulsecore-%{pulseversion}.so
 %{_libdir}/libpulse-mainloop-glib.so.*
 /lib/udev/rules.d/90-pulseaudio.rules
-%{_datadir}/pulseaudio/alsa-mixer/paths/*
-%{_datadir}/pulseaudio/alsa-mixer/profile-sets/*
 %{_bindir}/pamon
 %config %{_sysconfdir}/xdg/autostart/pulseaudio.desktop
 /etc/dbus-1/system.d/pulseaudio-system.conf
@@ -311,4 +307,3 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-publish.so  
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-xsmp.so  
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-cork-request.so  
-

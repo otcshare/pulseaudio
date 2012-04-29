@@ -57,7 +57,7 @@
 #define WINDOW_TYPE 24
 #endif
 
-#define PRE_FILTER_TABLE_PATH	"/opt/etc/pulse"
+#define PRE_FILTER_TABLE_PATH	"/etc/pulse/filter"
 
 typedef struct AVResampleContext{
     FELEM *filter_bank;

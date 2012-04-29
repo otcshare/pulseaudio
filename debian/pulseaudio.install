@@ -61,4 +61,4 @@ usr/share/man/man5/default.pa.5
 usr/share/locale
 usr/lib/libpulsecore-*.so
 usr/share/lintian/overrides/pulseaudio
-opt/etc/pulse/*.dat
+etc/pulse/filter/*.dat

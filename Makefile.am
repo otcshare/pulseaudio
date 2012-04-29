@@ -41,7 +41,7 @@ vapi_DATA = vala/libpulse.vapi
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libpulse.pc libpulse-simple.pc
 
-filterdir = /opt/etc/pulse
+filterdir = /etc/pulse/filter
 filter_DATA = filter/filter_44100_48000.dat \
 	      filter/filter_44100_8000.dat \
 	      filter/filter_48000_44100.dat \
