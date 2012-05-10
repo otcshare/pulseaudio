@@ -1,2 +1,5 @@
+* Thu May 10 00:04:56 UTC 2012 - tu.c.truong@intel.com
+- Fixed build, moved patches into packaging
+
 * Fri May 04 2012 Lin Yang <lin.a.yang@intel.com>
 - test release infrastructure
