@@ -1,3 +1,6 @@
+* Fri May 11 20:37:55 UTC 2012 - tu.c.truong@intel.com
+- Moved patches into packaging
+
 * Thu May 10 00:04:56 UTC 2012 - tu.c.truong@intel.com
 - Fixed build, moved patches into packaging
 
