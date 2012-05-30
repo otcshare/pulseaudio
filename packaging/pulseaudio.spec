@@ -8,6 +8,7 @@ Group:      Multimedia/PulseAudio
 License:    LGPLv2+
 URL:        http://pulseaudio.org
 Source0:    http://0pointer.de/lennart/projects/pulseaudio/pulseaudio-%{version}.tar.gz
+Source1001: packaging/pulseaudio.manifest 
 Requires:   udev 
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
@@ -106,6 +107,7 @@ Description: %{summary}
 
 
 %build
+cp %{SOURCE1001} .
 unset LD_AS_NEEDED
 export LDFLAGS+="-Wl,--no-as-needed"
 %reconfigure --disable-static --enable-alsa --disable-ipv6 --disable-oss-output --disable-oss-wrapper --enable-dlog --enable-bluez --disable-hal --disable-hal-compat
@@ -162,6 +164,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 
 
 %files
+%manifest pulseaudio.manifest
 %defattr(-,root,root,-)
 %doc LICENSE GPL LGPL
 /etc/pulse/filter/*.dat
@@ -251,6 +254,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 
 
 %files libs
+%manifest pulseaudio.manifest
 %defattr(-,root,root,-)
 #%doc %{_mandir}/man1/pax11publish.1.gz
 %{_libdir}/libpulse.so.*
@@ -258,6 +262,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/libpulsecommon-*.so
 
 %files libs-devel
+%manifest pulseaudio.manifest
 %defattr(-,root,root,-)
 %{_includedir}/pulse/*
 #%{_includedir}/pulse-modules-headers/pulsecore/
@@ -270,6 +275,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/libpulse-mainloop-glib.so
 
 %files utils
+%manifest pulseaudio.manifest
 %defattr(-,root,root,-)
 %doc %{_mandir}/man1/pabrowse.1.gz
 %doc %{_mandir}/man1/pacat.1.gz
@@ -289,6 +295,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_bindir}/pasuspender
 
 %files module-bluetooth
+%manifest pulseaudio.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{pulseversion}/modules/module-bluetooth-proximity.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-bluetooth-device.so
@@ -299,11 +306,11 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 #%{_libdir}/pulseaudio/pulse/proximity-helper
 
 %files module-x11  
+%manifest pulseaudio.manifest
 %defattr(-,root,root,-)  
 %doc %{_mandir}/man1/pax11publish.1.gz  
 %{_bindir}/start-pulseaudio-x11  
 %{_bindir}/pax11publish  
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-bell.so  
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-publish.so  
-%{_libdir}/pulse-%{pulseversion}/modules/module-x11-xsmp.so  
-%{_libdir}/pulse-%{pulseversion}/modules/module-x11-cork-request.so  
+%{_libdir}/pulse-%{pulseversion}/modules/module-x11-cork-request.so  %{_libdir}/pulse-%{pulseversion}/modules/module-x11-xsmp.so  
