@@ -1,3 +1,6 @@
+* Wed May 30 03:17:39 UTC 2012 - Lin Yang <lin.a.yang@intel.con> - 0.9.21
+- Clean up spec file for packaging
+
 * Fri May 11 20:37:55 UTC 2012 - tu.c.truong@intel.com
 - Moved patches into packaging
 

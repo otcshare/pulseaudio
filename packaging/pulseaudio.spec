@@ -7,7 +7,7 @@ Release:    1
 Group:      Multimedia/PulseAudio
 License:    LGPLv2+
 URL:        http://pulseaudio.org
-Source0:    http://0pointer.de/lennart/projects/pulseaudio/pulseaudio-%{version}.tar.gz
+Source0:    %{name}-%{version}.tar.bz2
 Source1:    pulseaudio.service
 Patch0:     initialize-hw-volume-pinetrail.patch
 Patch1:     fix-for-bluez-handsfreegateway.patch
@@ -105,7 +105,7 @@ Requires:   %{name} = %{version}-%{release}
 Configuration files for launching pulseaudio via systemd  
 
 %prep
-%setup -q
+%setup -q -n %{name}-%{version}
 # initialize-hw-volume-pinetrail.patch
 %patch0 -p1
 %patch1 -p1
