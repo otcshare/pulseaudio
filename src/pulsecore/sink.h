@@ -105,6 +105,9 @@ struct pa_sink {
     pa_cvolume saved_volume;
     pa_bool_t saved_save_volume:1;
 
+    /* for volume ramps */
+    pa_volume_ramp ramp;
+
     pa_asyncmsgq *asyncmsgq;
 
     pa_memchunk silence;
@@ -282,6 +285,8 @@ struct pa_sink {
         uint32_t volume_change_safety_margin;
         /* Usec delay added to all volume change events, may be negative. */
         int32_t volume_change_extra_delay;
+
+	pa_volume_ramp ramp;
     } thread_info;
 
     void *userdata;
@@ -317,6 +322,7 @@ typedef enum pa_sink_message {
     PA_SINK_MESSAGE_SET_MAX_REQUEST,
     PA_SINK_MESSAGE_SET_PORT,
     PA_SINK_MESSAGE_UPDATE_VOLUME_AND_MUTE,
+    PA_SINK_MESSAGE_SET_VOLUME_RAMP,
     PA_SINK_MESSAGE_MAX
 } pa_sink_message_t;
 
@@ -435,6 +441,8 @@ const pa_cvolume *pa_sink_get_volume(pa_sink *sink, pa_bool_t force_refresh);
 
 void pa_sink_set_mute(pa_sink *sink, pa_bool_t mute, pa_bool_t save);
 pa_bool_t pa_sink_get_mute(pa_sink *sink, pa_bool_t force_refresh);
+
+void pa_sink_set_volume_ramp(pa_sink *s, const pa_cvolume *volume, uint32_t time, uint8_t type, pa_bool_t send_msg, pa_bool_t save);
 
 pa_bool_t pa_sink_update_proplist(pa_sink *s, pa_update_mode_t mode, pa_proplist *p);
 
