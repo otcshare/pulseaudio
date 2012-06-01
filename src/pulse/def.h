@@ -314,10 +314,14 @@ typedef enum pa_stream_flags {
      * consider absolute when the sink is in flat volume mode,
      * relative otherwise. \since 0.9.20 */
 
-    PA_STREAM_PASSTHROUGH = 0x80000U
+    PA_STREAM_PASSTHROUGH = 0x80000U,
     /**< Used to tag content that will be rendered by passthrough sinks.
      * The data will be left as is and not reformatted, resampled.
      * \since 1.0 */
+
+    PA_STREAM_START_RAMP_MUTED = 0x100000U
+    /**< Used to tag content that the stream will be started ramp volume
+     * muted so that you can nicely fade it in */
 
 } pa_stream_flags_t;
 
@@ -347,6 +351,7 @@ typedef enum pa_stream_flags {
 #define PA_STREAM_FAIL_ON_SUSPEND PA_STREAM_FAIL_ON_SUSPEND
 #define PA_STREAM_RELATIVE_VOLUME PA_STREAM_RELATIVE_VOLUME
 #define PA_STREAM_PASSTHROUGH PA_STREAM_PASSTHROUGH
+#define PA_STREAM_START_RAMP_MUTED PA_STREAM_START_RAMP_MUTED
 
 /** \endcond */
 
@@ -1004,6 +1009,21 @@ typedef enum pa_port_available {
 #define PA_PORT_AVAILABLE_NO PA_PORT_AVAILABLE_NO
 #define PA_PORT_AVAILABLE_YES PA_PORT_AVAILABLE_YES
 
+/** \endcond */
+
+
+/** Volume ramp type
+*/
+typedef enum pa_volume_ramp_type {
+    PA_VOLUME_RAMP_TYPE_LINEAR = 0,        /**< linear */
+    PA_VOLUME_RAMP_TYPE_LOGARITHMIC = 1,   /**< logarithmic */
+    PA_VOLUME_RAMP_TYPE_CUBIC = 2,
+} pa_volume_ramp_type_t;
+
+/** \cond fulldocs */
+#define PA_VOLUMER_RAMP_TYPE_LINEAR PA_VOLUMER_RAMP_TYPE_LINEAR
+#define PA_VOLUMER_RAMP_TYPE_LOGARITHMIC PA_VOLUMER_RAMP_TYPE_LOGARITHMIC
+#define PA_VOLUMER_RAMP_TYPE_CUBIC PA_VOLUMER_RAMP_TYPE_CUBIC
 /** \endcond */
 
 PA_C_DECL_END
