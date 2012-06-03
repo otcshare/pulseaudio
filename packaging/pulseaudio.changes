@@ -1,0 +1,3 @@
+* Mon Jun 4 2012 vivian zhang <vivian.zhang@intel.com> - 0.9.21
+- Added Requires(post): /bin/ln in spec file to fix the warning in image creating
+- Fixed filelist

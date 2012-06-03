@@ -11,6 +11,7 @@ Source0:    http://0pointer.de/lennart/projects/pulseaudio/pulseaudio-%{version}
 Source1001: packaging/pulseaudio.manifest 
 Requires:   udev 
 Requires(post): /sbin/ldconfig
+Requires(post): /bin/ln
 Requires(postun): /sbin/ldconfig
 BuildRequires:  pkgconfig(pmapi) 
 BuildRequires:  pkgconfig(sysman) 
@@ -313,4 +314,5 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_bindir}/pax11publish  
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-bell.so  
 %{_libdir}/pulse-%{pulseversion}/modules/module-x11-publish.so  
-%{_libdir}/pulse-%{pulseversion}/modules/module-x11-cork-request.so  %{_libdir}/pulse-%{pulseversion}/modules/module-x11-xsmp.so  
+%{_libdir}/pulse-%{pulseversion}/modules/module-x11-cork-request.so
+%{_libdir}/pulse-%{pulseversion}/modules/module-x11-xsmp.so  
