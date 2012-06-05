@@ -1,0 +1,12 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+modlibexecdir=@modlibexecdir@
+
+Name: pulseaudio-module-devel
+Description: PulseAudio Module Development Interface
+Version: @PACKAGE_VERSION@
+Libs: -L${libdir} -L${libdir}/pulseaudio -L${modlibexecdir} -lpulsecommon-@PA_MAJORMINOR@ -lpulsecore-@PA_MAJORMINOR@ -lprotocol-native
+Libs.private:
+Cflags: -I${includedir}/pulsemodule -D_REENTRANT
