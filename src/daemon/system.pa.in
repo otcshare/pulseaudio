@@ -36,15 +36,23 @@ load-module module-hal-detect
 load-module module-detect
 .endif
 
+ifelse(@HAVE_BLUEZ@, 1, [dnl
+### Automatically load driver modules for Bluetooth hardware
+.ifexists module-bluetooth-discover@PA_SOEXT@
+load-module module-bluetooth-discover
+.endif
+])dnl
+
+
 ### Load several protocols
 .ifexists module-esound-protocol-unix@PA_SOEXT@
 load-module module-esound-protocol-unix
 .endif
 load-module module-native-protocol-unix
 
-### Automatically restore the volume of streams and devices
-load-module module-stream-restore
-load-module module-device-restore
+### Do not automatically restore the volume of streams and devices
+#load-module module-stream-restore
+#load-module module-device-restore
 
 ### Automatically restore the default sink/source when changed by the user
 ### during runtime
@@ -69,3 +77,8 @@ load-module module-suspend-on-idle
 
 ### Enable positioned event sounds
 load-module module-position-event-sounds
+
+### Load the Murphy IVI module if it exists
+.ifexists module-murphy-ivi@PA_SOEXT@
+load-module module-murphy-ivi dbus_bus_type=system
+.endif
