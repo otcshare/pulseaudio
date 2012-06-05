@@ -1384,6 +1384,7 @@ man/default.pa.5.xml
 man/pulse-cli-syntax.5.xml
 man/start-pulseaudio-kde.1.xml
 man/start-pulseaudio-x11.1.xml
+pulseaudio-module-devel.pc
 ])
 
 AC_CONFIG_FILES([src/esdcompat:src/daemon/esdcompat.in], [chmod +x src/esdcompat])
