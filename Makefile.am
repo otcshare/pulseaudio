@@ -51,7 +51,13 @@ dist_vapi_DATA = \
 		vala/libpulse-simple.deps vala/libpulse-simple.vapi
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = libpulse.pc libpulse-simple.pc
+pkgconfig_DATA = libpulse.pc libpulse-simple.pc pulseaudio-module-devel.pc
+
+moduledev_DATA = pulsecore-config.h src/pulsecore/*.h
+moduledevdir   = $(includedir)/pulsemodule/pulsecore
+
+moduledevinternal_DATA = src/pulse/internal.h src/pulse/client-conf.h src/pulse/fork-detect.h
+moduledevinternaldir   = $(includedir)/pulsemodule/pulse
 
 filterdir = $(pulseconfdir)/filter
 filter_DATA = filter/filter_44100_48000.dat \
@@ -101,6 +107,9 @@ dist-hook:
 
 check-daemon:
 	$(MAKE) -C src check-daemon
+
+pulsecore-config.h: config.h
+	cp $< $@
 
 .PHONY: homepage distcleancheck doxygen
 
