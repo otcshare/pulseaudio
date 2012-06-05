@@ -12,6 +12,7 @@ Source0:    http://127.0.0.1/pulseaudio-@VERSION@.tar.gz
 Requires:   udev
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
+Requires: pulseaudio-config
 BuildRequires:  pkgconfig(speexdsp)
 BuildRequires:  pkgconfig(sndfile)
 BuildRequires:  pkgconfig(alsa)
