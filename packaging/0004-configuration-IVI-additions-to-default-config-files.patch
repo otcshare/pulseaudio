@@ -1,0 +1,106 @@
+From 07b5e15cd1bbbabb3babdb0adc97ec4cd10b058e Mon Sep 17 00:00:00 2001
+From: Jaska Uimonen <jaska.uimonen@helsinki.fi>
+Date: Tue, 5 Jun 2012 17:22:35 +0300
+Subject: [PATCH 4/6] configuration: IVI additions to default config files.
+
+---
+ src/daemon/default.pa.in |   21 +++++++++++++--------
+ src/daemon/system.pa.in  |   19 ++++++++++++++++---
+ 2 files changed, 29 insertions(+), 11 deletions(-)
+
+diff --git a/src/daemon/default.pa.in b/src/daemon/default.pa.in
+index 88b5944..df22202 100755
+--- a/src/daemon/default.pa.in
++++ b/src/daemon/default.pa.in
+@@ -35,10 +35,10 @@ load-sample-dir-lazy %WINDIR%\Media\*.wav
+ 
+ .fail
+ 
+-### Automatically restore the volume of streams and devices
+-load-module module-device-restore
+-load-module module-stream-restore
+-load-module module-card-restore
++### Do not automatically restore the volume of streams and devices
++#load-module module-device-restore
++#load-module module-stream-restore
++#load-module module-card-restore
+ 
+ ### Automatically augment property information from .desktop files
+ ### stored in /usr/share/application
+@@ -139,8 +139,8 @@ load-module module-rescue-streams
+ ### Make sure we always have a sink around, even if it is a null sink.
+ load-module module-always-sink
+ 
+-### Honour intended role device property
+-load-module module-intended-roles
++### Do not honour intended role device property
++#load-module module-intended-roles
+ 
+ ### Automatically suspend sinks/sources that become idle for too long
+ load-module module-suspend-on-idle
+@@ -157,8 +157,8 @@ load-module module-systemd-login
+ ### Enable positioned event sounds
+ load-module module-position-event-sounds
+ 
+-### Cork music/video streams when a phone stream is active
+-load-module module-role-cork
++### Do not cork music/video streams when a phone stream is active
++#load-module module-role-cork
+ 
+ ### Modules to allow autoloading of filters (such as echo cancellation)
+ ### on demand. module-filter-heuristics tries to determine what filters
+@@ -193,6 +193,11 @@ ifelse(@HAVE_X11@, 1, [dnl
+ #.endif
+ ])dnl
+ 
++### Load the Murphy IVI module if it exists
++.ifexists module-murphy-ivi@PA_SOEXT@
++load-module module-murphy-ivi dbus_bus_type=system
++.endif
++
+ load-module module-switch-on-port-available
+ 
+ ### Make some devices default
+diff --git a/src/daemon/system.pa.in b/src/daemon/system.pa.in
+index e881a12..d9de687 100755
+--- a/src/daemon/system.pa.in
++++ b/src/daemon/system.pa.in
+@@ -36,15 +36,23 @@ load-module module-hal-detect
+ load-module module-detect
+ .endif
+ 
++ifelse(@HAVE_BLUEZ@, 1, [dnl
++### Automatically load driver modules for Bluetooth hardware
++.ifexists module-bluetooth-discover@PA_SOEXT@
++load-module module-bluetooth-discover
++.endif
++])dnl
++
++
+ ### Load several protocols
+ .ifexists module-esound-protocol-unix@PA_SOEXT@
+ load-module module-esound-protocol-unix
+ .endif
+ load-module module-native-protocol-unix
+ 
+-### Automatically restore the volume of streams and devices
+-load-module module-stream-restore
+-load-module module-device-restore
++### Do not automatically restore the volume of streams and devices
++#load-module module-stream-restore
++#load-module module-device-restore
+ 
+ ### Automatically restore the default sink/source when changed by the user
+ ### during runtime
+@@ -69,3 +77,8 @@ load-module module-suspend-on-idle
+ 
+ ### Enable positioned event sounds
+ load-module module-position-event-sounds
++
++### Load the Murphy IVI module if it exists
++.ifexists module-murphy-ivi@PA_SOEXT@
++load-module module-murphy-ivi dbus_bus_type=system
++.endif
+-- 
+1.7.7.6
+
