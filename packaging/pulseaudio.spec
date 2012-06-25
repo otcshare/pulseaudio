@@ -2,17 +2,22 @@
 
 Name:       pulseaudio
 Summary:    Improved Linux sound server
-Version: 0.9.21
+Version:    0.9.21
 Release:    7
 Group:      Multimedia/PulseAudio
 License:    LGPLv2+
 URL:        http://pulseaudio.org
 Source0:    http://0pointer.de/lennart/projects/pulseaudio/pulseaudio-%{version}.tar.gz
-Source1001: packaging/pulseaudio.manifest 
-Requires:   udev 
+Source1:    pulseaudio.service
+Source1001: packaging/pulseaudio.manifest
+Requires:   udev
+Requires:   systemd
+Requires(preun): /usr/bin/systemctl
 Requires(post): /sbin/ldconfig
-Requires(post): /bin/ln
+Requires(post): /usr/bin/systemctl
 Requires(postun): /sbin/ldconfig
+Requires(postun): /usr/bin/systemctl
+
 BuildRequires:  pkgconfig(pmapi) 
 BuildRequires:  pkgconfig(sysman) 
 BuildRequires:  pkgconfig(speexdsp)
@@ -112,14 +117,22 @@ cp %{SOURCE1001} .
 unset LD_AS_NEEDED
 export LDFLAGS+="-Wl,--no-as-needed"
 %reconfigure --disable-static --enable-alsa --disable-ipv6 --disable-oss-output --disable-oss-wrapper --enable-dlog --enable-bluez --disable-hal --disable-hal-compat
-make %{?jobs:-j%jobs}
+make %{?_smp_mflags}
 
 %install
-rm -rf %{buildroot}
 %make_install
 
+mkdir -p %{buildroot}%{_libdir}/systemd/system
+install -m 644 %{SOURCE1} %{buildroot}%{_libdir}/systemd/system/pulseaudio.service
+mkdir -p  %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
+ln -s  ../pulseaudio.service  %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/pulseaudio.service
 
+# FIXME: remove initscripts once systemd is enabled
 install -D -m0755 pulseaudio.sh.in %{buildroot}%{_sysconfdir}/rc.d/init.d/pulseaudio.sh
+install -d %{buildroot}%{_sysconfdir}/rc.d/rc3.d
+install -d %{buildroot}%{_sysconfdir}/rc.d/rc4.d
+ln -s ../init.d/pulseaudio.sh %{buildroot}%{_sysconfdir}/rc.d/rc3.d/S40pulseaudio
+ln -s ../init.d/pulseaudio.sh %{buildroot}%{_sysconfdir}/rc.d/rc4.d/S40pulseaudio
 
 pushd %{buildroot}/etc/pulse/filter
 ln -sf filter_8000_44100.dat filter_11025_44100.dat
@@ -139,23 +152,28 @@ rm -rf %{buildroot}/%{_libdir}/pulse-%{pulseversion}/modules/module-device-manag
 %fdupes  %{buildroot}/%{_includedir}
 
 
+%preun
+if [ $1 == 0 ]; then
+    systemctl stop pulseaudio.service
+fi
 
-%post 
+%post
 /sbin/ldconfig
-ln -s  /etc/rc.d/init.d/pulseaudio.sh /etc/rc.d/rc3.d/S40puleaudio
-ln -s  /etc/rc.d/init.d/pulseaudio.sh /etc/rc.d/rc4.d/S40puleaudio
+systemctl daemon-reload
+if [ $1 == 1 ]; then
+    systemctl restart pulseaudio.service
+fi
 
 %postun
 /sbin/ldconfig
-rm -f %{_sysconfdir}/rc.d/rc3.d/S40puleaudio
-rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
+systemctl daemon-reload
 
 %post libs -p /sbin/ldconfig
 
 %postun libs -p /sbin/ldconfig
 
-
 %post module-bluetooth -p /sbin/ldconfig
+
 %postun module-bluetooth -p /sbin/ldconfig
 
 
@@ -166,19 +184,20 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 
 %files
 %manifest pulseaudio.manifest
-%defattr(-,root,root,-)
 %doc LICENSE GPL LGPL
-/etc/pulse/filter/*.dat
+%{_sysconfdir}/pulse/filter/*.dat
 %exclude /etc/pulse/client.conf
 %exclude /etc/pulse/daemon.conf
 %exclude /etc/pulse/default.pa
 %exclude /etc/pulse/system.pa
+%{_libdir}/systemd/system/pulseaudio.service
+%{_libdir}/systemd/system/multi-user.target.wants/pulseaudio.service
 %exclude %{_datadir}/pulseaudio/alsa-mixer/paths/*
 %exclude %{_datadir}/pulseaudio/alsa-mixer/profile-sets/* 
-
-
 %dir %{_sysconfdir}/pulse/
 %{_sysconfdir}/rc.d/init.d/pulseaudio.sh
+%{_sysconfdir}/rc.d/rc3.d/S40pulseaudio
+%{_sysconfdir}/rc.d/rc4.d/S40pulseaudio
 %{_bindir}/esdcompat
 %{_bindir}/pulseaudio
 %dir %{_libexecdir}/pulse
@@ -188,7 +207,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 /lib/udev/rules.d/90-pulseaudio.rules
 %{_bindir}/pamon
 %config %{_sysconfdir}/xdg/autostart/pulseaudio.desktop
-/etc/dbus-1/system.d/pulseaudio-system.conf
+%{_sysconfdir}/dbus-1/system.d/pulseaudio-system.conf
 #list all modules
 %{_libdir}/pulse-%{pulseversion}/modules/libalsa-util.so
 %{_libdir}/pulse-%{pulseversion}/modules/libcli.so
@@ -256,7 +275,6 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 
 %files libs
 %manifest pulseaudio.manifest
-%defattr(-,root,root,-)
 #%doc %{_mandir}/man1/pax11publish.1.gz
 %{_libdir}/libpulse.so.*
 %{_libdir}/libpulse-simple.so.*
@@ -264,7 +282,6 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 
 %files libs-devel
 %manifest pulseaudio.manifest
-%defattr(-,root,root,-)
 %{_includedir}/pulse/*
 #%{_includedir}/pulse-modules-headers/pulsecore/
 %{_libdir}/libpulse.so
@@ -277,7 +294,6 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 
 %files utils
 %manifest pulseaudio.manifest
-%defattr(-,root,root,-)
 %doc %{_mandir}/man1/pabrowse.1.gz
 %doc %{_mandir}/man1/pacat.1.gz
 %doc %{_mandir}/man1/pacmd.1.gz
@@ -297,7 +313,6 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 
 %files module-bluetooth
 %manifest pulseaudio.manifest
-%defattr(-,root,root,-)
 %{_libdir}/pulse-%{pulseversion}/modules/module-bluetooth-proximity.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-bluetooth-device.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-bluetooth-discover.so
@@ -307,8 +322,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 #%{_libdir}/pulseaudio/pulse/proximity-helper
 
 %files module-x11  
-%manifest pulseaudio.manifest
-%defattr(-,root,root,-)  
+%manifest pulseaudio.manifest  
 %doc %{_mandir}/man1/pax11publish.1.gz  
 %{_bindir}/start-pulseaudio-x11  
 %{_bindir}/pax11publish  

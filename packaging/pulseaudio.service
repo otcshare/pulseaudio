@@ -1,0 +1,10 @@
+[Unit]
+Description=pulseaudio service
+After=syslog.target dbus.service alsa-restore.service
+Before=avsystem.service 
+
+[Service]
+ExecStart=/usr/bin/pulseaudio --system
+
+[Install]
+WantedBy=multi-user.target

@@ -1,3 +1,7 @@
+* Mon Jun 25 2012 Patrick McCarty <patrick.mccarty@linux.intel.com> - 0.9.21
+- Create initscript symlinks in the %install section
+- Add/install a systemd service file
+
 * Mon Jun 4 2012 vivian zhang <vivian.zhang@intel.com> - 0.9.21
 - Added Requires(post): /bin/ln in spec file to fix the warning in image creating
 - Fixed filelist
