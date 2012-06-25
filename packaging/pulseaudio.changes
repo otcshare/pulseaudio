@@ -1,2 +1,5 @@
- * Fri Jun 15 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.0
+* Mon Jun 25 2012 Krisztian Litkey <krisztian.litkey@intel.com> - 2.0
+ - Removed pre-applied patches from the spec file.
+ 
+* Fri Jun 15 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.0
  - This is first attempt to release pulseaudio 2.0 for ivi profile
