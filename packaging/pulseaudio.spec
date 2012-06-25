@@ -8,12 +8,6 @@ Group:      Multimedia/PulseAudio
 License:    LGPLv2+
 URL:        http://pulseaudio.org
 Source0:    http://127.0.0.1/pulseaudio-2.0.tar.gz
-Patch0: 0001-build-sys-install-files-for-a-module-development.patch
-Patch1: 0002-jack-detection-fix-for-wired-headset.patch
-Patch2: 0003-packaging-added-spec.in-and-pulseaudio.service.patch
-Patch3: 0004-configuration-IVI-additions-to-default-config-files.patch
-Patch4: 0005-packaging-let-the-basic-package-pull-in-the-config.patch
-Patch5: 0006-scripts-added-OBS-exporter-script.patch
 Requires:   udev
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
@@ -175,12 +169,6 @@ PA Vala bindings.
 %prep
 %setup -q -n pulseaudio-2.0
 echo "%{version}" > .tarball-version
-%patch0 -p1
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
 ./bootstrap.sh
 
 %build
