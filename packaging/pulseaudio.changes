@@ -1,3 +1,6 @@
+* Fri Jun 29 21:53:50 UTC 2012 - tracy.graydon@intel.com
+- Removed BuildRequires libdbus-devel and added dbus-libs dependency to fix package build, post forked package clean up. 
+
 * Mon Jun 25 2012 Krisztian Litkey <krisztian.litkey@intel.com> - 2.0
  - Removed pre-applied patches from the spec file.
  

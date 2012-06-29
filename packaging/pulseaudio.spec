@@ -19,7 +19,8 @@ BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(gconf-2.0)
 BuildRequires:  bluez-libs-devel
 #BuildRequires: pkgconfig(bluez)
-BuildRequires:  libdbus-devel
+#BuildRequires:  libdbus-devel
+BuildRequires:  dbus-libs
 BuildRequires:  pkgconfig(xi)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  libatomic_ops-devel
