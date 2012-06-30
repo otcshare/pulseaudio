@@ -1,3 +1,6 @@
+* Sat Jun 30 02:03:12 UTC 2012 - tracy.graydon@intel.com
+- Change bluez-libs-devel dep to libbluetooth-devel.  
+
 * Fri Jun 29 21:53:50 UTC 2012 - tracy.graydon@intel.com
 - Removed BuildRequires libdbus-devel and added dbus-libs dependency to fix package build, post forked package clean up. 
 

@@ -17,7 +17,8 @@ BuildRequires:  pkgconfig(sndfile)
 BuildRequires:  pkgconfig(alsa)
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(gconf-2.0)
-BuildRequires:  bluez-libs-devel
+BuildRequires:  libbluetooth-devel
+#BuildRequires:  bluez-libs-devel
 #BuildRequires: pkgconfig(bluez)
 #BuildRequires:  libdbus-devel
 BuildRequires:  dbus-libs
