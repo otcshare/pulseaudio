@@ -1,3 +1,6 @@
+* Mon Jul  2 18:26:10 UTC 2012 - tracy.graydon@intel.com
+- update service untis to be installed in /usr/lib vs /lib 
+
 * Sat Jun 30 02:03:12 UTC 2012 - tracy.graydon@intel.com
 - Change bluez-libs-devel dep to libbluetooth-devel.  
 
