@@ -186,10 +186,10 @@ make $JOBS
 rm -rf %{buildroot}
 %make_install
 
-install -d  %{buildroot}/%{_lib}/systemd/system
-install -m 644 pulseaudio.service %{buildroot}/%{_lib}/systemd/system/pulseaudio.service
-mkdir -p  %{buildroot}/%{_lib}/systemd/system/multi-user.target.wants
-ln -s  ../pulseaudio.service  %{buildroot}/%{_lib}/systemd/system/multi-user.target.wants/pulseaudio.service
+install -d  %{buildroot}/usr/lib/systemd/system
+install -m 644 pulseaudio.service %{buildroot}/usr/lib/systemd/system/pulseaudio.service
+mkdir -p  %{buildroot}/usr/lib/systemd/system/multi-user.target.wants
+ln -s  ../pulseaudio.service  %{buildroot}/usr/lib/systemd/system/multi-user.target.wants/pulseaudio.service
 
 rm -rf  %{buildroot}/etc/xdg/autostart/pulseaudio-kde.desktop
 rm -rf  %{buildroot}/usr/bin/start-pulseaudio-kde
@@ -309,8 +309,8 @@ install -m 644 src/default.pa %{buildroot}/%{_sysconfdir}/pulse
 %{_libdir}/pulse-%{pulseversion}/modules/module-role-cork.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-switch-on-port-available.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-virtual-surround-sink.so
-/%{_lib}/systemd/system/pulseaudio.service
-/%{_lib}/systemd/system/multi-user.target.wants/pulseaudio.service
+/usr/lib/systemd/system/pulseaudio.service
+/usr/lib/systemd/system/multi-user.target.wants/pulseaudio.service
 
 %files libs
 %defattr(-,root,root,-)
