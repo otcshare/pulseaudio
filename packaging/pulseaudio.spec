@@ -10,6 +10,7 @@ URL:        http://pulseaudio.org
 Source0:    http://0pointer.de/lennart/projects/pulseaudio/pulseaudio-%{version}.tar.gz
 Source1:    pulseaudio.service
 Source1001: packaging/pulseaudio.manifest
+Patch0:     udev-path-fix.patch
 Requires:   udev
 Requires:   systemd
 Requires(preun): /usr/bin/systemctl
@@ -110,6 +111,7 @@ Description: %{summary}
 
 %prep
 %setup -q
+%patch0 -p1
 
 
 %build
@@ -204,7 +206,7 @@ systemctl daemon-reload
 %{_libexecdir}/pulse/*
 %{_libdir}/libpulsecore-%{pulseversion}.so
 %{_libdir}/libpulse-mainloop-glib.so.*
-/lib/udev/rules.d/90-pulseaudio.rules
+%{_libdir}/udev/rules.d/90-pulseaudio.rules
 %{_bindir}/pamon
 %config %{_sysconfdir}/xdg/autostart/pulseaudio.desktop
 %{_sysconfdir}/dbus-1/system.d/pulseaudio-system.conf

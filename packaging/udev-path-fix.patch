@@ -1,0 +1,12 @@
+diff -ru pulseaudio-0.9.21.orig/src/Makefile.am pulseaudio-0.9.21/src/Makefile.am
+--- pulseaudio-0.9.21.orig/src/Makefile.am	2012-06-03 01:05:39.000000000 -0700
++++ pulseaudio-0.9.21/src/Makefile.am	2012-06-28 10:40:32.588579343 -0700
+@@ -31,7 +31,7 @@
+ xdgautostartdir=$(sysconfdir)/xdg/autostart
+ alsaprofilesetsdir=$(datadir)/pulseaudio/alsa-mixer/profile-sets
+ alsapathsdir=$(datadir)/pulseaudio/alsa-mixer/paths
+-udevrulesdir=/lib/udev/rules.d
++udevrulesdir=/usr/lib/udev/rules.d
+ dbuspolicydir=$(sysconfdir)/dbus-1/system.d
+ 
+ ###################################
