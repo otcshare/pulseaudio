@@ -126,6 +126,13 @@ Group:   Multimedia/PulseAudio
 %description module-combine-sink
 PA module-combine-sink.
 
+%package module-augment-properties
+Summary: PA module-augment-properties
+Group:   Multimedia/PulseAudio
+
+%description module-augment-properties
+PA module-augment-properties.
+
 %package module-dbus-protocol
 Summary: PA module-dbus-protocol
 Group:   Multimedia/PulseAudio
@@ -290,7 +297,6 @@ cp pulseaudio-module-devel.pc %{buildroot}/%{_libdir}/pkgconfig
 %{_libdir}/pulse-%{pulseversion}/modules/module-suspend-on-idle.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-volume-restore.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-alsa-card.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-augment-properties.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-card-restore.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-sine-source.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-loopback.so
@@ -368,6 +374,10 @@ cp pulseaudio-module-devel.pc %{buildroot}/%{_libdir}/pkgconfig
 %files module-combine-sink
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{pulseversion}/modules/module-combine-sink.so
+
+%files module-augment-properties
+%defattr(-,root,root,-)
+%{_libdir}/pulse-%{pulseversion}/modules/module-augment-properties.so
 
 %files module-dbus-protocol
 %defattr(-,root,root,-)
