@@ -1,0 +1,50 @@
+From f25eaeec55ade5eb71403d100f005f826f5aa52a Mon Sep 17 00:00:00 2001
+From: Jaska Uimonen <jaska.uimonen@intel.com>
+Date: Tue, 24 Jul 2012 13:41:56 +0300
+Subject: [PATCH 12/13] packaging: make separate package for
+ module-augment-properties
+
+---
+ pulseaudio.spec.in |   12 +++++++++++-
+ 1 files changed, 11 insertions(+), 1 deletions(-)
+
+diff --git a/pulseaudio.spec.in b/pulseaudio.spec.in
+index bc81a7c..84e7af3 100644
+--- a/pulseaudio.spec.in
++++ b/pulseaudio.spec.in
+@@ -129,6 +129,13 @@ Group:   Multimedia/PulseAudio
+ %description module-combine-sink
+ PA module-combine-sink.
+ 
++%package module-augment-properties
++Summary: PA module-augment-properties
++Group:   Multimedia/PulseAudio
++
++%description module-augment-properties
++PA module-augment-properties.
++
+ %package module-dbus-protocol
+ Summary: PA module-dbus-protocol
+ Group:   Multimedia/PulseAudio
+@@ -291,7 +298,6 @@ install -m 644 src/default.pa %{buildroot}/%{_sysconfdir}/pulse
+ %{_libdir}/pulse-%{pulseversion}/modules/module-suspend-on-idle.so
+ %{_libdir}/pulse-%{pulseversion}/modules/module-volume-restore.so
+ %{_libdir}/pulse-%{pulseversion}/modules/module-alsa-card.so
+-%{_libdir}/pulse-%{pulseversion}/modules/module-augment-properties.so
+ %{_libdir}/pulse-%{pulseversion}/modules/module-card-restore.so
+ %{_libdir}/pulse-%{pulseversion}/modules/module-sine-source.so
+ %{_libdir}/pulse-%{pulseversion}/modules/module-loopback.so
+@@ -369,6 +375,10 @@ install -m 644 src/default.pa %{buildroot}/%{_sysconfdir}/pulse
+ %defattr(-,root,root,-)
+ %{_libdir}/pulse-%{pulseversion}/modules/module-combine-sink.so
+ 
++%files module-augment-properties
++%defattr(-,root,root,-)
++%{_libdir}/pulse-%{pulseversion}/modules/module-augment-properties.so
++
+ %files module-dbus-protocol
+ %defattr(-,root,root,-)
+ %{_libdir}/pulse-%{pulseversion}/modules/module-dbus-protocol.so
+-- 
+1.7.7.6
+

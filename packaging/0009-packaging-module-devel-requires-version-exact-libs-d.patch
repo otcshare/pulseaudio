@@ -1,0 +1,25 @@
+From 1dfdeca28d45d178b09954e80b7c32571ab7103d Mon Sep 17 00:00:00 2001
+From: Krisztian Litkey <krisztian.litkey@intel.com>
+Date: Thu, 5 Jul 2012 20:35:28 +0300
+Subject: [PATCH 09/13] packaging: module-devel requires version-exact
+ libs-devel.
+
+---
+ pulseaudio.spec.in |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/pulseaudio.spec.in b/pulseaudio.spec.in
+index ad879aa..bc81a7c 100644
+--- a/pulseaudio.spec.in
++++ b/pulseaudio.spec.in
+@@ -89,6 +89,7 @@ or audio gatewa
+ Summary:        Headers and libraries for PulseAudio module development
+ License:        LGPLv2+
+ Group:          Development/Libraries
++Requires:       %{name}-libs-devel = %{version}-%{release}
+ 
+ %package config
+ Summary: Default configuration for PulseAudio.
+-- 
+1.7.7.6
+

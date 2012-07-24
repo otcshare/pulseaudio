@@ -1,0 +1,29 @@
+From e2aa1043c1a88410a1729afa8ff234df0617834f Mon Sep 17 00:00:00 2001
+From: Krisztian Litkey <krisztian.litkey@intel.com>
+Date: Thu, 5 Jul 2012 20:22:53 +0300
+Subject: [PATCH 07/13] packaging: updated build dependencies to be in line
+ with the latest repos.
+
+---
+ pulseaudio.spec.in |    5 ++---
+ 1 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/pulseaudio.spec.in b/pulseaudio.spec.in
+index 245c9a4..e7d6167 100644
+--- a/pulseaudio.spec.in
++++ b/pulseaudio.spec.in
+@@ -18,9 +18,8 @@ BuildRequires:  pkgconfig(sndfile)
+ BuildRequires:  pkgconfig(alsa)
+ BuildRequires:  pkgconfig(glib-2.0)
+ BuildRequires:  pkgconfig(gconf-2.0)
+-BuildRequires:  bluez-libs-devel
+-#BuildRequires: pkgconfig(bluez)
+-BuildRequires:  libdbus-devel
++BuildRequires:  pkgconfig(bluez)
++BuildRequires:  pkgconfig(dbus-1)
+ BuildRequires:  pkgconfig(xi)
+ BuildRequires:  pkgconfig(libudev)
+ BuildRequires:  libatomic_ops-devel
+-- 
+1.7.7.6
+

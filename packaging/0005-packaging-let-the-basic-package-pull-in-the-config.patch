@@ -1,0 +1,24 @@
+From 01a168fe54e180f90d5c626291a3e0dc9d436c6d Mon Sep 17 00:00:00 2001
+From: Jaska Uimonen <jaska.uimonen@helsinki.fi>
+Date: Tue, 5 Jun 2012 17:31:34 +0300
+Subject: [PATCH 05/13] packaging: let the basic package pull in the config.
+
+---
+ pulseaudio.spec.in |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/pulseaudio.spec.in b/pulseaudio.spec.in
+index 85ad1dc..245c9a4 100644
+--- a/pulseaudio.spec.in
++++ b/pulseaudio.spec.in
+@@ -12,6 +12,7 @@ Source0:    http://127.0.0.1/pulseaudio-@VERSION@.tar.gz
+ Requires:   udev
+ Requires(post): /sbin/ldconfig
+ Requires(postun): /sbin/ldconfig
++Requires: pulseaudio-config
+ BuildRequires:  pkgconfig(speexdsp)
+ BuildRequires:  pkgconfig(sndfile)
+ BuildRequires:  pkgconfig(alsa)
+-- 
+1.7.7.6
+
