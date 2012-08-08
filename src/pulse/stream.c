@@ -1213,7 +1213,8 @@ static int create_stream(
                                               PA_STREAM_START_UNMUTED|
                                               PA_STREAM_FAIL_ON_SUSPEND|
                                               PA_STREAM_RELATIVE_VOLUME|
-                                              PA_STREAM_PASSTHROUGH)), PA_ERR_INVALID);
+                                              PA_STREAM_PASSTHROUGH|
+                                              PA_STREAM_START_RAMP_MUTED)), PA_ERR_INVALID);
 
     PA_CHECK_VALIDITY(s->context, s->context->version >= 12 || !(flags & PA_STREAM_VARIABLE_RATE), PA_ERR_NOTSUPPORTED);
     PA_CHECK_VALIDITY(s->context, s->context->version >= 13 || !(flags & PA_STREAM_PEAK_DETECT), PA_ERR_NOTSUPPORTED);
@@ -1371,6 +1372,9 @@ static int create_stream(
         pa_tagstruct_put_boolean(t, flags & PA_STREAM_RELATIVE_VOLUME);
         pa_tagstruct_put_boolean(t, flags & (PA_STREAM_PASSTHROUGH));
     }
+
+    if (s->context->version >= 22 && s->direction == PA_STREAM_PLAYBACK)
+        pa_tagstruct_put_boolean(t, flags & (PA_STREAM_START_RAMP_MUTED));
 
     pa_pstream_send_tagstruct(s->context->pstream, t);
     pa_pdispatch_register_reply(s->context->pdispatch, tag, DEFAULT_TIMEOUT, pa_create_stream_callback, s, NULL);

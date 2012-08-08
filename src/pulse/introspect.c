@@ -1446,6 +1446,56 @@ pa_operation* pa_context_set_sink_volume_by_name(pa_context *c, const char *name
     return o;
 }
 
+pa_operation* pa_context_set_sink_volume_ramp_by_index(pa_context *c, uint32_t idx, const pa_cvolume_ramp *ramp, pa_context_success_cb_t cb, void *userdata) {
+    pa_operation *o;
+    pa_tagstruct *t;
+    uint32_t tag;
+
+    pa_assert(c);
+    pa_assert(PA_REFCNT_VALUE(c) >= 1);
+    pa_assert(ramp);
+
+    PA_CHECK_VALIDITY_RETURN_NULL(c, !pa_detect_fork(), PA_ERR_FORKED);
+    PA_CHECK_VALIDITY_RETURN_NULL(c, c->state == PA_CONTEXT_READY, PA_ERR_BADSTATE);
+
+    o = pa_operation_new(c, NULL, (pa_operation_cb_t) cb, userdata);
+
+    t = pa_tagstruct_command(c, PA_COMMAND_SET_SINK_VOLUME_RAMP, &tag);
+    pa_tagstruct_putu32(t, idx);
+    pa_tagstruct_puts(t, NULL);
+    pa_tagstruct_put_cvolume_ramp(t, ramp);
+    pa_pstream_send_tagstruct(c->pstream, t);
+    pa_pdispatch_register_reply(c->pdispatch, tag, DEFAULT_TIMEOUT, pa_context_simple_ack_callback, pa_operation_ref(o), (pa_free_cb_t) pa_operation_unref);
+
+    return o;
+}
+
+pa_operation* pa_context_set_sink_volume_ramp_by_name(pa_context *c, const char *name, const pa_cvolume_ramp *ramp, pa_context_success_cb_t cb, void *userdata) {
+    pa_operation *o;
+    pa_tagstruct *t;
+    uint32_t tag;
+
+    pa_assert(c);
+    pa_assert(PA_REFCNT_VALUE(c) >= 1);
+    pa_assert(name);
+    pa_assert(ramp);
+
+    PA_CHECK_VALIDITY_RETURN_NULL(c, !pa_detect_fork(), PA_ERR_FORKED);
+    PA_CHECK_VALIDITY_RETURN_NULL(c, c->state == PA_CONTEXT_READY, PA_ERR_BADSTATE);
+    PA_CHECK_VALIDITY_RETURN_NULL(c, !name || *name, PA_ERR_INVALID);
+
+    o = pa_operation_new(c, NULL, (pa_operation_cb_t) cb, userdata);
+
+    t = pa_tagstruct_command(c, PA_COMMAND_SET_SINK_VOLUME_RAMP, &tag);
+    pa_tagstruct_putu32(t, PA_INVALID_INDEX);
+    pa_tagstruct_puts(t, name);
+    pa_tagstruct_put_cvolume_ramp(t, ramp);
+    pa_pstream_send_tagstruct(c->pstream, t);
+    pa_pdispatch_register_reply(c->pdispatch, tag, DEFAULT_TIMEOUT, pa_context_simple_ack_callback, pa_operation_ref(o), (pa_free_cb_t) pa_operation_unref);
+
+    return o;
+}
+
 pa_operation* pa_context_set_sink_mute_by_index(pa_context *c, uint32_t idx, int mute, pa_context_success_cb_t cb, void *userdata) {
     pa_operation *o;
     pa_tagstruct *t;
@@ -1537,6 +1587,30 @@ pa_operation* pa_context_set_sink_input_mute(pa_context *c, uint32_t idx, int mu
     t = pa_tagstruct_command(c, PA_COMMAND_SET_SINK_INPUT_MUTE, &tag);
     pa_tagstruct_putu32(t, idx);
     pa_tagstruct_put_boolean(t, mute);
+    pa_pstream_send_tagstruct(c->pstream, t);
+    pa_pdispatch_register_reply(c->pdispatch, tag, DEFAULT_TIMEOUT, pa_context_simple_ack_callback, pa_operation_ref(o), (pa_free_cb_t) pa_operation_unref);
+
+    return o;
+}
+
+pa_operation* pa_context_set_sink_input_volume_ramp(pa_context *c, uint32_t idx, const pa_cvolume_ramp *ramp, pa_context_success_cb_t cb, void *userdata) {
+    pa_operation *o;
+    pa_tagstruct *t;
+    uint32_t tag;
+
+    pa_assert(c);
+    pa_assert(PA_REFCNT_VALUE(c) >= 1);
+    pa_assert(ramp);
+
+    PA_CHECK_VALIDITY_RETURN_NULL(c, !pa_detect_fork(), PA_ERR_FORKED);
+    PA_CHECK_VALIDITY_RETURN_NULL(c, c->state == PA_CONTEXT_READY, PA_ERR_BADSTATE);
+
+    o = pa_operation_new(c, NULL, (pa_operation_cb_t) cb, userdata);
+
+    t = pa_tagstruct_command(c, PA_COMMAND_SET_SINK_INPUT_VOLUME_RAMP, &tag);
+    pa_tagstruct_putu32(t, idx);
+    pa_tagstruct_puts(t, NULL);
+    pa_tagstruct_put_cvolume_ramp(t, ramp);
     pa_pstream_send_tagstruct(c->pstream, t);
     pa_pdispatch_register_reply(c->pdispatch, tag, DEFAULT_TIMEOUT, pa_context_simple_ack_callback, pa_operation_ref(o), (pa_free_cb_t) pa_operation_unref);
 

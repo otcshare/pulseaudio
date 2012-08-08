@@ -294,6 +294,7 @@ static void command_extension(pa_pdispatch *pd, uint32_t command, uint32_t tag, 
 static void command_set_card_profile(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_tagstruct *t, void *userdata);
 static void command_set_sink_or_source_port(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_tagstruct *t, void *userdata);
 static void command_set_port_latency_offset(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_tagstruct *t, void *userdata);
+static void command_set_volume_ramp(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_tagstruct *t, void *userdata);
 
 static const pa_pdispatch_cb_t command_table[PA_COMMAND_MAX] = {
     [PA_COMMAND_ERROR] = NULL,
@@ -396,6 +397,9 @@ static const pa_pdispatch_cb_t command_table[PA_COMMAND_MAX] = {
     [PA_COMMAND_SET_SOURCE_PORT] = command_set_sink_or_source_port,
 
     [PA_COMMAND_SET_PORT_LATENCY_OFFSET] = command_set_port_latency_offset,
+
+    [PA_COMMAND_SET_SINK_VOLUME_RAMP] = command_set_volume_ramp,
+    [PA_COMMAND_SET_SINK_INPUT_VOLUME_RAMP] = command_set_volume_ramp,
 
     [PA_COMMAND_EXTENSION] = command_extension
 };
@@ -1994,7 +1998,8 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
         muted_set = false,
         fail_on_suspend = false,
         relative_volume = false,
-        passthrough = false;
+        passthrough = false,
+        ramp_muted = false;
 
     pa_sink_input_flags_t flags = 0;
     pa_proplist *p = NULL;
@@ -2122,6 +2127,7 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
             }
             pa_idxset_put(formats, format, NULL);
         }
+
     }
 
     if (n_formats == 0) {
@@ -2132,6 +2138,11 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
         PA_IDXSET_FOREACH(format, formats, i) {
             CHECK_VALIDITY_GOTO(c->pstream, pa_format_info_valid(format), tag, PA_ERR_INVALID, finish);
         }
+    }
+
+    if (pa_tagstruct_get_boolean(t, &ramp_muted) < 0 ) {
+        protocol_error(c);
+        goto finish;
     }
 
     if (!pa_tagstruct_eof(t)) {
@@ -2165,7 +2176,8 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
         (variable_rate ? PA_SINK_INPUT_VARIABLE_RATE : 0) |
         (dont_inhibit_auto_suspend ? PA_SINK_INPUT_DONT_INHIBIT_AUTO_SUSPEND : 0) |
         (fail_on_suspend ? PA_SINK_INPUT_NO_CREATE_ON_SUSPEND|PA_SINK_INPUT_KILL_ON_SUSPEND : 0) |
-        (passthrough ? PA_SINK_INPUT_PASSTHROUGH : 0);
+        (passthrough ? PA_SINK_INPUT_PASSTHROUGH : 0) |
+        (ramp_muted ? PA_SINK_INPUT_START_RAMP_MUTED : 0);
 
     /* Only since protocol version 15 there's a separate muted_set
      * flag. For older versions we synthesize it here */
@@ -3792,6 +3804,71 @@ static void command_set_volume(
                      client_name,
                      pa_strnull(pa_proplist_gets(so->proplist, PA_PROP_MEDIA_NAME)));
         pa_source_output_set_volume(so, &volume, true, true);
+    }
+
+    pa_pstream_send_simple_ack(c->pstream, tag);
+}
+
+static void command_set_volume_ramp(
+        pa_pdispatch *pd,
+        uint32_t command,
+        uint32_t tag,
+        pa_tagstruct *t,
+        void *userdata) {
+
+    pa_native_connection *c = PA_NATIVE_CONNECTION(userdata);
+    uint32_t idx;
+    pa_cvolume_ramp ramp;
+    pa_sink *sink = NULL;
+    pa_sink_input *si = NULL;
+    const char *name = NULL;
+    const char *client_name;
+
+    pa_native_connection_assert_ref(c);
+    pa_assert(t);
+
+    if (pa_tagstruct_getu32(t, &idx) < 0 ||
+        (command == PA_COMMAND_SET_SINK_VOLUME_RAMP && pa_tagstruct_gets(t, &name) < 0) ||
+        (command == PA_COMMAND_SET_SINK_INPUT_VOLUME_RAMP && pa_tagstruct_gets(t, &name) < 0) ||
+        pa_tagstruct_get_cvolume_ramp(t, &ramp) ||
+        !pa_tagstruct_eof(t)) {
+        protocol_error(c);
+        return;
+    }
+
+    CHECK_VALIDITY(c->pstream, c->authorized, tag, PA_ERR_ACCESS);
+    CHECK_VALIDITY(c->pstream, !name || pa_namereg_is_valid_name_or_wildcard(name, command == PA_COMMAND_SET_SINK_VOLUME ? PA_NAMEREG_SINK : PA_NAMEREG_SOURCE), tag, PA_ERR_INVALID);
+    CHECK_VALIDITY(c->pstream, idx != PA_INVALID_INDEX || name, tag, PA_ERR_INVALID);
+    CHECK_VALIDITY(c->pstream, idx == PA_INVALID_INDEX || !name, tag, PA_ERR_INVALID);
+    CHECK_VALIDITY(c->pstream, !name || idx == PA_INVALID_INDEX, tag, PA_ERR_INVALID);
+
+    switch (command) {
+
+        case PA_COMMAND_SET_SINK_VOLUME_RAMP:
+            if (idx != PA_INVALID_INDEX)
+                sink = pa_idxset_get_by_index(c->protocol->core->sinks, idx);
+            else
+                sink = pa_namereg_get(c->protocol->core, name, PA_NAMEREG_SINK);
+            break;
+
+        case PA_COMMAND_SET_SINK_INPUT_VOLUME_RAMP:
+            si = pa_idxset_get_by_index(c->protocol->core->sink_inputs, idx);
+            break;
+
+        default:
+            pa_assert_not_reached();
+    }
+
+    CHECK_VALIDITY(c->pstream, sink || si, tag, PA_ERR_NOENTITY);
+
+    client_name = pa_strnull(pa_proplist_gets(c->client->proplist, PA_PROP_APPLICATION_PROCESS_BINARY));
+
+    if (sink) {
+        pa_log_debug("Client %s changes volume ramp of sink %s.", client_name, sink->name);
+        pa_sink_set_volume_ramp(sink, &ramp, TRUE, TRUE);
+    } else if (si) {
+        pa_log_debug("Client %s changes volume ramp of sink input %s.", client_name, pa_strnull(pa_proplist_gets(si->proplist, PA_PROP_MEDIA_NAME)));
+        pa_sink_input_set_volume_ramp(si, &ramp, TRUE, TRUE);
     }
 
     pa_pstream_send_simple_ack(c->pstream, tag);
