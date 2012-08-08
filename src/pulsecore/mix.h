@@ -61,4 +61,31 @@ void pa_volume_memchunk(
     const pa_sample_spec *spec,
     const pa_cvolume *volume);
 
+typedef struct pa_volume_ramp_int_t {
+    pa_volume_ramp_type_t type;
+    long length;
+    long left;
+    float start;
+    float end;
+    float curr;
+    pa_volume_t target;
+} pa_volume_ramp_int_t;
+
+typedef struct pa_cvolume_ramp_int {
+    uint8_t channels;
+    pa_volume_ramp_int_t ramps[PA_CHANNELS_MAX];
+} pa_cvolume_ramp_int;
+
+pa_cvolume_ramp_int* pa_cvolume_ramp_convert(const pa_cvolume_ramp *src, pa_cvolume_ramp_int *dst, int sample_rate);
+pa_bool_t pa_cvolume_ramp_active(pa_cvolume_ramp_int *ramp);
+pa_bool_t pa_cvolume_ramp_target_active(pa_cvolume_ramp_int *ramp);
+pa_cvolume_ramp_int* pa_cvolume_ramp_start_from(pa_cvolume_ramp_int *src, pa_cvolume_ramp_int *dst);
+pa_cvolume_ramp_int* pa_cvolume_ramp_int_init(pa_cvolume_ramp_int *src, pa_volume_t vol, int channels);
+pa_cvolume * pa_cvolume_ramp_get_targets(pa_cvolume_ramp_int *ramp, pa_cvolume *volume);
+
+void pa_volume_ramp_memchunk(
+        pa_memchunk *c,
+        const pa_sample_spec *spec,
+        pa_cvolume_ramp_int *ramp);
+
 #endif

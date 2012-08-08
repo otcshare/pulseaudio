@@ -723,3 +723,292 @@ void pa_volume_memchunk(
 
     pa_memblock_release(c->memblock);
 }
+
+static void calc_linear_integer_volume_no_mapping(int32_t linear[], float volume[], unsigned nchannels) {
+    unsigned channel, padding;
+
+    pa_assert(linear);
+    pa_assert(volume);
+
+    for (channel = 0; channel < nchannels; channel++)
+        linear[channel] = (int32_t) lrint(volume[channel] * 0x10000U);
+
+    for (padding = 0; padding < VOLUME_PADDING; padding++, channel++)
+        linear[channel] = linear[padding];
+}
+
+static void calc_linear_float_volume_no_mapping(float linear[], float volume[], unsigned nchannels) {
+    unsigned channel, padding;
+
+    pa_assert(linear);
+    pa_assert(volume);
+
+    for (channel = 0; channel < nchannels; channel++)
+        linear[channel] = volume[channel];
+
+    for (padding = 0; padding < VOLUME_PADDING; padding++, channel++)
+        linear[channel] = linear[padding];
+}
+
+typedef void (*pa_calc_volume_no_mapping_func_t) (void *volumes, float *volume, int channels);
+
+static const pa_calc_volume_no_mapping_func_t calc_volume_table_no_mapping[] = {
+  [PA_SAMPLE_U8]        = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_ALAW]      = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_ULAW]      = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_S16LE]     = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_S16BE]     = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_FLOAT32LE] = (pa_calc_volume_no_mapping_func_t) calc_linear_float_volume_no_mapping,
+  [PA_SAMPLE_FLOAT32BE] = (pa_calc_volume_no_mapping_func_t) calc_linear_float_volume_no_mapping,
+  [PA_SAMPLE_S32LE]     = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_S32BE]     = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_S24LE]     = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_S24BE]     = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_S24_32LE]  = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping,
+  [PA_SAMPLE_S24_32BE]  = (pa_calc_volume_no_mapping_func_t) calc_linear_integer_volume_no_mapping
+};
+
+static const unsigned format_sample_size_table[] = {
+  [PA_SAMPLE_U8]        = 1,
+  [PA_SAMPLE_ALAW]      = 1,
+  [PA_SAMPLE_ULAW]      = 1,
+  [PA_SAMPLE_S16LE]     = 2,
+  [PA_SAMPLE_S16BE]     = 2,
+  [PA_SAMPLE_FLOAT32LE] = 4,
+  [PA_SAMPLE_FLOAT32BE] = 4,
+  [PA_SAMPLE_S32LE]     = 4,
+  [PA_SAMPLE_S32BE]     = 4,
+  [PA_SAMPLE_S24LE]     = 3,
+  [PA_SAMPLE_S24BE]     = 3,
+  [PA_SAMPLE_S24_32LE]  = 4,
+  [PA_SAMPLE_S24_32BE]  = 4
+};
+
+static float calc_volume_ramp_linear(pa_volume_ramp_int_t *ramp) {
+    pa_assert(ramp);
+    pa_assert(ramp->length > 0);
+
+    /* basic linear interpolation */
+    return ramp->start + (ramp->length - ramp->left) * (ramp->end - ramp->start) / (float) ramp->length;
+}
+
+static float calc_volume_ramp_logarithmic(pa_volume_ramp_int_t *ramp) {
+    float x_val, s, e;
+    long temp;
+
+    pa_assert(ramp);
+    pa_assert(ramp->length > 0);
+
+    if (ramp->end > ramp->start) {
+        temp = ramp->left;
+        s = ramp->end;
+        e = ramp->start;
+    } else {
+        temp = ramp->length - ramp->left;
+        s = ramp->start;
+        e = ramp->end;
+    }
+
+    x_val = temp == 0 ? 0.0 : powf(temp, 10);
+
+    /* base 10 logarithmic interpolation */
+    return s + x_val * (e - s) / powf(ramp->length, 10);
+}
+
+static float calc_volume_ramp_cubic(pa_volume_ramp_int_t *ramp) {
+    float x_val, s, e;
+    long temp;
+
+    pa_assert(ramp);
+    pa_assert(ramp->length > 0);
+
+    if (ramp->end > ramp->start) {
+        temp = ramp->left;
+        s = ramp->end;
+        e = ramp->start;
+    } else {
+        temp = ramp->length - ramp->left;
+        s = ramp->start;
+        e = ramp->end;
+    }
+
+    x_val = temp == 0 ? 0.0 : cbrtf(temp);
+
+    /* cubic interpolation */
+    return s + x_val * (e - s) / cbrtf(ramp->length);
+}
+
+typedef float (*pa_calc_volume_ramp_func_t) (pa_volume_ramp_int_t *);
+
+static const pa_calc_volume_ramp_func_t calc_volume_ramp_table[] = {
+    [PA_VOLUME_RAMP_TYPE_LINEAR] = (pa_calc_volume_ramp_func_t) calc_volume_ramp_linear,
+    [PA_VOLUME_RAMP_TYPE_LOGARITHMIC] = (pa_calc_volume_ramp_func_t) calc_volume_ramp_logarithmic,
+    [PA_VOLUME_RAMP_TYPE_CUBIC] = (pa_calc_volume_ramp_func_t) calc_volume_ramp_cubic
+};
+
+static void calc_volume_ramps(pa_cvolume_ramp_int *ram, float *vol)
+{
+    int i;
+
+    for (i = 0; i < ram->channels; i++) {
+        if (ram->ramps[i].left <= 0) {
+            if (ram->ramps[i].target == PA_VOLUME_NORM) {
+                vol[i] = 1.0;
+            }
+        } else {
+            vol[i] = ram->ramps[i].curr = calc_volume_ramp_table[ram->ramps[i].type] (&ram->ramps[i]);
+            ram->ramps[i].left--;
+        }
+    }
+}
+
+void pa_volume_ramp_memchunk(
+        pa_memchunk *c,
+        const pa_sample_spec *spec,
+        pa_cvolume_ramp_int *ramp) {
+
+    void *ptr;
+    volume_val linear[PA_CHANNELS_MAX + VOLUME_PADDING];
+    float vol[PA_CHANNELS_MAX + VOLUME_PADDING];
+    pa_do_volume_func_t do_volume;
+    long length_in_frames;
+    int i;
+
+    pa_assert(c);
+    pa_assert(spec);
+    pa_assert(pa_frame_aligned(c->length, spec));
+    pa_assert(ramp);
+
+    length_in_frames = c->length / format_sample_size_table[spec->format] / spec->channels;
+
+    if (pa_memblock_is_silence(c->memblock)) {
+        for (i = 0; i < ramp->channels; i++) {
+            if (ramp->ramps[i].length > 0)
+                ramp->ramps[i].length -= length_in_frames;
+        }
+        return;
+    }
+
+    if (spec->format < 0 || spec->format >= PA_SAMPLE_MAX) {
+      pa_log_warn("Unable to change volume of format");
+      return;
+    }
+
+    do_volume = pa_get_volume_func(spec->format);
+    pa_assert(do_volume);
+
+    ptr = (uint8_t*) pa_memblock_acquire(c->memblock) + c->index;
+
+    for (i = 0; i < length_in_frames; i++) {
+        calc_volume_ramps(ramp, vol);
+        calc_volume_table_no_mapping[spec->format] ((void *)linear, vol, spec->channels);
+
+        /* we only process one frame per iteration */
+        do_volume (ptr, (void *)linear, spec->channels, format_sample_size_table[spec->format] * spec->channels);
+
+        /* pa_log_debug("1: %d  2: %d", linear[0], linear[1]); */
+
+        ptr = (uint8_t*)ptr + format_sample_size_table[spec->format] * spec->channels;
+    }
+
+    pa_memblock_release(c->memblock);
+}
+
+pa_cvolume_ramp_int* pa_cvolume_ramp_convert(const pa_cvolume_ramp *src, pa_cvolume_ramp_int *dst, int sample_rate) {
+    int i;
+    float temp;
+
+    for (i = 0; i < dst->channels; i++) {
+        dst->ramps[i].type = src->ramps[i].type;
+        /* ms to samples */
+        dst->ramps[i].length = src->ramps[i].length * sample_rate / 1000;
+        dst->ramps[i].left = dst->ramps[i].length;
+        dst->ramps[i].start = dst->ramps[i].end;
+        dst->ramps[i].target = src->ramps[i].target;
+        /* scale to pulse internal mapping so that when ramp is over there's no glitch in volume */
+        temp = src->ramps[i].target / (float)0x10000U;
+        dst->ramps[i].end = temp * temp * temp;
+    }
+
+    return dst;
+}
+
+pa_bool_t pa_cvolume_ramp_active(pa_cvolume_ramp_int *ramp) {
+    int i;
+
+    for (i = 0; i < ramp->channels; i++) {
+        if (ramp->ramps[i].left > 0)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+pa_bool_t pa_cvolume_ramp_target_active(pa_cvolume_ramp_int *ramp) {
+    int i;
+
+    for (i = 0; i < ramp->channels; i++) {
+        if (ramp->ramps[i].target != PA_VOLUME_NORM)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+pa_cvolume * pa_cvolume_ramp_get_targets(pa_cvolume_ramp_int *ramp, pa_cvolume *volume) {
+    int i = 0;
+
+    volume->channels = ramp->channels;
+
+    for (i = 0; i < ramp->channels; i++)
+        volume->values[i] = ramp->ramps[i].target;
+
+    return volume;
+}
+
+pa_cvolume_ramp_int* pa_cvolume_ramp_start_from(pa_cvolume_ramp_int *src, pa_cvolume_ramp_int *dst) {
+    int i;
+
+    for (i = 0; i < src->channels; i++) {
+        /* if new vols are invalid, copy old ramp i.e. no effect */
+        if (dst->ramps[i].target == PA_VOLUME_INVALID)
+            dst->ramps[i] = src->ramps[i];
+        /* if there's some old ramp still left */
+        else if (src->ramps[i].left > 0)
+            dst->ramps[i].start = src->ramps[i].curr;
+    }
+
+    return dst;
+}
+
+pa_cvolume_ramp_int* pa_cvolume_ramp_int_init(pa_cvolume_ramp_int *src, pa_volume_t vol, int channels) {
+    int i;
+    float temp;
+
+    src->channels = channels;
+
+    for (i = 0; i < channels; i++) {
+        src->ramps[i].type = PA_VOLUME_RAMP_TYPE_LINEAR;
+        src->ramps[i].length = 0;
+        src->ramps[i].left = 0;
+        if (vol == PA_VOLUME_NORM) {
+            src->ramps[i].start = 1.0;
+            src->ramps[i].end = 1.0;
+            src->ramps[i].curr = 1.0;
+        }
+        else if (vol == PA_VOLUME_MUTED) {
+            src->ramps[i].start = 0.0;
+            src->ramps[i].end = 0.0;
+            src->ramps[i].curr = 0.0;
+        }
+        else {
+            temp = vol / (float)0x10000U;
+            src->ramps[i].start = temp * temp * temp;
+            src->ramps[i].end = src->ramps[i].start;
+            src->ramps[i].curr = src->ramps[i].start;
+        }
+        src->ramps[i].target = vol;
+    }
+
+    return src;
+}
