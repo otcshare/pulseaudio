@@ -415,6 +415,39 @@ pa_cvolume* pa_cvolume_inc(pa_cvolume *v, pa_volume_t inc);
  * the channels are kept. \since 0.9.16 */
 pa_cvolume* pa_cvolume_dec(pa_cvolume *v, pa_volume_t dec);
 
+/** Volume ramp type
+*/
+typedef enum pa_volume_ramp_type {
+    PA_VOLUME_RAMP_TYPE_LINEAR = 0,        /**< linear */
+    PA_VOLUME_RAMP_TYPE_LOGARITHMIC = 1,   /**< logarithmic */
+    PA_VOLUME_RAMP_TYPE_CUBIC = 2,
+} pa_volume_ramp_type_t;
+
+/** A structure encapsulating a volume ramp */
+typedef struct pa_volume_ramp_t {
+    pa_volume_ramp_type_t type;
+    long length;
+    pa_volume_t target;
+} pa_volume_ramp_t;
+
+/** A structure encapsulating a multichannel volume ramp */
+typedef struct pa_cvolume_ramp {
+    uint8_t channels;
+    pa_volume_ramp_t ramps[PA_CHANNELS_MAX];
+} pa_cvolume_ramp;
+
+/** Return non-zero when *a == *b */
+int pa_cvolume_ramp_equal(const pa_cvolume_ramp *a, const pa_cvolume_ramp *b);
+
+/** Init volume ramp struct */
+pa_cvolume_ramp* pa_cvolume_ramp_init(pa_cvolume_ramp *ramp);
+
+/** Set first n channels of ramp struct to certain value */
+pa_cvolume_ramp* pa_cvolume_ramp_set(pa_cvolume_ramp *ramp, unsigned channel, pa_volume_ramp_type_t type, long time, pa_volume_t vol);
+
+/** Set individual channel in the channel struct */
+pa_cvolume_ramp* pa_cvolume_ramp_channel_ramp_set(pa_cvolume_ramp *ramp, unsigned channel, pa_volume_ramp_type_t type, long time, pa_volume_t vol);
+
 PA_C_DECL_END
 
 #endif
