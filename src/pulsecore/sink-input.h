@@ -35,6 +35,7 @@ typedef struct pa_sink_input pa_sink_input;
 #include <pulsecore/client.h>
 #include <pulsecore/sink.h>
 #include <pulsecore/core.h>
+#include <pulsecore/mix.h>
 
 typedef enum pa_sink_input_state {
     PA_SINK_INPUT_INIT,         /*< The stream is not active yet, because pa_sink_input_put() has not been called yet */
@@ -61,7 +62,8 @@ typedef enum pa_sink_input_flags {
     PA_SINK_INPUT_DONT_INHIBIT_AUTO_SUSPEND = 256,
     PA_SINK_INPUT_NO_CREATE_ON_SUSPEND = 512,
     PA_SINK_INPUT_KILL_ON_SUSPEND = 1024,
-    PA_SINK_INPUT_PASSTHROUGH = 2048
+    PA_SINK_INPUT_PASSTHROUGH = 2048,
+    PA_SINK_INPUT_START_RAMP_MUTED = 4096,
 } pa_sink_input_flags_t;
 
 struct pa_sink_input {
@@ -123,6 +125,9 @@ struct pa_sink_input {
      * user and not automatically. module-stream-restore looks for
      * this.*/
     pa_bool_t save_sink:1, save_volume:1, save_muted:1;
+
+    /* for volume ramps */
+    pa_cvolume_ramp_int ramp;
 
     pa_resample_method_t requested_resample_method, actual_resample_method;
 
@@ -252,6 +257,8 @@ struct pa_sink_input {
         pa_usec_t requested_sink_latency;
 
         pa_hashmap *direct_outputs;
+
+        pa_cvolume_ramp_int ramp;
     } thread_info;
 
     void *userdata;
@@ -268,6 +275,7 @@ enum {
     PA_SINK_INPUT_MESSAGE_SET_STATE,
     PA_SINK_INPUT_MESSAGE_SET_REQUESTED_LATENCY,
     PA_SINK_INPUT_MESSAGE_GET_REQUESTED_LATENCY,
+    PA_SINK_INPUT_MESSAGE_SET_VOLUME_RAMP,
     PA_SINK_INPUT_MESSAGE_MAX
 };
 
@@ -376,6 +384,8 @@ pa_cvolume *pa_sink_input_get_volume(pa_sink_input *i, pa_cvolume *volume, pa_bo
 
 void pa_sink_input_set_mute(pa_sink_input *i, pa_bool_t mute, pa_bool_t save);
 pa_bool_t pa_sink_input_get_mute(pa_sink_input *i);
+
+void pa_sink_input_set_volume_ramp(pa_sink_input *i, const pa_cvolume_ramp *ramp, pa_bool_t send_msg, pa_bool_t save);
 
 void pa_sink_input_update_proplist(pa_sink_input *i, pa_update_mode_t mode, pa_proplist *p);
 
