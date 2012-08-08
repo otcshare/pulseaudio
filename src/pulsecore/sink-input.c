@@ -546,6 +546,11 @@ int pa_sink_input_new(
     reset_callbacks(i);
     i->userdata = NULL;
 
+    if (data->flags & PA_SINK_INPUT_START_RAMP_MUTED)
+        pa_cvolume_ramp_int_init(&i->ramp, PA_VOLUME_MUTED, data->sink->sample_spec.channels);
+    else
+        pa_cvolume_ramp_int_init(&i->ramp, PA_VOLUME_NORM, data->sink->sample_spec.channels);
+
     i->thread_info.state = i->state;
     i->thread_info.attached = false;
     pa_atomic_store(&i->thread_info.drained, 1);
@@ -561,6 +566,8 @@ int pa_sink_input_new(
     i->thread_info.underrun_for_sink = 0;
     i->thread_info.playing_for = 0;
     i->thread_info.direct_outputs = pa_hashmap_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
+
+    i->thread_info.ramp = i->ramp;
 
     pa_assert_se(pa_idxset_put(core->sink_inputs, i, &i->index) == 0);
     pa_assert_se(pa_idxset_put(i->sink->inputs, pa_sink_input_ref(i), NULL) == 0);
@@ -942,6 +949,8 @@ void pa_sink_input_peek(pa_sink_input *i, size_t slength /* in sink bytes */, pa
         while (tchunk.length > 0) {
             pa_memchunk wchunk;
             bool nvfs = need_volume_factor_sink;
+            pa_cvolume target;
+            bool tmp;
 
             wchunk = tchunk;
             pa_memblock_ref(wchunk.memblock);
@@ -978,6 +987,16 @@ void pa_sink_input_peek(pa_sink_input *i, size_t slength /* in sink bytes */, pa
                     pa_volume_memchunk(&wchunk, &i->sink->sample_spec, &i->volume_factor_sink);
                 }
 
+                /* check for possible volume ramp */
+                if (pa_cvolume_ramp_active(&i->thread_info.ramp)) {
+                    pa_memchunk_make_writable(&wchunk, 0);
+                    pa_volume_ramp_memchunk(&wchunk, &i->sink->sample_spec, &(i->thread_info.ramp));
+                } else if ((tmp = pa_cvolume_ramp_target_active(&(i->thread_info.ramp)))) {
+                    pa_memchunk_make_writable(&wchunk, 0);
+                    pa_cvolume_ramp_get_targets(&i->thread_info.ramp, &target);
+                    pa_volume_memchunk(&wchunk, &i->sink->sample_spec, &target);
+                }
+
                 pa_memblockq_push_align(i->thread_info.render_memblockq, &wchunk);
             } else {
                 pa_memchunk rchunk;
@@ -992,6 +1011,16 @@ void pa_sink_input_peek(pa_sink_input *i, size_t slength /* in sink bytes */, pa
                     if (nvfs) {
                         pa_memchunk_make_writable(&rchunk, 0);
                         pa_volume_memchunk(&rchunk, &i->sink->sample_spec, &i->volume_factor_sink);
+                    }
+
+                    /* check for possible volume ramp */
+                    if (pa_cvolume_ramp_active(&(i->thread_info.ramp))) {
+                        pa_memchunk_make_writable(&rchunk, 0);
+                        pa_volume_ramp_memchunk(&rchunk, &i->sink->sample_spec, &(i->thread_info.ramp));
+                    } else if (pa_cvolume_ramp_target_active(&(i->thread_info.ramp))) {
+                        pa_memchunk_make_writable(&rchunk, 0);
+                        pa_cvolume_ramp_get_targets(&i->thread_info.ramp, &target);
+                        pa_volume_memchunk(&rchunk, &i->sink->sample_spec, &target);
                     }
 
                     pa_memblockq_push_align(i->thread_info.render_memblockq, &rchunk);
@@ -1367,6 +1396,29 @@ int pa_sink_input_remove_volume_factor(pa_sink_input *i, const char *key) {
     pa_assert_se(pa_asyncmsgq_send(i->sink->asyncmsgq, PA_MSGOBJECT(i), PA_SINK_INPUT_MESSAGE_SET_SOFT_VOLUME, NULL, 0, NULL) == 0);
 
     return 0;
+}
+
+/* Called from main thread */
+void pa_sink_input_set_volume_ramp(
+        pa_sink_input *i,
+        const pa_cvolume_ramp *ramp,
+        bool send_msg,
+        bool save) {
+
+    pa_sink_input_assert_ref(i);
+    pa_assert_ctl_context();
+    pa_assert(PA_SINK_INPUT_IS_LINKED(i->state));
+    pa_assert(ramp);
+
+    pa_cvolume_ramp_convert(ramp, &i->ramp, i->sample_spec.rate);
+
+    pa_log_debug("setting volume ramp with target vol:%d and length:%ld",
+		 i->ramp.ramps[0].target,
+		 i->ramp.ramps[0].length);
+
+    /* This tells the sink that volume ramp changed */
+    if (send_msg)
+        pa_assert_se(pa_asyncmsgq_send(i->sink->asyncmsgq, PA_MSGOBJECT(i), PA_SINK_INPUT_MESSAGE_SET_VOLUME_RAMP, NULL, 0, NULL) == 0);
 }
 
 /* Called from main context */
@@ -1984,6 +2036,13 @@ int pa_sink_input_process_msg(pa_msgobject *o, int code, void *userdata, int64_t
                 i->thread_info.soft_volume = i->soft_volume;
                 pa_sink_input_request_rewind(i, 0, true, false, false);
             }
+            return 0;
+
+        case PA_SINK_INPUT_MESSAGE_SET_VOLUME_RAMP:
+            /* we have ongoing ramp where we take current start values */
+            pa_cvolume_ramp_start_from(&i->thread_info.ramp, &i->ramp);
+            i->thread_info.ramp = i->ramp;
+            pa_sink_input_request_rewind(i, 0, TRUE, FALSE, FALSE);
             return 0;
 
         case PA_SINK_INPUT_MESSAGE_SET_SOFT_MUTE:
