@@ -384,7 +384,10 @@ int pa_cvolume_channels_equal_to(const pa_cvolume *a, pa_volume_t v) {
     unsigned c;
     pa_assert(a);
 
-    pa_return_val_if_fail(pa_cvolume_valid(a), 0);
+    if (pa_cvolume_valid(a) == 0)
+        abort();
+
+    /* pa_return_val_if_fail(pa_cvolume_valid(a), 0); */
     pa_return_val_if_fail(PA_VOLUME_IS_VALID(v), 0);
 
     for (c = 0; c < a->channels; c++)
@@ -924,4 +927,52 @@ pa_cvolume* pa_cvolume_dec(pa_cvolume *v, pa_volume_t dec) {
         m -= dec;
 
     return pa_cvolume_scale(v, m);
+}
+
+pa_cvolume_ramp* pa_cvolume_ramp_init(pa_cvolume_ramp *ramp) {
+    unsigned c;
+
+    pa_assert(ramp);
+
+    ramp->channels = 0;
+
+    for (c = 0; c < PA_CHANNELS_MAX; c++) {
+        ramp->ramps[c].type = PA_VOLUME_RAMP_TYPE_LINEAR;
+        ramp->ramps[c].length = 0;
+        ramp->ramps[c].target = PA_VOLUME_INVALID;
+    }
+
+    return ramp;
+}
+
+pa_cvolume_ramp* pa_cvolume_ramp_set(pa_cvolume_ramp *ramp, unsigned channels, pa_volume_ramp_type_t type, long time, pa_volume_t vol) {
+    int i;
+
+    pa_assert(ramp);
+    pa_assert(channels > 0);
+    pa_assert(time >= 0);
+    pa_assert(channels <= PA_CHANNELS_MAX);
+
+    ramp->channels = (uint8_t) channels;
+
+    for (i = 0; i < ramp->channels; i++) {
+        ramp->ramps[i].type = type;
+        ramp->ramps[i].length = time;
+        ramp->ramps[i].target = PA_CLAMP_VOLUME(vol);
+    }
+
+    return ramp;
+}
+
+pa_cvolume_ramp* pa_cvolume_ramp_channel_ramp_set(pa_cvolume_ramp *ramp, unsigned channel, pa_volume_ramp_type_t type, long time, pa_volume_t vol) {
+
+    pa_assert(ramp);
+    pa_assert(channel <= ramp->channels);
+    pa_assert(time >= 0);
+
+    ramp->ramps[channel].type = type;
+    ramp->ramps[channel].length = time;
+    ramp->ramps[channel].target = PA_CLAMP_VOLUME(vol);
+
+    return ramp;
 }
