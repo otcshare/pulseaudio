@@ -176,6 +176,9 @@ enum {
     /* Supported since protocol v27 (3.0) */
     PA_COMMAND_SET_PORT_LATENCY_OFFSET,
 
+    PA_COMMAND_SET_SINK_VOLUME_RAMP,
+    PA_COMMAND_SET_SINK_INPUT_VOLUME_RAMP,
+
     PA_COMMAND_MAX
 };
 

@@ -256,6 +256,35 @@ void pa_tagstruct_put_cvolume(pa_tagstruct *t, const pa_cvolume *cvolume) {
     }
 }
 
+void pa_tagstruct_put_cvolume_ramp(pa_tagstruct *t, const pa_cvolume_ramp *ramp) {
+    unsigned i;
+    pa_volume_ramp_type_t type;
+    long length;
+    pa_volume_t target;
+
+    pa_assert(t);
+    pa_assert(ramp);
+    extend(t, 2 + ramp->channels * (sizeof(pa_volume_ramp_type_t) + sizeof(long) + sizeof(pa_volume_t)));
+
+    t->data[t->length++] = PA_TAG_CVOLUME_RAMP;
+    t->data[t->length++] = ramp->channels;
+
+    for (i = 0; i < ramp->channels; i++) {
+        type = htonl(ramp->ramps[i].type);
+        target = htonl(ramp->ramps[i].target);
+        length = htonl(ramp->ramps[i].length);
+
+        memcpy(t->data + t->length, &type, sizeof(pa_volume_ramp_type_t));
+        t->length += sizeof(pa_volume_ramp_type_t);
+
+        memcpy(t->data + t->length, &length, sizeof(long));
+        t->length += sizeof(long);
+
+        memcpy(t->data + t->length, &target, sizeof(pa_volume_t));
+        t->length += sizeof(pa_volume_t);
+    }
+}
+
 void pa_tagstruct_put_volume(pa_tagstruct *t, pa_volume_t vol) {
     uint32_t u;
     pa_assert(t);
@@ -576,6 +605,51 @@ int pa_tagstruct_get_cvolume(pa_tagstruct *t, pa_cvolume *cvolume) {
     }
 
     t->rindex += 2 + cvolume->channels * sizeof(pa_volume_t);
+    return 0;
+}
+
+int pa_tagstruct_get_cvolume_ramp(pa_tagstruct *t, pa_cvolume_ramp *ramp) {
+    unsigned i;
+    pa_volume_ramp_type_t type;
+    long length;
+    pa_volume_t target;
+    uint8_t *read_ptr;
+
+    pa_assert(t);
+    pa_assert(ramp);
+
+    if (t->rindex+2 > t->length)
+        return -1;
+
+    if (t->data[t->rindex] != PA_TAG_CVOLUME_RAMP)
+        return -1;
+
+    if ((ramp->channels = t->data[t->rindex+1]) > PA_CHANNELS_MAX)
+        return -1;
+
+    if (t->rindex+2+ramp->channels*(sizeof(pa_volume_ramp_type_t)+sizeof(long)+sizeof(pa_volume_t)) > t->length)
+        return -1;
+
+    read_ptr = t->data + t->rindex + 2;
+
+    for (i = 0; i < ramp->channels; i++) {
+        memcpy(&type, read_ptr, sizeof(pa_volume_ramp_type_t));
+        ramp->ramps[i].type = (pa_volume_ramp_type_t) ntohl(type);
+        read_ptr += sizeof(pa_volume_ramp_type_t);
+
+
+        memcpy(&length, read_ptr, sizeof(long));
+        ramp->ramps[i].length = (long) ntohl(length);
+        read_ptr += sizeof(long);
+
+
+        memcpy(&target, read_ptr, sizeof(pa_volume_t));
+        ramp->ramps[i].target = (pa_volume_t) ntohl(target);
+        read_ptr += sizeof(pa_volume_t);
+    }
+
+    t->rindex = read_ptr - t->data;
+
     return 0;
 }
 

@@ -259,6 +259,12 @@ pa_operation* pa_context_set_sink_mute_by_index(pa_context *c, uint32_t idx, int
 /** Set the mute switch of a sink device specified by its name */
 pa_operation* pa_context_set_sink_mute_by_name(pa_context *c, const char *name, int mute, pa_context_success_cb_t cb, void *userdata);
 
+/** Set the volume ramp of a sink device specified by its index */
+pa_operation* pa_context_set_sink_volume_ramp_by_index(pa_context *c, uint32_t idx, const pa_cvolume_ramp *ramp, pa_context_success_cb_t cb, void *userdata);
+
+/** Set the volume ramp of a sink device specified by its name */
+pa_operation* pa_context_set_sink_volume_ramp_by_name(pa_context *c, const char *name, const pa_cvolume_ramp *ramp, pa_context_success_cb_t cb, void *userdata);
+
 /** Suspend/Resume a sink. \since 0.9.7 */
 pa_operation* pa_context_suspend_sink_by_name(pa_context *c, const char *sink_name, int suspend, pa_context_success_cb_t cb, void* userdata);
 
@@ -557,6 +563,9 @@ pa_operation* pa_context_set_sink_input_mute(pa_context *c, uint32_t idx, int mu
 
 /** Kill a sink input. */
 pa_operation* pa_context_kill_sink_input(pa_context *c, uint32_t idx, pa_context_success_cb_t cb, void *userdata);
+
+/** Set the volume ramp of a sink input specified by its index */
+pa_operation* pa_context_set_sink_input_volume_ramp(pa_context *c, uint32_t idx, const pa_cvolume_ramp *ramp, pa_context_success_cb_t cb, void *userdata);
 
 /** @} */
 
