@@ -2298,7 +2298,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
        we are loaded with profile="hsp", for instance */
     if (pa_bluetooth_uuid_has(device->uuids, A2DP_SINK_UUID)) {
         p = pa_card_profile_new("a2dp", _("High Fidelity Playback (A2DP)"), sizeof(enum profile));
-        p->priority = 10;
+        p->priority = device->audio_sink_state * 10;
         p->n_sinks = 1;
         p->n_sources = 0;
         p->max_sink_channels = 2;
@@ -2313,6 +2313,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
 
     if (pa_bluetooth_uuid_has(device->uuids, A2DP_SOURCE_UUID)) {
         p = pa_card_profile_new("a2dp_source", _("High Fidelity Capture (A2DP)"), sizeof(enum profile));
+        p->priority = device->audio_source_state * 10;
         p->priority = 10;
         p->n_sinks = 0;
         p->n_sources = 1;
@@ -2329,7 +2330,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
     if (pa_bluetooth_uuid_has(device->uuids, HSP_HS_UUID) ||
         pa_bluetooth_uuid_has(device->uuids, HFP_HS_UUID)) {
         p = pa_card_profile_new("hsp", _("Telephony Duplex (HSP/HFP)"), sizeof(enum profile));
-        p->priority = 20;
+        p->priority = device->headset_state * 10;
         p->n_sinks = 1;
         p->n_sources = 1;
         p->max_sink_channels = 1;
@@ -2344,7 +2345,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
 
     if (pa_bluetooth_uuid_has(device->uuids, HFP_AG_UUID)) {
         p = pa_card_profile_new("hfgw", _("Handsfree Gateway"), sizeof(enum profile));
-        p->priority = 20;
+        p->priority = device->hfgw_state * 10;
         p->n_sinks = 1;
         p->n_sources = 1;
         p->max_sink_channels = 1;
@@ -2360,6 +2361,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
     pa_assert(!pa_hashmap_isempty(data.profiles));
 
     p = pa_card_profile_new("off", _("Off"), sizeof(enum profile));
+    p->priority = PA_BT_AUDIO_STATE_CONNECTED * 10 + 1;
     d = PA_CARD_PROFILE_DATA(p);
     *d = PROFILE_OFF;
     pa_hashmap_put(data.profiles, p->name, p);
