@@ -1,0 +1,42 @@
+From 24265ccf6623ce25a08f7bd0c58467a68bd3d71f Mon Sep 17 00:00:00 2001
+From: Krisztian Litkey <krisztian.litkey@intel.com>
+Date: Thu, 5 Jul 2012 20:26:56 +0300
+Subject: [PATCH 14/16] packaging: put systemd service units under %{_libdir}.
+
+---
+ pulseaudio.spec.in |   12 ++++++------
+ 1 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/pulseaudio.spec.in b/pulseaudio.spec.in
+index e7d6167..ad879aa 100644
+--- a/pulseaudio.spec.in
++++ b/pulseaudio.spec.in
+@@ -185,10 +185,10 @@ make $JOBS
+ rm -rf %{buildroot}
+ %make_install
+ 
+-install -d  %{buildroot}/%{_lib}/systemd/system
+-install -m 644 pulseaudio.service %{buildroot}/%{_lib}/systemd/system/pulseaudio.service
+-mkdir -p  %{buildroot}/%{_lib}/systemd/system/multi-user.target.wants
+-ln -s  ../pulseaudio.service  %{buildroot}/%{_lib}/systemd/system/multi-user.target.wants/pulseaudio.service
++install -d  %{buildroot}/%{_libdir}/systemd/system
++install -m 644 pulseaudio.service %{buildroot}/%{_libdir}/systemd/system/pulseaudio.service
++mkdir -p  %{buildroot}/%{_libdir}/systemd/system/multi-user.target.wants
++ln -s  ../pulseaudio.service  %{buildroot}/%{_libdir}/systemd/system/multi-user.target.wants/pulseaudio.service
+ 
+ rm -rf  %{buildroot}/etc/xdg/autostart/pulseaudio-kde.desktop
+ rm -rf  %{buildroot}/usr/bin/start-pulseaudio-kde
+@@ -308,8 +308,8 @@ install -m 644 src/default.pa %{buildroot}/%{_sysconfdir}/pulse
+ %{_libdir}/pulse-%{pulseversion}/modules/module-role-cork.so
+ %{_libdir}/pulse-%{pulseversion}/modules/module-switch-on-port-available.so
+ %{_libdir}/pulse-%{pulseversion}/modules/module-virtual-surround-sink.so
+-/%{_lib}/systemd/system/pulseaudio.service
+-/%{_lib}/systemd/system/multi-user.target.wants/pulseaudio.service
++%{_libdir}/systemd/system/pulseaudio.service
++%{_libdir}/systemd/system/multi-user.target.wants/pulseaudio.service
+ 
+ %files libs
+ %defattr(-,root,root,-)
+-- 
+1.7.6.5
+

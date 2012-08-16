@@ -1,0 +1,31 @@
+From 09ee876b7f60f0acc08a9c4492d5fd2cf0038ab5 Mon Sep 17 00:00:00 2001
+From: Janos Kovacs <jankovac503@gmail.com>
+Date: Thu, 16 Aug 2012 03:47:48 +0300
+Subject: [PATCH 06/16] make pa_thread_mq_done() safe for subsequent calls
+
+---
+ src/pulsecore/thread-mq.c |    8 ++++++++
+ 1 files changed, 8 insertions(+), 0 deletions(-)
+
+diff --git a/src/pulsecore/thread-mq.c b/src/pulsecore/thread-mq.c
+index b492793..9efcd8a 100644
+--- a/src/pulsecore/thread-mq.c
++++ b/src/pulsecore/thread-mq.c
+@@ -97,6 +97,14 @@ void pa_thread_mq_init(pa_thread_mq *q, pa_mainloop_api *mainloop, pa_rtpoll *rt
+ void pa_thread_mq_done(pa_thread_mq *q) {
+     pa_assert(q);
+ 
++    if (!q->mainloop && !q->inq && !q->outq &&
++        !q->read_event && !q->write_event)
++        return;
++
++    pa_assert(q->mainloop);
++    pa_assert(q->inq && q->outq);
++    pa_assert(q->read_event && q->write_event);
++
+     /* Since we are called from main context we can be sure that the
+      * inq is empty. However, the outq might still contain messages
+      * for the main loop, which we need to dispatch (e.g. release
+-- 
+1.7.6.5
+

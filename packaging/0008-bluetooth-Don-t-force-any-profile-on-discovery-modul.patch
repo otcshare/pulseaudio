@@ -1,0 +1,32 @@
+From 3780e0227629e255aa3e98c415ca7473ed839b9f Mon Sep 17 00:00:00 2001
+From: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+Date: Wed, 15 Aug 2012 15:41:58 +0300
+Subject: [PATCH 08/16] bluetooth: Don't force any profile on discovery module
+
+Let device module figure out the priority based on the state of the
+profiles.
+
+Note that most likely all profiles will be in PA_BT_AUDIO_STATE_CONNECTED
+state so 'Off' will be the initial profile then it is up to the policy
+module to switch to the most suitable profile.
+---
+ src/modules/bluetooth/module-bluetooth-discover.c |    3 ---
+ 1 files changed, 0 insertions(+), 3 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-discover.c b/src/modules/bluetooth/module-bluetooth-discover.c
+index e96a4f3..02df887 100644
+--- a/src/modules/bluetooth/module-bluetooth-discover.c
++++ b/src/modules/bluetooth/module-bluetooth-discover.c
+@@ -110,9 +110,6 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const
+             if (d->audio_source_state >= PA_BT_AUDIO_STATE_CONNECTED)
+                 args = pa_sprintf_malloc("%s profile=\"a2dp_source\" auto_connect=no", args);
+ 
+-            if (d->hfgw_state >= PA_BT_AUDIO_STATE_CONNECTED)
+-                args = pa_sprintf_malloc("%s profile=\"hfgw\"", args);
+-
+             pa_log_debug("Loading module-bluetooth-device %s", args);
+             m = pa_module_load(u->module->core, "module-bluetooth-device", args);
+             pa_xfree(args);
+-- 
+1.7.6.5
+

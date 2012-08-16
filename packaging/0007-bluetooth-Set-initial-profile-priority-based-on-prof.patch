@@ -1,0 +1,62 @@
+From da7b6c30f81247b94560bcbbb34578f355181d59 Mon Sep 17 00:00:00 2001
+From: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+Date: Mon, 13 Aug 2012 11:31:50 +0300
+Subject: [PATCH 07/16] bluetooth: Set initial profile priority based on
+ profile state
+
+This means only profiles on PA_BT_AUDIO_STATE_PLAYING state will have
+bigger priority than 'Off'.
+---
+ src/modules/bluetooth/module-bluetooth-device.c |    8 +++++---
+ 1 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index b7945ed..ec0ea9b 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -2733,7 +2733,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
+        we are loaded with profile="hsp", for instance */
+     if (pa_bluetooth_uuid_has(device->uuids, A2DP_SINK_UUID)) {
+         p = pa_card_profile_new("a2dp", _("High Fidelity Playback (A2DP)"), sizeof(enum profile));
+-        p->priority = 10;
++        p->priority = device->audio_sink_state * 10;
+         p->n_sinks = 1;
+         p->n_sources = 0;
+         p->max_sink_channels = 2;
+@@ -2747,6 +2747,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
+ 
+     if (pa_bluetooth_uuid_has(device->uuids, A2DP_SOURCE_UUID)) {
+         p = pa_card_profile_new("a2dp_source", _("High Fidelity Capture (A2DP)"), sizeof(enum profile));
++        p->priority = device->audio_source_state * 10;
+         p->priority = 10;
+         p->n_sinks = 0;
+         p->n_sources = 1;
+@@ -2762,7 +2763,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
+     if (pa_bluetooth_uuid_has(device->uuids, HSP_HS_UUID) ||
+         pa_bluetooth_uuid_has(device->uuids, HFP_HS_UUID)) {
+         p = pa_card_profile_new("hsp", _("Telephony Duplex (HSP/HFP)"), sizeof(enum profile));
+-        p->priority = 20;
++        p->priority = device->headset_state * 10;
+         p->n_sinks = 1;
+         p->n_sources = 1;
+         p->max_sink_channels = 1;
+@@ -2776,7 +2777,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
+ 
+     if (pa_bluetooth_uuid_has(device->uuids, HFP_AG_UUID)) {
+         p = pa_card_profile_new("hfgw", _("Handsfree Gateway"), sizeof(enum profile));
+-        p->priority = 20;
++        p->priority = device->hfgw_state * 10;
+         p->n_sinks = 1;
+         p->n_sources = 1;
+         p->max_sink_channels = 1;
+@@ -2791,6 +2792,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
+     pa_assert(!pa_hashmap_isempty(data.profiles));
+ 
+     p = pa_card_profile_new("off", _("Off"), sizeof(enum profile));
++    p->priority = PA_BT_AUDIO_STATE_CONNECTED * 10 + 1;
+     d = PA_CARD_PROFILE_DATA(p);
+     *d = PROFILE_OFF;
+     pa_hashmap_put(data.profiles, p->name, p);
+-- 
+1.7.6.5
+
