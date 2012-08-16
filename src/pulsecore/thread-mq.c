@@ -97,6 +97,14 @@ void pa_thread_mq_init(pa_thread_mq *q, pa_mainloop_api *mainloop, pa_rtpoll *rt
 void pa_thread_mq_done(pa_thread_mq *q) {
     pa_assert(q);
 
+    if (!q->mainloop && !q->inq && !q->outq &&
+        !q->read_event && !q->write_event)
+        return;
+
+    pa_assert(q->mainloop);
+    pa_assert(q->inq && q->outq);
+    pa_assert(q->read_event && q->write_event);
+
     /* Since we are called from main context we can be sure that the
      * inq is empty. However, the outq might still contain messages
      * for the main loop, which we need to dispatch (e.g. release
