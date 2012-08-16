@@ -1,0 +1,29 @@
+* Thu Aug 16 21:58:33 EEST 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.0
+- add volume ramp functionality
+- bluetooth fixes
+
+* Tue Jul 24 14:33:20 EEST 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.0
+- move module-augment-properties from pulseaudio base package to its own
+
+* Thu Jul  5 21:37:13 EET 2012 - Krisztian Litkey <krisztian.litkey@intel.com> - 2.0
+- Use pkgconfig()-capability in BuildRequires where possible.
+- module-devel subpackage requires version-exact libs-devel.
+- Don't hardcode /usr/lib, use %{_libdir} instead.
+
+* Tue Jul  3 20:42:03 UTC 2012 - tracy.graydon@intel.com
+- Fix broken package deps 
+
+* Mon Jul  2 18:26:10 UTC 2012 - tracy.graydon@intel.com
+- update service untis to be installed in /usr/lib vs /lib 
+
+* Sat Jun 30 02:03:12 UTC 2012 - tracy.graydon@intel.com
+- Change bluez-libs-devel dep to libbluetooth-devel.  
+
+* Fri Jun 29 21:53:50 UTC 2012 - tracy.graydon@intel.com
+- Removed BuildRequires libdbus-devel and added dbus-libs dependency to fix package build, post forked package clean up. 
+
+* Mon Jun 25 2012 Krisztian Litkey <krisztian.litkey@intel.com> - 2.0
+ - Removed pre-applied patches from the spec file.
+ 
+* Fri Jun 15 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.0
+ - This is first attempt to release pulseaudio 2.0 for ivi profile
