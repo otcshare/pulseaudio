@@ -25,9 +25,7 @@
 #include <dbus/dbus.h>
 
 #include <pulsecore/llist.h>
-#include <pulsecore/strlist.h>
 #include <pulsecore/macro.h>
-#include <pulsecore/core-util.h>
 
 #define PA_BLUETOOTH_ERROR_NOT_SUPPORTED "org.bluez.Error.NotSupported"
 
@@ -140,5 +138,6 @@ const char* pa_bluetooth_get_form_factor(uint32_t class);
 char *pa_bluetooth_cleanup_name(const char *name);
 
 pa_bool_t pa_bluetooth_uuid_has(pa_bluetooth_uuid *uuids, const char *uuid);
+pa_bt_audio_state_t pa_bt_audio_state_from_string(const char* value);
 
 #endif

@@ -422,3 +422,135 @@ void pa_dbus_free_pending_list(pa_dbus_pending **p) {
         pa_dbus_pending_free(i);
     }
 }
+
+const char *pa_dbus_get_error_message(DBusMessage *m) {
+    const char *message;
+
+    pa_assert(m);
+    pa_assert(dbus_message_get_type(m) == DBUS_MESSAGE_TYPE_ERROR);
+
+    if (dbus_message_get_signature(m)[0] != 's')
+        return "<no explanation>";
+
+    pa_assert_se(dbus_message_get_args(m, NULL, DBUS_TYPE_STRING, &message, DBUS_TYPE_INVALID));
+
+    return message;
+}
+
+/* Note: returns sizeof(char*) for strings, object paths and signatures. */
+static unsigned basic_type_size(int type) {
+    switch (type) {
+        case DBUS_TYPE_BOOLEAN: return sizeof(dbus_bool_t);
+        case DBUS_TYPE_BYTE: return 1;
+        case DBUS_TYPE_INT16: return sizeof(dbus_int16_t);
+        case DBUS_TYPE_UINT16: return sizeof(dbus_uint16_t);
+        case DBUS_TYPE_INT32: return sizeof(dbus_int32_t);
+        case DBUS_TYPE_UINT32: return sizeof(dbus_uint32_t);
+        case DBUS_TYPE_INT64: return sizeof(dbus_int64_t);
+        case DBUS_TYPE_UINT64: return sizeof(dbus_uint64_t);
+        case DBUS_TYPE_DOUBLE: return sizeof(double);
+        case DBUS_TYPE_STRING:
+        case DBUS_TYPE_OBJECT_PATH:
+        case DBUS_TYPE_SIGNATURE: return sizeof(char*);
+        default: pa_assert_not_reached();
+    }
+}
+
+static const char *signature_from_basic_type(int type) {
+    switch (type) {
+        case DBUS_TYPE_BOOLEAN: return DBUS_TYPE_BOOLEAN_AS_STRING;
+        case DBUS_TYPE_BYTE: return DBUS_TYPE_BYTE_AS_STRING;
+        case DBUS_TYPE_INT16: return DBUS_TYPE_INT16_AS_STRING;
+        case DBUS_TYPE_UINT16: return DBUS_TYPE_UINT16_AS_STRING;
+        case DBUS_TYPE_INT32: return DBUS_TYPE_INT32_AS_STRING;
+        case DBUS_TYPE_UINT32: return DBUS_TYPE_UINT32_AS_STRING;
+        case DBUS_TYPE_INT64: return DBUS_TYPE_INT64_AS_STRING;
+        case DBUS_TYPE_UINT64: return DBUS_TYPE_UINT64_AS_STRING;
+        case DBUS_TYPE_DOUBLE: return DBUS_TYPE_DOUBLE_AS_STRING;
+        case DBUS_TYPE_STRING: return DBUS_TYPE_STRING_AS_STRING;
+        case DBUS_TYPE_OBJECT_PATH: return DBUS_TYPE_OBJECT_PATH_AS_STRING;
+        case DBUS_TYPE_SIGNATURE: return DBUS_TYPE_SIGNATURE_AS_STRING;
+        default: pa_assert_not_reached();
+    }
+}
+
+void pa_dbus_append_basic_variant(DBusMessageIter *iter, int type, void *data) {
+    DBusMessageIter variant_iter;
+
+    pa_assert(iter);
+    pa_assert(dbus_type_is_basic(type));
+    pa_assert(data);
+
+    pa_assert_se(dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, signature_from_basic_type(type), &variant_iter));
+    pa_assert_se(dbus_message_iter_append_basic(&variant_iter, type, data));
+    pa_assert_se(dbus_message_iter_close_container(iter, &variant_iter));
+}
+
+void pa_dbus_append_basic_array(DBusMessageIter *iter, int item_type, const void *array, unsigned n) {
+    DBusMessageIter array_iter;
+    unsigned i;
+    unsigned item_size;
+
+    pa_assert(iter);
+    pa_assert(dbus_type_is_basic(item_type));
+    pa_assert(array || n == 0);
+
+    item_size = basic_type_size(item_type);
+
+    pa_assert_se(dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, signature_from_basic_type(item_type), &array_iter));
+
+    for (i = 0; i < n; ++i)
+        pa_assert_se(dbus_message_iter_append_basic(&array_iter, item_type, &((uint8_t*) array)[i * item_size]));
+
+    pa_assert_se(dbus_message_iter_close_container(iter, &array_iter));
+}
+
+void pa_dbus_append_basic_variant_dict_entry(DBusMessageIter *dict_iter, const char *key, int type, void *data) {
+    DBusMessageIter dict_entry_iter;
+
+    pa_assert(dict_iter);
+    pa_assert(key);
+    pa_assert(dbus_type_is_basic(type));
+    pa_assert(data);
+
+    pa_assert_se(dbus_message_iter_open_container(dict_iter, DBUS_TYPE_DICT_ENTRY, NULL, &dict_entry_iter));
+    pa_assert_se(dbus_message_iter_append_basic(&dict_entry_iter, DBUS_TYPE_STRING, &key));
+    pa_dbus_append_basic_variant(&dict_entry_iter, type, data);
+    pa_assert_se(dbus_message_iter_close_container(dict_iter, &dict_entry_iter));
+}
+
+void pa_dbus_append_basic_array_variant(DBusMessageIter *iter, int item_type, const void *array, unsigned n) {
+    DBusMessageIter variant_iter;
+    char *array_signature;
+
+    pa_assert(iter);
+    pa_assert(dbus_type_is_basic(item_type));
+    pa_assert(array || n == 0);
+
+    array_signature = pa_sprintf_malloc("a%c", *signature_from_basic_type(item_type));
+
+    pa_assert_se(dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, array_signature, &variant_iter));
+    pa_dbus_append_basic_array(&variant_iter, item_type, array, n);
+    pa_assert_se(dbus_message_iter_close_container(iter, &variant_iter));
+
+    pa_xfree(array_signature);
+}
+
+void pa_dbus_append_basic_array_variant_dict_entry(
+        DBusMessageIter *dict_iter,
+        const char *key,
+        int item_type,
+        const void *array,
+        unsigned n) {
+    DBusMessageIter dict_entry_iter;
+
+    pa_assert(dict_iter);
+    pa_assert(key);
+    pa_assert(dbus_type_is_basic(item_type));
+    pa_assert(array || n == 0);
+
+    pa_assert_se(dbus_message_iter_open_container(dict_iter, DBUS_TYPE_DICT_ENTRY, NULL, &dict_entry_iter));
+    pa_assert_se(dbus_message_iter_append_basic(&dict_entry_iter, DBUS_TYPE_STRING, &key));
+    pa_dbus_append_basic_array_variant(&dict_entry_iter, item_type, array, n);
+    pa_assert_se(dbus_message_iter_close_container(dict_iter, &dict_entry_iter));
+}

@@ -4,6 +4,7 @@
  *
  *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
  *
+ *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
  *  License as published by the Free Software Foundation; either
@@ -202,34 +203,6 @@ typedef struct {
 	uint8_t max_bitpool;
 } __attribute__ ((packed)) sbc_capabilities_t;
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-
-typedef struct {
-       uint8_t channel_mode:4;
-       uint8_t frequency:4;
-       uint8_t allocation_method:2;
-       uint8_t subbands:2;
-       uint8_t block_length:4;
-       uint8_t min_bitpool;
-       uint8_t max_bitpool;
-} __attribute__ ((packed)) sbc_capabilities_raw_t;
-
-#elif __BYTE_ORDER == __BIG_ENDIAN
-
-typedef struct {
-       uint8_t frequency:4;
-       uint8_t channel_mode:4;
-       uint8_t block_length:4;
-       uint8_t subbands:2;
-       uint8_t allocation_method:2;
-       uint8_t min_bitpool;
-       uint8_t max_bitpool;
-} __attribute__ ((packed)) sbc_capabilities_raw_t;
-
-#else
-#error "Unknown byte order"
-#endif
-
 typedef struct {
 	codec_capabilities_t capability;
 	uint8_t channel_mode;
@@ -292,7 +265,7 @@ struct bt_start_stream_rsp {
 } __attribute__ ((packed));
 
 /* This message is followed by one byte of data containing the stream data fd
-   as ancilliary data */
+   as ancillary data */
 struct bt_new_stream_ind {
 	bt_audio_msg_header_t	h;
 } __attribute__ ((packed));

@@ -35,7 +35,7 @@
 #include <pulsecore/log.h>
 #include <pulsecore/namereg.h>
 
-#include <pmapi.h>
+#include <power.h>
 
 #include "module-suspend-on-idle-symdef.h"
 
@@ -48,6 +48,13 @@ static const char* const valid_modargs[] = {
     "timeout",
     NULL,
 };
+
+#define PM_TYPE_SINK	0x01
+#define PM_TYPE_SOURCE	0x02
+
+#define UPDATE_PM_LOCK(current,type)	(current |= type)
+#define UPDATE_PM_UNLOCK(current,type)	(current &= ~type)
+
 
 struct userdata {
     pa_core *core;
@@ -94,11 +101,29 @@ static void timeout_cb(pa_mainloop_api*a, pa_time_event* e, const struct timeval
     if (d->sink && pa_sink_check_suspend(d->sink) <= 0 && !(d->sink->suspend_cause & PA_SUSPEND_IDLE)) {
         pa_log_info("Sink %s idle for too long, suspending ...", d->sink->name);
         pa_sink_suspend(d->sink, TRUE, PA_SUSPEND_IDLE);
-    }
+
+		UPDATE_PM_UNLOCK(d->userdata->pm_state, PM_TYPE_SINK);
+		if(!(d->userdata->pm_state)) {
+			ret = power_unlock_state(POWER_STATE_SCREEN_OFF);
+			if(!ret)
+				pa_log_info("sink pm_unlock_state success");
+			else
+				pa_log_error("sink pm_unlock_state failed [%d]", ret);
+		}
+	}
 
     if (d->source && pa_source_check_suspend(d->source) <= 0 && !(d->source->suspend_cause & PA_SUSPEND_IDLE)) {
         pa_log_info("Source %s idle for too long, suspending ...", d->source->name);
         pa_source_suspend(d->source, TRUE, PA_SUSPEND_IDLE);
+
+        UPDATE_PM_UNLOCK(d->userdata->pm_state, PM_TYPE_SOURCE);
+        if(!(d->userdata->pm_state)) {
+			ret = power_unlock_state(POWER_STATE_SCREEN_OFF);
+			if(!ret)
+				pa_log_info("source pm_unlock_state success");
+			else
+				pa_log_error("source pm_unlock_state failed [%d]", ret);
+		}
     }
 }
 
@@ -132,12 +157,30 @@ static void resume(struct device_info *d) {
     d->userdata->core->mainloop->time_restart(d->time_event, NULL);
 
     if (d->sink) {
+
+		UPDATE_PM_LOCK(d->userdata->pm_state, PM_TYPE_SINK);
+		ret = power_lock_state(POWER_STATE_SCREEN_OFF, 0);
+		if(!ret) {
+			pa_log_info("sink pm_lock_state success");
+		} else {
+			pa_log_error("sink pm_lock_state failed [%d]", ret);
+		}
+
     	pa_sink_suspend(d->sink, FALSE, PA_SUSPEND_IDLE);
 
         pa_log_debug("Sink %s becomes busy.", d->sink->name);
     }
 
     if (d->source) {
+
+		UPDATE_PM_LOCK(d->userdata->pm_state, PM_TYPE_SOURCE);
+		ret = power_lock_state(POWER_STATE_SCREEN_OFF, 0);
+		if(!ret) {
+			pa_log_info("source pm_lock_state success");
+		} else {
+			pa_log_error("source pm_lock_state failed [%d]", ret);
+		}
+
         pa_source_suspend(d->source, FALSE, PA_SUSPEND_IDLE);
 
         pa_log_debug("Source %s becomes busy.", d->source->name);

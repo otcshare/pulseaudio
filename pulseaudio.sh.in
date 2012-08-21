@@ -1,5 +1,5 @@
 #!/bin/sh
 if [ -x /usr/bin/pulseaudio ]; then         
         /usr/bin/pulseaudio --log-level=4 --system -D
-	vconftool set -t int memory/hibernation/pulseaudio_ready 1
+	touch /tmp/hibernation/pulseaudio_ready
 fi

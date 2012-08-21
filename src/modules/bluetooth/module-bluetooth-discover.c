@@ -25,14 +25,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include <pulse/xmalloc.h>
 #include <pulsecore/module.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/modargs.h>
 #include <pulsecore/macro.h>
-#include <pulsecore/llist.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/dbus-shared.h>
 
@@ -42,21 +40,14 @@
 PA_MODULE_AUTHOR("Joao Paulo Rechi Vita");
 PA_MODULE_DESCRIPTION("Detect available bluetooth audio devices and load bluetooth audio drivers");
 PA_MODULE_VERSION(PACKAGE_VERSION);
-PA_MODULE_USAGE("async=<Asynchronous initialization?>");
+PA_MODULE_USAGE("async=<Asynchronous initialization?> "
+                "sco_sink=<name of sink> "
+                "sco_source=<name of source> ");
 PA_MODULE_LOAD_ONCE(TRUE);
 
-/*
-#ifdef NOKIA
-   "sco_sink=<name of sink> "
-   "sco_source=<name of source>"
-#endif
-*/
-
 static const char* const valid_modargs[] = {
-#ifdef NOKIA
     "sco_sink",
     "sco_source",
-#endif
     "async",
     NULL
 };
@@ -84,10 +75,10 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const 
     mi = pa_hashmap_get(u->hashmap, d->path);
 
     if (!d->dead && d->device_connected > 0 &&
-		(/*d->audio_state >= PA_BT_AUDIO_STATE_CONNECTED*/
-        d->audio_sink_state >= PA_BT_AUDIO_STATE_CONNECTED ||
+        /*(d->audio_state >= PA_BT_AUDIO_STATE_CONNECTED ||*/
+        (d->audio_sink_state >= PA_BT_AUDIO_STATE_CONNECTED ||
          d->audio_source_state >= PA_BT_AUDIO_STATE_CONNECTED ||
-         d->hfgw_state > PA_BT_AUDIO_STATE_CONNECTED)) {
+         d->hfgw_state >= PA_BT_AUDIO_STATE_CONNECTED)) {
 
         if (!mi) {
             pa_module *m = NULL;
@@ -96,7 +87,7 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const 
             /* Oh, awesome, a new device has shown up and been connected! */
 
             args = pa_sprintf_malloc("address=\"%s\" path=\"%s\"", d->address, d->path);
-#ifdef BT_FULL_AUDIO_FEATURE
+#if 0
             /* This is in case we have to use hsp immediately, without waiting for .Audio.State = Connected */
             if (d->headset_state >= PA_BT_AUDIO_STATE_CONNECTED && somecondition) {
                 char *tmp;
@@ -106,7 +97,6 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const 
             }
 #endif
 
-#ifdef NOKIA
             if (pa_modargs_get_value(u->modargs, "sco_sink", NULL) &&
                 pa_modargs_get_value(u->modargs, "sco_source", NULL)) {
                 char *tmp;
@@ -117,18 +107,15 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const 
                 pa_xfree(args);
                 args = tmp;
             }
-#endif
-
-#ifdef BT_FULL_AUDIO_FEATURE
 
             if (d->audio_source_state >= PA_BT_AUDIO_STATE_CONNECTED)
                 args = pa_sprintf_malloc("%s profile=\"a2dp_source\" auto_connect=no", args);
 
-            if (d->hfgw_state > PA_BT_AUDIO_STATE_CONNECTED)
+            if (d->hfgw_state >= PA_BT_AUDIO_STATE_CONNECTED)
                 args = pa_sprintf_malloc("%s profile=\"hfgw\"", args);
-#endif
-			if (d->audio_sink_state >= PA_BT_AUDIO_STATE_CONNECTED)
-				args = pa_sprintf_malloc("%s profile=\"a2dp\"",args );
+
+            if (d->audio_sink_state >= PA_BT_AUDIO_STATE_CONNECTED)
+                args = pa_sprintf_malloc("%s profile=\"a2dp\"", args);
 
             pa_log_debug("Loading module-bluetooth-device %s", args);
             m = pa_module_load(u->module->core, "module-bluetooth-device", args);

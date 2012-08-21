@@ -28,9 +28,9 @@ common-install-arch::
 	mkdir -p $(CURDIR)/debian/tmp/etc/rc.d/init.d/
 	cp $(CURDIR)/pulseaudio.sh.in  $(CURDIR)/debian/tmp/etc/rc.d/init.d/pulseaudio
 	mkdir -p $(CURDIR)/debian/tmp/etc/rc.d/rc3.d/
-	ln -s ../init.d/pulseaudio $(CURDIR)/debian/tmp/etc/rc.d/rc3.d/S35pulseaudio
+	ln -s ../init.d/pulseaudio $(CURDIR)/debian/tmp/etc/rc.d/rc3.d/S20pulseaudio
 	mkdir -p $(CURDIR)/debian/tmp/etc/rc.d/rc4.d/
-	ln -s ../init.d/pulseaudio $(CURDIR)/debian/tmp/etc/rc.d/rc4.d/S35pulseaudio
+	ln -s ../init.d/pulseaudio $(CURDIR)/debian/tmp/etc/rc.d/rc4.d/S20pulseaudio
 
 common-configure-arch::
 ifneq (,$(findstring $(DEB_HOST_ARCH), "arm armel"))
@@ -70,7 +70,7 @@ endif
 
 #DEB_CONFIGURE_EXTRA_FLAGS += --enable-alsa --with-system-user=root --with-system-group=root --with-access-group=root --disable-ipv6 --disable-oss-output --disable-oss-wrapper --disable-largefile
 #DEB_CONFIGURE_EXTRA_FLAGS += --prefix=/usr --with-system-user=root --with-system-group=root --with-access-group=root --enable-alsa --disable-ipv6 --disable-oss-output --disable-oss-wrapper
-DEB_CONFIGURE_EXTRA_FLAGS += --prefix=/usr --enable-alsa --disable-ipv6 --disable-oss-output --disable-oss-wrapper --enable-dlog
+DEB_CONFIGURE_EXTRA_FLAGS += --prefix=/usr --enable-alsa --disable-ipv6 --disable-oss-output --disable-oss-wrapper --enable-dlog --disable-legacy-runtime-dir
 DEB_DH_MAKESHLIBS_ARGS_ALL = --exclude=usr/lib/pulse-0.9.21/modules
 DEB_DH_SHLIBDEPS_ARGS_libpulse0 = -u -L/dev/null
 DEB_DH_SHLIBDEPS_ARGS_pulseaudio = -u -Ldebian/shlibs_pulseaudio.local

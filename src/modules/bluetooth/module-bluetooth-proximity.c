@@ -325,7 +325,7 @@ finish:
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
-static int add_matches(struct userdata *u, pa_bool_t add) {
+static int update_matches(struct userdata *u, pa_bool_t add) {
     char *filter1, *filter2;
     DBusError e;
     int r = -1;
@@ -344,7 +344,7 @@ static int add_matches(struct userdata *u, pa_bool_t add) {
             goto finish;
         }
     } else
-        dbus_bus_remove_match(pa_dbus_connection_get(u->dbus_connection), filter1, &e);
+        dbus_bus_remove_match(pa_dbus_connection_get(u->dbus_connection), filter1, NULL);
 
 
     if (add) {
@@ -352,11 +352,11 @@ static int add_matches(struct userdata *u, pa_bool_t add) {
 
         if (dbus_error_is_set(&e)) {
             pa_log("dbus_bus_add_match(%s) failed: %s", filter2, e.message);
-            dbus_bus_remove_match(pa_dbus_connection_get(u->dbus_connection), filter2, &e);
+            dbus_bus_remove_match(pa_dbus_connection_get(u->dbus_connection), filter1, NULL);
             goto finish;
         }
     } else
-        dbus_bus_remove_match(pa_dbus_connection_get(u->dbus_connection), filter2, &e);
+        dbus_bus_remove_match(pa_dbus_connection_get(u->dbus_connection), filter2, NULL);
 
     if (add) {
         pa_assert_se(dbus_connection_add_filter(pa_dbus_connection_get(u->dbus_connection), filter_func, u, NULL));
@@ -401,7 +401,7 @@ int pa__init(pa_module*m) {
         goto fail;
     }
 
-    if (add_matches(u, TRUE) < 0)
+    if (update_matches(u, TRUE) < 0)
         goto fail;
 
     pa_assert_se(msg = dbus_message_new_method_call("org.bluez", u->hci_path, "org.bluez.Adapter", "ListBondings"));
@@ -476,7 +476,7 @@ void pa__done(pa_module*m) {
     }
 
     if (u->dbus_connection) {
-        add_matches(u, FALSE);
+        update_matches(u, FALSE);
         pa_dbus_connection_unref(u->dbus_connection);
     }
 

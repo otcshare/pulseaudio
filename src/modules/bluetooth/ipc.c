@@ -4,6 +4,7 @@
  *
  *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
  *
+ *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
  *  License as published by the Free Software Foundation; either
@@ -55,19 +56,19 @@ int bt_audio_service_open(void)
 
 	sk = socket(PF_LOCAL, SOCK_STREAM, 0);
 	if (sk < 0) {
-		err = errno;
+		err = -errno;
 		fprintf(stderr, "%s: Cannot open socket: %s (%d)\n",
-			__FUNCTION__, strerror(err), err);
-		errno = err;
+			__FUNCTION__, strerror(-err), -err);
+		errno = -err;
 		return -1;
 	}
 
 	if (connect(sk, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-		err = errno;
+		err = -errno;
 		fprintf(stderr, "%s: connect() failed: %s (%d)\n",
-			__FUNCTION__, strerror(err), err);
+			__FUNCTION__, strerror(-err), -err);
 		close(sk);
-		errno = err;
+		errno = -err;
 		return -1;
 	}
 
@@ -95,10 +96,10 @@ int bt_audio_service_get_data_fd(int sk)
 
 	ret = recvmsg(sk, &msgh, 0);
 	if (ret < 0) {
-		err = errno;
+		err = -errno;
 		fprintf(stderr, "%s: Unable to receive fd: %s (%d)\n",
-			__FUNCTION__, strerror(err), err);
-		errno = err;
+			__FUNCTION__, strerror(-err), -err);
+		errno = -err;
 		return -1;
 	}
 

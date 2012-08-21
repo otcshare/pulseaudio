@@ -238,6 +238,8 @@ pa_simple_read;
 pa_simple_write;
 pa_simple_set_volume;
 pa_simple_get_stream_index;
+pa_simple_cork;
+pa_simple_is_corked;
 pa_stream_begin_write;
 pa_stream_cancel_write;
 pa_stream_connect_playback;

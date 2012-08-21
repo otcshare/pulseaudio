@@ -1,9 +1,10 @@
+#sbs-git:slp/pkgs/p/pulseaudio pulseaudio 0.9.21 dc2bfa6567b805fb28b5090df970b398f6bb7a12
 %define pulseversion  0.9.21
 
 Name:       pulseaudio
 Summary:    Improved Linux sound server
-Version: 0.9.21
-Release:    7
+Version:    0.9.21
+Release:    16
 Group:      Multimedia/PulseAudio
 License:    LGPLv2+
 URL:        http://pulseaudio.org
@@ -11,21 +12,14 @@ Source0:    http://0pointer.de/lennart/projects/pulseaudio/pulseaudio-%{version}
 Requires:   udev 
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
-BuildRequires:  pkgconfig(pmapi) 
+BuildRequires:  pkgconfig(capi-system-power)
 BuildRequires:  pkgconfig(sysman) 
 BuildRequires:  pkgconfig(speexdsp)
-BuildRequires:  pkgconfig(xextproto)
-BuildRequires:  pkgconfig(inputproto)
-BuildRequires:  pkgconfig(x11)
-BuildRequires:  pkgconfig(ice)
-BuildRequires:  pkgconfig(sm)
-BuildRequires:  pkgconfig(xtst)
 BuildRequires:  pkgconfig(sndfile)
 BuildRequires:  pkgconfig(alsa)
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(gconf-2.0)
 BuildRequires:  pkgconfig(bluez)
-BuildRequires:  pkgconfig(xi)
 BuildRequires:  pkgconfig(libudev)
 BuildRequires:  pkgconfig(dlog)
 BuildRequires:  pkgconfig(vconf)
@@ -78,8 +72,6 @@ PulseAudio sound server. Included tools are:
    pacmd - Connect to PulseAudio's built-in command line control interface.
    pactl - Send a control command to a PulseAudio server.
    padsp - /dev/dsp wrapper to transparently support OSS applications.
-   pax11publish - Store/retrieve PulseAudio default server/sink/source
-                  settings in the X11 root window.
 
 
 %package module-bluetooth
@@ -92,15 +84,6 @@ Requires:   /bin/sed
 This module enables PulseAudio to work with bluetooth devices, like headset
  or audio gatewa
 
-%package module-x11  
-Summary:    PulseAudio components needed for starting x11 User session  
-Group:      Multimedia/PulseAudio  
-Requires:   %{name} = %{version}-%{release}  
-Requires:   /bin/sed  
-  
-%description module-x11  
-Description: %{summary}  
-
 %prep
 %setup -q
 
@@ -108,7 +91,7 @@ Description: %{summary}
 %build
 unset LD_AS_NEEDED
 export LDFLAGS+="-Wl,--no-as-needed"
-%reconfigure --disable-static --enable-alsa --disable-ipv6 --disable-oss-output --disable-oss-wrapper --enable-dlog --enable-bluez --disable-hal --disable-hal-compat
+%reconfigure --disable-static --enable-alsa --disable-ipv6 --disable-oss-output --disable-oss-wrapper --enable-dlog --enable-bluez --disable-hal --disable-hal-compat --disable-legacy-runtime-dir
 make %{?jobs:-j%jobs}
 
 %install
@@ -129,7 +112,7 @@ popd
 
 rm -rf  %{buildroot}/etc/xdg/autostart/pulseaudio-kde.desktop
 rm -rf  %{buildroot}/usr/bin/start-pulseaudio-kde
-rm -rf %{buildroot}/%{_libdir}/pulse-%{pulseversion}/modules/module-device-manager.so
+rm -rf  %{buildroot}/usr/bin/start-pulseaudio-x11
 
 %find_lang pulseaudio
 %fdupes  %{buildroot}/%{_datadir}
@@ -139,13 +122,13 @@ rm -rf %{buildroot}/%{_libdir}/pulse-%{pulseversion}/modules/module-device-manag
 
 %post 
 /sbin/ldconfig
-ln -s  /etc/rc.d/init.d/pulseaudio.sh /etc/rc.d/rc3.d/S40puleaudio
-ln -s  /etc/rc.d/init.d/pulseaudio.sh /etc/rc.d/rc4.d/S40puleaudio
+ln -s  /etc/rc.d/init.d/pulseaudio.sh /etc/rc.d/rc3.d/S20pulseaudio
+ln -s  /etc/rc.d/init.d/pulseaudio.sh /etc/rc.d/rc4.d/S20pulseaudio
 
 %postun
 /sbin/ldconfig
-rm -f %{_sysconfdir}/rc.d/rc3.d/S40puleaudio
-rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
+rm -f %{_sysconfdir}/rc.d/rc3.d/S20pulseaudio
+rm -f %{_sysconfdir}/rc.d/rc4.d/S20pulseaudio
 
 %post libs -p /sbin/ldconfig
 
@@ -165,25 +148,23 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %defattr(-,root,root,-)
 %doc LICENSE GPL LGPL
 /etc/pulse/filter/*.dat
-%exclude /etc/pulse/client.conf
-%exclude /etc/pulse/daemon.conf
-%exclude /etc/pulse/default.pa
-%exclude /etc/pulse/system.pa
-%exclude %{_datadir}/pulseaudio/alsa-mixer/paths/*
-%exclude %{_datadir}/pulseaudio/alsa-mixer/profile-sets/* 
 
 
 %dir %{_sysconfdir}/pulse/
+%exclude %config(noreplace) %{_sysconfdir}/pulse/daemon.conf
+%exclude %config(noreplace) %{_sysconfdir}/pulse/default.pa
+%exclude %config(noreplace) %{_sysconfdir}/pulse/system.pa
 %{_sysconfdir}/rc.d/init.d/pulseaudio.sh
 %{_bindir}/esdcompat
 %{_bindir}/pulseaudio
 %dir %{_libexecdir}/pulse
 %{_libexecdir}/pulse/*
 %{_libdir}/libpulsecore-%{pulseversion}.so
-%{_libdir}/libpulse-mainloop-glib.so.*
+%exclude %{_libdir}/libpulse-mainloop-glib.so.*
 /lib/udev/rules.d/90-pulseaudio.rules
+%exclude %{_datadir}/pulseaudio/alsa-mixer/paths/*
+%exclude %{_datadir}/pulseaudio/alsa-mixer/profile-sets/*
 %{_bindir}/pamon
-%config %{_sysconfdir}/xdg/autostart/pulseaudio.desktop
 /etc/dbus-1/system.d/pulseaudio-system.conf
 #list all modules
 %{_libdir}/pulse-%{pulseversion}/modules/libalsa-util.so
@@ -198,6 +179,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/pulse-%{pulseversion}/modules/module-always-sink.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-console-kit.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-device-restore.so
+%{_libdir}/pulse-%{pulseversion}/modules/module-device-manager.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-stream-restore.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-cli-protocol-tcp.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-cli-protocol-unix.so
@@ -205,11 +187,11 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/pulse-%{pulseversion}/modules/module-combine.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-default-device-restore.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-detect.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-esound-sink.so
+%exclude %{_libdir}/pulse-%{pulseversion}/modules/module-esound-sink.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-http-protocol-tcp.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-http-protocol-unix.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-intended-roles.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-ladspa-sink.so
+%%exclude %{_libdir}/pulse-%{pulseversion}/modules/module-ladspa-sink.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-match.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-mmkbd-evdev.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-native-protocol-fd.so
@@ -218,7 +200,7 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/pulse-%{pulseversion}/modules/module-null-sink.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-pipe-sink.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-pipe-source.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-position-event-sounds.so
+%%exclude %{_libdir}/pulse-%{pulseversion}/modules/module-position-event-sounds.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-remap-sink.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-rescue-streams.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-rtp-recv.so
@@ -236,23 +218,23 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/pulse-%{pulseversion}/modules/module-cork-music-on-phone.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-sine-source.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-loopback.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-rygel-media-server.so
+%exclude %{_libdir}/pulse-%{pulseversion}/modules/module-rygel-media-server.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-policy.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-echo-cancel.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-virtual-sink.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-virtual-source.so
-%{_libdir}/pulse-%{pulseversion}/modules/libprotocol-esound.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-esound-compat-spawnfd.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-esound-compat-spawnpid.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-esound-protocol-tcp.so
-%{_libdir}/pulse-%{pulseversion}/modules/module-esound-protocol-unix.so
+%exclude %{_libdir}/pulse-%{pulseversion}/modules/libprotocol-esound.so
+%exclude %{_libdir}/pulse-%{pulseversion}/modules/module-esound-compat-spawnfd.so
+%exclude %{_libdir}/pulse-%{pulseversion}/modules/module-esound-compat-spawnpid.so
+%exclude %{_libdir}/pulse-%{pulseversion}/modules/module-esound-protocol-tcp.so
+%exclude %{_libdir}/pulse-%{pulseversion}/modules/module-esound-protocol-unix.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-gconf.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-udev-detect.so
 
 
 %files libs
 %defattr(-,root,root,-)
-#%doc %{_mandir}/man1/pax11publish.1.gz
+%exclude %config(noreplace) %{_sysconfdir}/pulse/client.conf
 %{_libdir}/libpulse.so.*
 %{_libdir}/libpulse-simple.so.*
 %{_libdir}/libpulsecommon-*.so
@@ -266,8 +248,8 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/pkgconfig/libpulse-simple.pc
 %{_libdir}/pkgconfig/libpulse.pc
 %{_datadir}/vala/vapi/libpulse.vapi
-%{_libdir}/pkgconfig/libpulse-mainloop-glib.pc
-%{_libdir}/libpulse-mainloop-glib.so
+%exclude %{_libdir}/pkgconfig/libpulse-mainloop-glib.pc
+%exclude %{_libdir}/libpulse-mainloop-glib.so
 
 %files utils
 %defattr(-,root,root,-)
@@ -297,13 +279,3 @@ rm -f %{_sysconfdir}/rc.d/rc4.d/S40puleaudio
 %{_libdir}/pulse-%{pulseversion}/modules/libbluetooth-sbc.so
 %{_libdir}/pulse-%{pulseversion}/modules/libbluetooth-util.so
 #%{_libdir}/pulseaudio/pulse/proximity-helper
-
-%files module-x11  
-%defattr(-,root,root,-)  
-%doc %{_mandir}/man1/pax11publish.1.gz  
-%{_bindir}/start-pulseaudio-x11  
-%{_bindir}/pax11publish  
-%{_libdir}/pulse-%{pulseversion}/modules/module-x11-bell.so  
-%{_libdir}/pulse-%{pulseversion}/modules/module-x11-publish.so  
-%{_libdir}/pulse-%{pulseversion}/modules/module-x11-xsmp.so  
-%{_libdir}/pulse-%{pulseversion}/modules/module-x11-cork-request.so  

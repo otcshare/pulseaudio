@@ -340,7 +340,8 @@ pa_simple* pa_simple_new_proplist(
         r = pa_stream_connect_record(p->stream, dev, attr,
                                      PA_STREAM_INTERPOLATE_TIMING
                                      |PA_STREAM_ADJUST_LATENCY
-                                     |PA_STREAM_AUTO_TIMING_UPDATE);
+                                     |PA_STREAM_AUTO_TIMING_UPDATE
+                                     |PA_STREAM_START_CORKED);
 
     if (r < 0) {
         error = pa_context_errno(p->context);
@@ -711,4 +712,51 @@ unlock_and_fail:
 
     pa_threaded_mainloop_unlock(p->mainloop);
     return (pa_usec_t) -1;
+}
+
+int pa_simple_cork(pa_simple *p, int cork, int *rerror) {
+    pa_operation *o = NULL;
+
+    pa_assert(p);
+
+    pa_threaded_mainloop_lock(p->mainloop);
+    CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+
+    o = pa_stream_cork(p->stream, cork, success_context_cb, p);
+    CHECK_SUCCESS_GOTO(p, rerror, o, unlock_and_fail);
+
+    p->operation_success = 0;
+    while (pa_operation_get_state(o) == PA_OPERATION_RUNNING) {
+        pa_threaded_mainloop_wait(p->mainloop);
+        CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+    }
+    CHECK_SUCCESS_GOTO(p, rerror, p->operation_success, unlock_and_fail);
+
+    pa_operation_unref(o);
+    pa_threaded_mainloop_unlock(p->mainloop);
+
+    return 0;
+
+unlock_and_fail:
+
+    if (o) {
+        pa_operation_cancel(o);
+        pa_operation_unref(o);
+    }
+
+    pa_threaded_mainloop_unlock(p->mainloop);
+    return -1;
+}
+
+int pa_simple_is_corked(pa_simple *p) {
+	int is_cork;
+    pa_assert(p);
+
+    pa_threaded_mainloop_lock(p->mainloop);
+
+    is_cork = pa_stream_is_corked(p->stream);
+
+    pa_threaded_mainloop_unlock(p->mainloop);
+
+    return is_cork;
 }

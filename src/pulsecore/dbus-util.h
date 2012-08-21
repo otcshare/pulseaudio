@@ -60,4 +60,27 @@ void pa_dbus_sync_pending_list(pa_dbus_pending **p);
 /* Free up a list of pa_dbus_pending_call objects */
 void pa_dbus_free_pending_list(pa_dbus_pending **p);
 
+/* When receiving a DBusMessage with type DBUS_MESSAGE_TYPE_ERROR, the
+ * DBusMessage may or may not contain an error message (a human-readable
+ * explanation of what went wrong). Extracting the error message from the
+ * DBusMessage object is a bit tedious, so here's a helper function that does
+ * that. If the DBusMessage doesn't contain any error message,
+ * "<no explanation>" is returned. */
+const char *pa_dbus_get_error_message(DBusMessage *m);
+
+void pa_dbus_append_basic_variant(DBusMessageIter *iter, int type, void *data) ;
+
+void pa_dbus_append_basic_array(DBusMessageIter *iter, int item_type, const void *array, unsigned n);
+
+void pa_dbus_append_basic_array_variant_dict_entry(
+							        DBusMessageIter *dict_iter,
+							        const char *key,
+							        int item_type,
+							        const void *array,
+							        unsigned n);
+
+void pa_dbus_append_basic_variant_dict_entry(DBusMessageIter *dict_iter, const char *key, int type, void *data) ;
+
+void pa_dbus_append_basic_array_variant(DBusMessageIter *iter, int item_type, const void *array, unsigned n);
+
 #endif

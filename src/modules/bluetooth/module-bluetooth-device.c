@@ -48,16 +48,13 @@
 #include <pulsecore/time-smoother.h>
 #include <pulsecore/namereg.h>
 #include <pulsecore/dbus-shared.h>
-#include <pulsecore/llist.h>
 
 #include "module-bluetooth-device-symdef.h"
 #include "ipc.h"
 #include "sbc.h"
+#include "a2dp-codecs.h"
 #include "rtp.h"
 #include "bluetooth-util.h"
-
-#define MAX_BITPOOL 64
-#define MIN_BITPOOL 2U
 
 #define BITPOOL_DEC_LIMIT 32
 #define BITPOOL_DEC_STEP 5
@@ -129,6 +126,15 @@ struct hsp_info {
     pa_hook_slot *source_state_changed_slot;
 };
 
+struct bluetooth_msg {
+    pa_msgobject parent;
+    pa_card *card;
+};
+
+typedef struct bluetooth_msg bluetooth_msg;
+PA_DEFINE_PRIVATE_CLASS(bluetooth_msg, pa_msgobject);
+#define BLUETOOTH_MSG(o) (bluetooth_msg_cast(o))
+
 struct userdata {
     pa_core *core;
     pa_module *module;
@@ -151,6 +157,7 @@ struct userdata {
     pa_rtpoll *rtpoll;
     pa_rtpoll_item *rtpoll_item;
     pa_thread *thread;
+    bluetooth_msg *msg;
 
     uint64_t read_index, write_index;
     pa_usec_t started_at;
@@ -177,6 +184,11 @@ struct userdata {
     int service_write_type, service_read_type;
 
     pa_bool_t filter_added;
+};
+
+enum {
+    BLUETOOTH_MESSAGE_IO_THREAD_FAILED,
+    BLUETOOTH_MESSAGE_MAX
 };
 
 #define FIXED_LATENCY_PLAYBACK_A2DP (25*PA_USEC_PER_MSEC)
@@ -1118,6 +1130,30 @@ static int source_process_msg(pa_msgobject *o, int code, void *data, int64_t off
     return (r < 0 || !failed) ? r : -1;
 }
 
+/* Called from main thread context */
+static int device_process_msg(pa_msgobject *obj, int code, void *data, int64_t offset, pa_memchunk *chunk) {
+    struct bluetooth_msg *u = BLUETOOTH_MSG(obj);
+    char *user_data = (char*)data;
+
+    switch (code) {
+        case BLUETOOTH_MESSAGE_IO_THREAD_FAILED: {
+            if (u->card->module->unload_requested)
+                break;
+
+	    pa_log_debug("Switching the profile to off due to IO thread failure.");
+	    if (user_data == NULL)
+		break;
+
+	    if (pa_streq(user_data, "off")) {
+		if (pa_card_set_profile(u->card, "off", FALSE) < 0)
+		    pa_log_debug("Failed to switch profile to off");
+	    }
+	    break;
+	}
+    }
+    return 0;
+}
+
 /* Run from IO thread */
 static int hsp_process_render(struct userdata *u) {
     int ret = 0;
@@ -1436,7 +1472,6 @@ static int a2dp_process_push(struct userdata *u) {
         void *d;
         ssize_t l;
         size_t to_write, to_decode;
-        unsigned frame_count;
 
         a2dp_prepare_buffer(u);
 
@@ -1512,8 +1547,6 @@ static int a2dp_process_push(struct userdata *u) {
 
             d = (uint8_t*) d + written;
             to_write -= written;
-
-            frame_count++;
         }
 
         memchunk.length -= to_write;
@@ -1724,7 +1757,7 @@ static void thread_func(void *userdata) {
 fail:
     /* If this was no regular exit from the loop we have to continue processing messages until we receive PA_MESSAGE_SHUTDOWN */
     pa_log_debug("IO thread failed");
-    pa_asyncmsgq_post(u->thread_mq.outq, PA_MSGOBJECT(u->core), PA_CORE_MESSAGE_UNLOAD_MODULE, u->module, 0, NULL, NULL);
+    pa_asyncmsgq_post(pa_thread_mq_get()->outq, PA_MSGOBJECT(u->msg), BLUETOOTH_MESSAGE_IO_THREAD_FAILED, NULL, 0, NULL, NULL);
     pa_asyncmsgq_wait_for(u->thread_mq.inq, PA_MESSAGE_SHUTDOWN);
 
 finish:
@@ -1805,15 +1838,57 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
             pa_log_debug("dbus: property 'NREC' changed to value '%s'", t->nrec ? "True" : "False");
             pa_proplist_sets(u->source->proplist, "bluetooth.nrec", t->nrec ? "1" : "0");
         }
-	}else if (dbus_message_is_signal(m, "org.bluez.Headset", "Playing")) {
-		int ret=0;
-		ret=pa_sink_suspend(u->sink,TRUE,PA_SUSPEND_IDLE);
-		pa_log_debug("ret=%d",ret);
-	}     else if (dbus_message_is_signal(m, "org.bluez.Headset", "Stopped")) {
-		int ret=0;
-		ret=pa_sink_suspend(u->sink,FALSE,PA_SUSPEND_IDLE);
-		pa_log_debug("ret=%d",ret);
-	}
+    } else if (dbus_message_is_signal(m, "org.bluez.HandsfreeGateway", "PropertyChanged")) {
+        const char *key;
+        DBusMessageIter iter;
+        DBusMessageIter variant;
+        pa_bt_audio_state_t state = PA_BT_AUDIO_STATE_INVALID;
+
+        if (!dbus_message_iter_init(m, &iter)) {
+            pa_log("Failed to parse PropertyChanged: %s", err.message);
+            goto fail;
+        }
+
+        if (dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_STRING) {
+            pa_log("Property name not a string.");
+            goto fail;
+        }
+
+        dbus_message_iter_get_basic(&iter, &key);
+
+        if (!dbus_message_iter_next(&iter)) {
+            pa_log("Property value missing");
+            goto fail;
+        }
+
+        dbus_message_iter_recurse(&iter, &variant);
+
+        if (dbus_message_iter_get_arg_type(&variant) == DBUS_TYPE_STRING) {
+            const char *value;
+            dbus_message_iter_get_basic(&variant, &value);
+
+            if (pa_streq(key, "State")) {
+                pa_log_debug("dbus: HSHFAG property 'State' changed to value '%s'", value);
+                state = pa_bt_audio_state_from_string(value);
+            }
+        }
+
+        switch(state) {
+            case PA_BT_AUDIO_STATE_INVALID:
+            case PA_BT_AUDIO_STATE_DISCONNECTED:
+            case PA_BT_AUDIO_STATE_CONNECTED:
+            case PA_BT_AUDIO_STATE_CONNECTING:
+                goto fail;
+
+            case PA_BT_AUDIO_STATE_PLAYING:
+                if (u->card) {
+                    pa_log_debug("Changing profile to hfgw");
+                    if (pa_card_set_profile(u->card, "hfgw", FALSE) < 0)
+                        pa_log("Failed to change profile to hfgw");
+                }
+                break;
+        }
+    }
 
 fail:
     dbus_error_free(&err);
@@ -1878,6 +1953,7 @@ static void source_set_volume_cb(pa_source *s) {
     pa_assert(u->source == s);
     pa_assert(u->profile == PROFILE_HSP);
 
+    /* gain = (pa_cvolume_max(&s->real_volume) * HSP_MAX_GAIN) / PA_VOLUME_NORM; */
     gain = (pa_cvolume_max(&s->volume) * HSP_MAX_GAIN) / PA_VOLUME_NORM;
 
     if (gain > HSP_MAX_GAIN)
@@ -1889,6 +1965,7 @@ static void source_set_volume_cb(pa_source *s) {
     if (volume < PA_VOLUME_NORM)
         volume++;
 
+    /* pa_cvolume_set(&s->real_volume, u->sample_spec.channels, volume); */
     pa_cvolume_set(&s->volume, u->sample_spec.channels, volume);
 
     pa_assert_se(m = dbus_message_new_method_call("org.bluez", u->path, "org.bluez.Headset", "SetMicrophoneGain"));
@@ -1926,7 +2003,7 @@ static char *get_name(const char *type, pa_modargs *ma, const char *device_id, p
     return pa_sprintf_malloc("bluez_%s.%s", type, n);
 }
 
-static int sco_over_pcm_state_update(struct userdata *u) {
+static int sco_over_pcm_state_update(struct userdata *u, pa_bool_t changed) {
     pa_assert(u);
     pa_assert(USE_SCO_OVER_PCM(u));
 
@@ -1946,10 +2023,11 @@ static int sco_over_pcm_state_update(struct userdata *u) {
 
         if (u->transport)
             return bt_transport_acquire(u, TRUE);
-        else
-            return start_stream_fd(u);
 
-    } else {
+        return start_stream_fd(u);
+    }
+
+    if (changed) {
         if (u->service_fd < 0 && u->stream_fd < 0)
             return 0;
 
@@ -1964,9 +2042,9 @@ static int sco_over_pcm_state_update(struct userdata *u) {
             pa_close(u->service_fd);
             u->service_fd = -1;
         }
-
-        return 0;
     }
+
+    return 0;
 }
 
 static pa_hook_result_t sink_state_changed_cb(pa_core *c, pa_sink *s, struct userdata *u) {
@@ -1977,7 +2055,7 @@ static pa_hook_result_t sink_state_changed_cb(pa_core *c, pa_sink *s, struct use
     if (s != u->hsp.sco_sink)
         return PA_HOOK_OK;
 
-    sco_over_pcm_state_update(u);
+    sco_over_pcm_state_update(u, TRUE);
 
     return PA_HOOK_OK;
 }
@@ -1990,7 +2068,7 @@ static pa_hook_result_t source_state_changed_cb(pa_core *c, pa_source *s, struct
     if (s != u->hsp.sco_source)
         return PA_HOOK_OK;
 
-    sco_over_pcm_state_update(u);
+    sco_over_pcm_state_update(u, TRUE);
 
     return PA_HOOK_OK;
 }
@@ -2032,7 +2110,7 @@ static int add_sink(struct userdata *u) {
             return -1;
         }
 
-        u->sink = pa_sink_new(u->core, &data, PA_SINK_HARDWARE|PA_SINK_LATENCY | (u->profile == PROFILE_HSP ? PA_SINK_HW_VOLUME_CTRL : 0));
+        u->sink = pa_sink_new(u->core, &data, PA_SINK_HARDWARE|PA_SINK_LATENCY);
         pa_sink_new_data_done(&data);
 
         if (!u->sink) {
@@ -2050,7 +2128,9 @@ static int add_sink(struct userdata *u) {
     }
 
     if (u->profile == PROFILE_HSP) {
+        /* pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb); */
         u->sink->set_volume = sink_set_volume_cb;
+
         u->sink->n_volume_steps = 16;
 
         k = pa_sprintf_malloc("bluetooth-device@%p", (void*) u->sink);
@@ -2094,7 +2174,7 @@ static int add_source(struct userdata *u) {
             return -1;
         }
 
-        u->source = pa_source_new(u->core, &data, PA_SOURCE_HARDWARE|PA_SOURCE_LATENCY | (u->profile == PROFILE_HSP ? PA_SOURCE_HW_VOLUME_CTRL : 0));
+        u->source = pa_source_new(u->core, &data, PA_SOURCE_HARDWARE|PA_SOURCE_LATENCY);
         pa_source_new_data_done(&data);
 
         if (!u->source) {
@@ -2121,6 +2201,7 @@ static int add_source(struct userdata *u) {
     }
 
     if (u->profile == PROFILE_HSP) {
+        /* pa_source_set_set_volume_callback(u->source, source_set_volume_cb); */
         u->source->set_volume = source_set_volume_cb;
         u->source->n_volume_steps = 16;
 
@@ -2159,12 +2240,14 @@ static void shutdown_bt(struct userdata *u) {
 static int bt_transport_config_a2dp(struct userdata *u) {
     const pa_bluetooth_transport *t;
     struct a2dp_info *a2dp = &u->a2dp;
-    sbc_capabilities_raw_t *config;
+    a2dp_sbc_t *config;
 
     t = pa_bluetooth_discovery_get_transport(u->discovery, u->transport);
     pa_assert(t);
 
-    config = (sbc_capabilities_raw_t *) t->config;
+    config = (a2dp_sbc_t *) t->config;
+
+    u->sample_spec.format = PA_SAMPLE_S16LE;
 
     if (a2dp->sbc_initialized)
         sbc_reinit(&a2dp->sbc, 0);
@@ -2175,15 +2258,19 @@ static int bt_transport_config_a2dp(struct userdata *u) {
     switch (config->frequency) {
         case BT_SBC_SAMPLING_FREQ_16000:
             a2dp->sbc.frequency = SBC_FREQ_16000;
+            u->sample_spec.rate = 16000U;
             break;
         case BT_SBC_SAMPLING_FREQ_32000:
             a2dp->sbc.frequency = SBC_FREQ_32000;
+            u->sample_spec.rate = 32000U;
             break;
         case BT_SBC_SAMPLING_FREQ_44100:
             a2dp->sbc.frequency = SBC_FREQ_44100;
+            u->sample_spec.rate = 44100U;
             break;
         case BT_SBC_SAMPLING_FREQ_48000:
             a2dp->sbc.frequency = SBC_FREQ_48000;
+            u->sample_spec.rate = 48000U;
             break;
         default:
             pa_assert_not_reached();
@@ -2192,15 +2279,19 @@ static int bt_transport_config_a2dp(struct userdata *u) {
     switch (config->channel_mode) {
         case BT_A2DP_CHANNEL_MODE_MONO:
             a2dp->sbc.mode = SBC_MODE_MONO;
+            u->sample_spec.channels = 1;
             break;
         case BT_A2DP_CHANNEL_MODE_DUAL_CHANNEL:
             a2dp->sbc.mode = SBC_MODE_DUAL_CHANNEL;
+            u->sample_spec.channels = 2;
             break;
         case BT_A2DP_CHANNEL_MODE_STEREO:
             a2dp->sbc.mode = SBC_MODE_STEREO;
+            u->sample_spec.channels = 2;
             break;
         case BT_A2DP_CHANNEL_MODE_JOINT_STEREO:
             a2dp->sbc.mode = SBC_MODE_JOINT_STEREO;
+            u->sample_spec.channels = 2;
             break;
         default:
             pa_assert_not_reached();
@@ -2267,6 +2358,9 @@ static int bt_transport_config_a2dp(struct userdata *u) {
 static int bt_transport_config(struct userdata *u) {
     if (u->profile == PROFILE_HSP || u->profile == PROFILE_HFGW) {
         u->block_size = u->link_mtu;
+        u->sample_spec.format = PA_SAMPLE_S16LE;
+        u->sample_spec.channels = 1;
+        u->sample_spec.rate = 8000;
         return 0;
     }
 
@@ -2444,7 +2538,7 @@ static int start_thread(struct userdata *u) {
     pa_thread_mq_init(&u->thread_mq, u->core->mainloop, u->rtpoll);
 
     if (USE_SCO_OVER_PCM(u)) {
-        if (sco_over_pcm_state_update(u) < 0) {
+        if (sco_over_pcm_state_update(u, FALSE) < 0) {
             char *k;
 
             if (u->sink) {
@@ -2468,8 +2562,9 @@ static int start_thread(struct userdata *u) {
         return 0;
     }
 
-	//Build bug fix because our pulseaudio core is old version than bluetooth
-    //if (!(u->thread = pa_thread_new("bluetooth", thread_func, u))) {
+    /* Fix PA version mis-match. */
+    /* if (!(u->thread = pa_thread_new("bluetooth", thread_func, u))) {
+    */
     if (!(u->thread = pa_thread_new(thread_func, u))) {
         pa_log_error("Failed to create IO thread");
         stop_thread(u);
@@ -2509,6 +2604,8 @@ static void restore_sco_volume_callbacks(struct userdata *u) {
     pa_assert(u);
     pa_assert(USE_SCO_OVER_PCM(u));
 
+    /* pa_sink_set_set_volume_callback(u->hsp.sco_sink, u->hsp.sco_sink_set_volume); */
+    /* pa_source_set_set_volume_callback(u->hsp.sco_source, u->hsp.sco_source_set_volume); */
     u->hsp.sco_sink->set_volume = u->hsp.sco_sink_set_volume;
     u->hsp.sco_source->set_volume = u->hsp.sco_source_set_volume;
 }
@@ -2544,7 +2641,7 @@ static int card_set_profile(pa_card *c, pa_card_profile *new_profile) {
         pa_log_warn("A2DP is not connected, refused to switch profile");
         return -PA_ERR_IO;
     }
-    else if (device->hfgw_state <= PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_HFGW) {
+    else if (device->hfgw_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_HFGW) {
         pa_log_warn("HandsfreeGateway is not connected, refused to switch profile");
         return -PA_ERR_IO;
     }
@@ -2564,6 +2661,13 @@ static int card_set_profile(pa_card *c, pa_card_profile *new_profile) {
     }
 
     stop_thread(u);
+
+    if (u->profile != PROFILE_OFF && u->transport) {
+        bt_transport_release(u);
+        pa_xfree(u->transport);
+        u->transport = NULL;
+    }
+
     shutdown_bt(u);
 
     if (USE_SCO_OVER_PCM(u))
@@ -2658,6 +2762,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
         pa_hashmap_put(data.profiles, p->name, p);
     }
 
+#if BT_FULL_AUDIO_FEATURE
     if (pa_bluetooth_uuid_has(device->uuids, A2DP_SOURCE_UUID)) {
         p = pa_card_profile_new("a2dp_source", _("High Fidelity Capture (A2DP)"), sizeof(enum profile));
         p->priority = 10;
@@ -2671,7 +2776,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
 
         pa_hashmap_put(data.profiles, p->name, p);
     }
-#ifdef BT_FULL_AUDIO_FEATURE
+
     if (pa_bluetooth_uuid_has(device->uuids, HSP_HS_UUID) ||
         pa_bluetooth_uuid_has(device->uuids, HFP_HS_UUID)) {
         p = pa_card_profile_new("hsp", _("Telephony Duplex (HSP/HFP)"), sizeof(enum profile));
@@ -2806,7 +2911,7 @@ int pa__init(pa_module* m) {
     struct userdata *u;
     const char *address, *path;
     DBusError err;
-    char *mike, *speaker, *transport,*headset;
+    char *mike, *speaker;
     const pa_bluetooth_device *device;
 
     pa_assert(m);
@@ -2875,6 +2980,12 @@ int pa__init(pa_module* m) {
     if (add_card(u, device) < 0)
         goto fail;
 
+    if (!(u->msg = pa_msgobject_new(bluetooth_msg)))
+        goto fail;
+
+    u->msg->parent.process_msg = device_process_msg;
+    u->msg->card = u->card;
+
     if (!dbus_connection_add_filter(pa_dbus_connection_get(u->connection), filter_cb, u, NULL)) {
         pa_log_error("Failed to add filter function");
         goto fail;
@@ -2883,20 +2994,17 @@ int pa__init(pa_module* m) {
 
     speaker = pa_sprintf_malloc("type='signal',sender='org.bluez',interface='org.bluez.Headset',member='SpeakerGainChanged',path='%s'", u->path);
     mike = pa_sprintf_malloc("type='signal',sender='org.bluez',interface='org.bluez.Headset',member='MicrophoneGainChanged',path='%s'", u->path);
-    transport = pa_sprintf_malloc("type='signal',sender='org.bluez',interface='org.bluez.MediaTransport',member='PropertyChanged'");
-    headset=pa_sprintf_malloc("type='signal',sender='org.bluez',interface='org.bluez.Headset',member='PropertyChanged',path='%s'", u->path);
 
     if (pa_dbus_add_matches(
                 pa_dbus_connection_get(u->connection), &err,
                 speaker,
                 mike,
-                transport,
-                headset,
+                "type='signal',sender='org.bluez',interface='org.bluez.MediaTransport',member='PropertyChanged'",
+                "type='signal',sender='org.bluez',interface='org.bluez.HandsfreeGateway',member='PropertyChanged'",
                 NULL) < 0) {
 
         pa_xfree(speaker);
         pa_xfree(mike);
-        pa_xfree(transport);
 
         pa_log("Failed to add D-Bus matches: %s", err.message);
         goto fail;
@@ -2904,7 +3012,6 @@ int pa__init(pa_module* m) {
 
     pa_xfree(speaker);
     pa_xfree(mike);
-    pa_xfree(transport);
 
     /* Connect to the BT service */
     init_bt(u);
@@ -2965,7 +3072,10 @@ void pa__done(pa_module *m) {
             speaker = pa_sprintf_malloc("type='signal',sender='org.bluez',interface='org.bluez.Headset',member='SpeakerGainChanged',path='%s'", u->path);
             mike = pa_sprintf_malloc("type='signal',sender='org.bluez',interface='org.bluez.Headset',member='MicrophoneGainChanged',path='%s'", u->path);
 
-            pa_dbus_remove_matches(pa_dbus_connection_get(u->connection), speaker, mike, NULL);
+            pa_dbus_remove_matches(pa_dbus_connection_get(u->connection), speaker, mike,
+                "type='signal',sender='org.bluez',interface='org.bluez.MediaTransport',member='PropertyChanged'",
+                "type='signal',sender='org.bluez',interface='org.bluez.HandsfreeGateway',member='PropertyChanged'",
+                NULL);
 
             pa_xfree(speaker);
             pa_xfree(mike);
@@ -2976,6 +3086,9 @@ void pa__done(pa_module *m) {
 
         pa_dbus_connection_unref(u->connection);
     }
+
+    if (u->msg)
+        pa_xfree(u->msg);
 
     if (u->card)
         pa_card_free(u->card);
