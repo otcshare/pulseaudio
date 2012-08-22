@@ -1,4 +1,3 @@
-#sbs-git:slp/pkgs/p/pulseaudio pulseaudio 0.9.21 dc2bfa6567b805fb28b5090df970b398f6bb7a12
 %define pulseversion  0.9.21
 
 Name:       pulseaudio
