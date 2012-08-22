@@ -1,3 +1,0 @@
-pulseaudio-utils: no-shlibs-control-file usr/lib/libpulsedsp.so
-pulseaudio-utils: postinst-must-call-ldconfig usr/lib/libpulsedsp.so
-pulseaudio-utils: package-name-doesnt-match-sonames libpulsedsp

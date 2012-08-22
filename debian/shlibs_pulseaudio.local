@@ -1,4 +1,0 @@
-libpulse 0 libpulse0 (= ${binary:Version})
-libpulse-simple 0 libpulse0 (= ${binary:Version})
-libpulsecommon 0.9.16 libpulse0 (= ${binary:Version})
-libpulse-browse 0 libpulse-browse0 (>= 0.9.8)

@@ -1,9 +1,0 @@
-#!/bin/sh
-
-ln -sf /etc/pulse/filter/filter_8000_44100.dat /etc/pulse/filter/filter_11025_44100.dat
-ln -sf /etc/pulse/filter/filter_8000_44100.dat /etc/pulse/filter/filter_12000_44100.dat
-ln -sf /etc/pulse/filter/filter_8000_44100.dat /etc/pulse/filter/filter_16000_44100.dat
-ln -sf /etc/pulse/filter/filter_8000_44100.dat /etc/pulse/filter/filter_22050_44100.dat
-ln -sf /etc/pulse/filter/filter_8000_44100.dat /etc/pulse/filter/filter_24000_44100.dat
-ln -sf /etc/pulse/filter/filter_8000_44100.dat /etc/pulse/filter/filter_32000_44100.dat
-
