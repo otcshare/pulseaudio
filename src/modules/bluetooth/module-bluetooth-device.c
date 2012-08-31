@@ -244,7 +244,7 @@ static void a2dp_set_bitpool(struct userdata *u, uint8_t bitpool)
 
 /* from IO thread, except in SCO over PCM */
 
-static int setup_stream(struct userdata *u) {
+static void setup_stream(struct userdata *u) {
     struct pollfd *pollfd;
     int one;
 
@@ -277,8 +277,6 @@ static int setup_stream(struct userdata *u) {
                 10,
                 pa_rtclock_now(),
                 TRUE);
-
-    return 0;
 }
 
 static void bt_transport_release(struct userdata *u) {
@@ -346,7 +344,9 @@ static int bt_transport_acquire(struct userdata *u, pa_bool_t start) {
 
 done:
     pa_log_info("Transport %s resuming", u->transport);
-    return setup_stream(u);
+    setup_stream(u);
+
+    return 0;
 }
 
 /* Run from IO thread */
