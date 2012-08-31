@@ -1243,6 +1243,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
     DBusError err;
     struct userdata *u;
     bool acquire = FALSE;
+    bool release = FALSE;
 
     pa_assert(bus);
     pa_assert(m);
@@ -1321,6 +1322,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
             pa_device_port_set_available(port, available);
 
             acquire = (available == PA_PORT_AVAILABLE_YES && u->profile == PROFILE_HFGW);
+            release = (available != PA_PORT_AVAILABLE_YES && u->profile == PROFILE_HFGW);
         }
     } else if (dbus_message_is_signal(m, "org.bluez.Headset", "PropertyChanged")) {
         pa_bt_audio_state_t state = parse_state_property_change(m);
@@ -1336,6 +1338,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
             pa_device_port_set_available(port, available);
 
             acquire = (available == PA_PORT_AVAILABLE_YES && u->profile == PROFILE_HSP);
+            release = (available != PA_PORT_AVAILABLE_YES && u->profile == PROFILE_HSP);
         }
     } else if (dbus_message_is_signal(m, "org.bluez.AudioSource", "PropertyChanged")) {
         pa_bt_audio_state_t state = parse_state_property_change(m);
@@ -1348,6 +1351,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
             pa_device_port_set_available(port, available);
 
             acquire = (available == PA_PORT_AVAILABLE_YES && u->profile == PROFILE_A2DP_SOURCE);
+            release = (available != PA_PORT_AVAILABLE_YES && u->profile == PROFILE_A2DP_SOURCE);
         }
     } else if (dbus_message_is_signal(m, "org.bluez.AudioSink", "PropertyChanged")) {
         pa_bt_audio_state_t state = parse_state_property_change(m);
@@ -1360,6 +1364,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
             pa_device_port_set_available(port, available);
 
             acquire = (available == PA_PORT_AVAILABLE_YES && u->profile == PROFILE_A2DP);
+            release = (available != PA_PORT_AVAILABLE_YES && u->profile == PROFILE_A2DP);
         }
     }
 
@@ -1371,6 +1376,20 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
             if (u->sink)
                 pa_sink_suspend(u->sink, FALSE, PA_SUSPEND_IDLE|PA_SUSPEND_USER);
         }
+
+    if (release && bt_transport_is_acquired(u)) {
+        /* FIXME: this release is racy, since the audio stream might have
+           been set up again in the meantime (but not processed yet by PA).
+           BlueZ should probably release the transport automatically, and
+           in that case we would just mark the transport as released */
+
+        /* Remote side closed the stream so we consider it PA_SUSPEND_USER */
+        if (u->source)
+            pa_source_suspend(u->source, TRUE, PA_SUSPEND_USER);
+
+        if (u->sink)
+            pa_sink_suspend(u->sink, TRUE, PA_SUSPEND_USER);
+    }
 
 fail:
     dbus_error_free(&err);
