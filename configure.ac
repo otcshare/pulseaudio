@@ -1079,6 +1079,23 @@ AS_IF([test "x$HAVE_SPEEX" = "x1"], AC_DEFINE([HAVE_SPEEX], 1, [Have speex]))
 AC_SUBST(LIBSPEEX_CFLAGS)
 AC_SUBST(LIBSPEEX_LIBS)
 
+#### dlog support ####
+AC_ARG_ENABLE(dlog, AC_HELP_STRING([--enable-dlog], [using dlog]),
+[
+ case "${enableval}" in
+         yes) USE_DLOG=yes ;;
+         no)  USE_DLOG=no ;;
+         *)   AC_MSG_ERROR(bad value ${enableval} for --enable-dlog) ;;
+ esac
+ ],[USE_DLOG=no])
+
+if test "x$USE_DLOG" = "xyes"; then
+        PKG_CHECK_MODULES(DLOG, dlog)
+        AC_SUBST(DLOG_CFLAGS)
+        AC_SUBST(DLOG_LIBS)
+fi
+AM_CONDITIONAL(USE_DLOG, test "x$USE_DLOG" = "xyes")
+
 #### Xen support (optional) ####
 
 AC_ARG_ENABLE([xen],
@@ -1391,6 +1408,7 @@ AS_IF([test "x$HAVE_ORC" = "xyes"], ENABLE_ORC=yes, ENABLE_ORC=no)
 AS_IF([test "x$HAVE_ADRIAN_EC" = "x1"], ENABLE_ADRIAN_EC=yes, ENABLE_ADRIAN_EC=no)
 AS_IF([test "x$HAVE_SPEEX" = "x1"], ENABLE_SPEEX=yes, ENABLE_SPEEX=no)
 AS_IF([test "x$HAVE_WEBRTC" = "x1"], ENABLE_WEBRTC=yes, ENABLE_WEBRTC=no)
+AS_IF([test "x$HAVE_DLOG" = "xyes"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
 AS_IF([test "x$HAVE_TDB" = "x1"], ENABLE_TDB=yes, ENABLE_TDB=no)
 AS_IF([test "x$HAVE_GDBM" = "x1"], ENABLE_GDBM=yes, ENABLE_GDBM=no)
 AS_IF([test "x$HAVE_SIMPLEDB" = "x1"], ENABLE_SIMPLEDB=yes, ENABLE_SIMPLEDB=no)
@@ -1444,6 +1462,7 @@ echo "
     Enable Adrian echo canceller:  ${ENABLE_ADRIAN_EC}
     Enable speex (resampler, AEC): ${ENABLE_SPEEX}
     Enable WebRTC echo canceller:  ${ENABLE_WEBRTC}
+    Enable DLOG:                   ${ENABLE_DLOG}
     Database
       tdb:                         ${ENABLE_TDB}
       gdbm:                        ${ENABLE_GDBM}
