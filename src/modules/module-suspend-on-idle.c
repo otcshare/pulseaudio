@@ -34,6 +34,10 @@
 #include <pulsecore/modargs.h>
 #include <pulsecore/log.h>
 
+#ifdef HAVE_PMAPI
+#include <power.h>
+#endif
+
 #include "module-suspend-on-idle-symdef.h"
 
 PA_MODULE_AUTHOR("Lennart Poettering");
@@ -41,6 +45,13 @@ PA_MODULE_DESCRIPTION("When a sink/source is idle for too long, suspend it");
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(TRUE);
 PA_MODULE_USAGE("timeout=<timeout>");
+
+#ifdef HAVE_PMAPI
+#define PM_TYPE_SINK   0x01
+#define PM_TYPE_SOURCE 0x02
+#define UPDATE_PM_LOCK(current,type)   (current |= type)
+#define UPDATE_PM_UNLOCK(current,type) (current &= ~type)
+#endif
 
 static const char* const valid_modargs[] = {
     "timeout",
@@ -70,6 +81,9 @@ struct userdata {
         *source_output_move_finish_slot,
         *sink_input_state_changed_slot,
         *source_output_state_changed_slot;
+#ifdef HAVE_PMAPI
+    uint32_t pm_state;
+#endif
 };
 
 struct device_info {
@@ -83,6 +97,10 @@ struct device_info {
 static void timeout_cb(pa_mainloop_api*a, pa_time_event* e, const struct timeval *t, void *userdata) {
     struct device_info *d = userdata;
 
+#ifdef HAVE_PMAPI
+    int ret = -1;
+#endif
+
     pa_assert(d);
 
     d->userdata->core->mainloop->time_restart(d->time_event, NULL);
@@ -91,12 +109,32 @@ static void timeout_cb(pa_mainloop_api*a, pa_time_event* e, const struct timeval
         pa_log_info("Sink %s idle for too long, suspending ...", d->sink->name);
         pa_sink_suspend(d->sink, TRUE, PA_SUSPEND_IDLE);
         pa_core_maybe_vacuum(d->userdata->core);
+#ifdef HAVE_PMAPI
+	UPDATE_PM_UNLOCK(d->userdata->pm_state, PM_TYPE_SINK);
+	if(!(d->userdata->pm_state)) {
+	    ret = power_unlock_state(POWER_STATE_SCREEN_OFF)
+		if(!ret)
+		    pa_log_info("sink pm_unlock_state success");
+		else
+		    pa_log_error("sink pm_unlock_state failed [%d]", ret);
+	}
+#endif
     }
 
     if (d->source && pa_source_check_suspend(d->source) <= 0 && !(d->source->suspend_cause & PA_SUSPEND_IDLE)) {
         pa_log_info("Source %s idle for too long, suspending ...", d->source->name);
         pa_source_suspend(d->source, TRUE, PA_SUSPEND_IDLE);
         pa_core_maybe_vacuum(d->userdata->core);
+#ifdef HAVE_PMAPI
+	UPDATE_PM_UNLOCK(d->userdata->pm_state, PM_TYPE_SOURCE);
+	if(!(d->userdata->pm_state)) {
+	    ret = power_unlock_state(POWER_STATE_SCREEN_OFF);
+	    if(!ret)
+		pa_log_info("source pm_unlock_state success");
+	    else
+		pa_log_error("source pm_unlock_state failed [%d]", ret);
+	}
+#endif
     }
 }
 
@@ -104,6 +142,10 @@ static void restart(struct device_info *d) {
     pa_usec_t now;
     const char *s;
     uint32_t timeout;
+
+#ifdef HAVE_PMAPI
+    int ret = -1;
+#endif
 
     pa_assert(d);
     pa_assert(d->sink || d->source);
@@ -116,10 +158,28 @@ static void restart(struct device_info *d) {
 
     pa_core_rttime_restart(d->userdata->core, d->time_event, now + timeout * PA_USEC_PER_SEC);
 
-    if (d->sink)
-        pa_log_debug("Sink %s becomes idle, timeout in %u seconds.", d->sink->name, timeout);
-    if (d->source)
+    if (d->sink) {
+#ifdef HAVE_PMAPI
+	UPDATE_PM_LOCK(d->userdata->pm_state, PM_TYPE_SINK);
+	ret = power_lock_state(POWER_STATE_SCREEN_OFF, 0);
+	if(!ret)
+	    pa_log_info("sink pm_lock_state success");
+	else
+	    pa_log_error("sink pm_lock_state failed [%d]", ret);
+#endif
+	pa_log_debug("Sink %s becomes idle, timeout in %u seconds.", d->sink->name, timeout);
+    }
+    if (d->source) {
+#ifdef HAVE_PMAPI
+	UPDATE_PM_LOCK(d->userdata->pm_state, PM_TYPE_SOURCE);
+	ret = power_lock_state(POWER_STATE_SCREEN_OFF, 0);
+	if(!ret)
+	    pa_log_info("source pm_lock_state success");
+	else
+	    pa_log_error("source pm_lock_state failed [%d]", ret);
+#endif
         pa_log_debug("Source %s becomes idle, timeout in %u seconds.", d->source->name, timeout);
+    }
 }
 
 static void resume(struct device_info *d) {
@@ -438,6 +498,10 @@ int pa__init(pa_module*m) {
     u->core = m->core;
     u->timeout = timeout;
     u->device_infos = pa_hashmap_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
+
+#ifdef HAVE_PMAPI
+    u->pm_state = 0x00;
+#endif
 
     for (sink = pa_idxset_first(m->core->sinks, &idx); sink; sink = pa_idxset_next(m->core->sinks, &idx))
         device_new_hook_cb(m->core, PA_OBJECT(sink), u);
