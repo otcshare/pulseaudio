@@ -1255,6 +1255,22 @@ AS_IF([test "x$enable_adrian_aec" != "xno"],
 AM_CONDITIONAL([HAVE_ADRIAN_EC], [test "x$HAVE_ADRIAN_EC" = "x1"])
 
 
+AC_ARG_ENABLE(pmapi, AC_HELP_STRING([--enable-pmapi], [using Samsung power management api]),
+[
+ case "${enableval}" in
+         yes) HAVE_PMAPI=yes ;;
+         no)  HAVE_PMAPI=no ;;
+         *)   AC_MSG_ERROR(bad value ${enableval} for --enable-pmapi) ;;
+ esac
+ ],[HAVE_PMAPI=no])
+
+if test "x$HAVE_PMAPI" = "xyes"; then
+        PKG_CHECK_MODULES(PMAPI, [capi-system-power])
+        AC_SUBST(PMAPI_CFLAGS)
+        AC_SUBST(PMAPI_LIBS)
+fi
+AM_CONDITIONAL(HAVE_PMAPI, test "x$HAVE_PMAPI" = "xyes")
+
 
 ###################################
 #            Output               #
@@ -1409,6 +1425,7 @@ AS_IF([test "x$HAVE_ADRIAN_EC" = "x1"], ENABLE_ADRIAN_EC=yes, ENABLE_ADRIAN_EC=n
 AS_IF([test "x$HAVE_SPEEX" = "x1"], ENABLE_SPEEX=yes, ENABLE_SPEEX=no)
 AS_IF([test "x$HAVE_WEBRTC" = "x1"], ENABLE_WEBRTC=yes, ENABLE_WEBRTC=no)
 AS_IF([test "x$HAVE_DLOG" = "xyes"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
+AS_IF([test "x$HAVE_PMAPI" = "xyes"], ENABLE_PMAPI=yes, ENABLE_PMAPI=no)
 AS_IF([test "x$HAVE_TDB" = "x1"], ENABLE_TDB=yes, ENABLE_TDB=no)
 AS_IF([test "x$HAVE_GDBM" = "x1"], ENABLE_GDBM=yes, ENABLE_GDBM=no)
 AS_IF([test "x$HAVE_SIMPLEDB" = "x1"], ENABLE_SIMPLEDB=yes, ENABLE_SIMPLEDB=no)
@@ -1463,6 +1480,7 @@ echo "
     Enable speex (resampler, AEC): ${ENABLE_SPEEX}
     Enable WebRTC echo canceller:  ${ENABLE_WEBRTC}
     Enable DLOG:                   ${ENABLE_DLOG}
+    Enable PMAPI:                  ${ENABLE_PMAPI}
     Database
       tdb:                         ${ENABLE_TDB}
       gdbm:                        ${ENABLE_GDBM}
