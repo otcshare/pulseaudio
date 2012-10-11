@@ -1271,6 +1271,21 @@ if test "x$HAVE_PMAPI" = "xyes"; then
 fi
 AM_CONDITIONAL(HAVE_PMAPI, test "x$HAVE_PMAPI" = "xyes")
 
+AC_ARG_ENABLE(spolicy, AC_HELP_STRING([--enable-spolicy], [using Samsung policy module]),
+[
+ case "${enableval}" in
+         yes) HAVE_SPOLICY=yes ;;
+         no)  HAVE_SPOLICY=no ;;
+         *)   AC_MSG_ERROR(bad value ${enableval} for --enable-spolicy) ;;
+ esac
+ ],[HAVE_SPOLICY=no])
+
+if test "x$HAVE_SPOLICY" = "xyes"; then
+        PKG_CHECK_MODULES(VCONF, vconf)
+        AC_SUBST(VCONF_CFLAGS)
+        AC_SUBST(VCONF_LIBS)
+fi
+AM_CONDITIONAL(HAVE_SPOLICY, test "x$HAVE_SPOLICY" = "xyes")
 
 ###################################
 #            Output               #
@@ -1426,6 +1441,7 @@ AS_IF([test "x$HAVE_SPEEX" = "x1"], ENABLE_SPEEX=yes, ENABLE_SPEEX=no)
 AS_IF([test "x$HAVE_WEBRTC" = "x1"], ENABLE_WEBRTC=yes, ENABLE_WEBRTC=no)
 AS_IF([test "x$HAVE_DLOG" = "xyes"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
 AS_IF([test "x$HAVE_PMAPI" = "xyes"], ENABLE_PMAPI=yes, ENABLE_PMAPI=no)
+AS_IF([test "x$HAVE_SPOLICY" = "xyes"], ENABLE_SPOLICY=yes, ENABLE_SPOLICY=no)
 AS_IF([test "x$HAVE_TDB" = "x1"], ENABLE_TDB=yes, ENABLE_TDB=no)
 AS_IF([test "x$HAVE_GDBM" = "x1"], ENABLE_GDBM=yes, ENABLE_GDBM=no)
 AS_IF([test "x$HAVE_SIMPLEDB" = "x1"], ENABLE_SIMPLEDB=yes, ENABLE_SIMPLEDB=no)
@@ -1481,6 +1497,7 @@ echo "
     Enable WebRTC echo canceller:  ${ENABLE_WEBRTC}
     Enable DLOG:                   ${ENABLE_DLOG}
     Enable PMAPI:                  ${ENABLE_PMAPI}
+    Enable Samsung policy:         ${ENABLE_SPOLICY}
     Database
       tdb:                         ${ENABLE_TDB}
       gdbm:                        ${ENABLE_GDBM}
