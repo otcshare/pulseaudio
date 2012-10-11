@@ -65,7 +65,10 @@ PA_C_DECL_BEGIN
 /** For streams: logic role of this media. One of the strings "video", "music", "game", "event", "phone", "animation", "production", "a11y", "test" */
 #define PA_PROP_MEDIA_ROLE                     "media.role"
 
-/** For streams: the name of a filter that is desired, e.g.\ "echo-cancel" or "equalizer-sink". PulseAudio may choose to not apply the filter if it does not make sense (for example, applying echo-cancellation on a Bluetooth headset probably does not make sense. \since 1.0 */
+/** For streams: logic role of this media. One of the strings "auto", "phone" */
+#define PA_PROP_MEDIA_POLICY                "media.policy"
+
+/** For streams: the name of a filter that is desired, e.g. "echo-cancel" or "equalizer-sink". PulseAudio may choose to not apply the filter if it does not make sense (for example, applying echo-cancellation on a Bluetooth headset probably does not make sense. \since 1.0 */
 #define PA_PROP_FILTER_WANT                    "filter.want"
 
 /** For streams: the name of a filter that is desired, e.g.\ "echo-cancel" or "equalizer-sink". Differs from PA_PROP_FILTER_WANT in that it forces PulseAudio to apply the filter, regardless of whether PulseAudio thinks it makes sense to do so or not. If this is set, PA_PROP_FILTER_WANT is ignored. In other words, you almost certainly do not want to use this. \since 1.0 */

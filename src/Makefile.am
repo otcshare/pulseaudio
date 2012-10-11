@@ -774,6 +774,12 @@ lib_LTLIBRARIES = \
 		libpulse.la \
 		libpulse-simple.la
 
+
+if HAVE_SPOLICY
+pulseinclude_HEADERS += \
+		pulse/ext-policy.h
+endif
+
 if HAVE_GLIB20
 pulseinclude_HEADERS += \
 		pulse/glib-mainloop.h
@@ -814,6 +820,11 @@ libpulse_la_SOURCES = \
 		pulse/util.c pulse/util.h \
 		pulse/volume.c pulse/volume.h \
 		pulse/xmalloc.c pulse/xmalloc.h
+
+if HAVE_SPOLICY
+libpulse_la_SOURCES += \
+		pulse/ext-policy.c pulse/ext-policy.h
+endif
 
 libpulse_la_CFLAGS = $(AM_CFLAGS) $(LIBJSON_CFLAGS)
 libpulse_la_LIBADD = $(AM_LIBADD) $(WINSOCK_LIBS) $(LTLIBICONV) $(LIBJSON_LIBS) libpulsecommon-@PA_MAJORMINOR@.la
@@ -1069,6 +1080,13 @@ if HAVE_DBUS
 # Serveral module (e.g. libalsa-util.la)
 modlibexec_LTLIBRARIES += \
 		module-console-kit.la
+endif
+
+if HAVE_DBUS
+if HAVE_SPOLICY
+modlibexec_LTLIBRARIES += \
+		module-policy.la
+endif
 endif
 
 modlibexec_LTLIBRARIES += \
@@ -1443,6 +1461,11 @@ SYMDEF_FILES += \
 		module-esound-compat-spawnfd-symdef.h \
 		module-esound-compat-spawnpid-symdef.h \
 		module-esound-sink-symdef.h
+endif
+
+if HAVE_SPOLICY
+SYMDEF_FILES += \
+		module-policy-symdef.h
 endif
 
 EXTRA_DIST += $(SYMDEF_FILES)
@@ -2057,6 +2080,13 @@ module_rygel_media_server_la_SOURCES = modules/module-rygel-media-server.c
 module_rygel_media_server_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_rygel_media_server_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) libprotocol-http.la
 module_rygel_media_server_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
+
+if HAVE_SPOLICY
+module_policy_la_SOURCES = modules/module-policy.c
+module_policy_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_policy_la_LIBADD = $(AM_LIBADD) $(DBUS_LIBS) $(VCONF_LIBS) libprotocol-native.la libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
+module_policy_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) $(VCONF_CFLAGS)
+endif
 
 ###################################
 #        Some minor stuff         #
