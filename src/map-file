@@ -163,6 +163,8 @@ pa_ext_stream_restore_set_subscribe_cb;
 pa_ext_stream_restore_subscribe;
 pa_ext_stream_restore_test;
 pa_ext_stream_restore_write;
+pa_ext_policy_test;
+pa_ext_policy_set_mono;
 pa_format_info_copy;
 pa_format_info_free;
 pa_format_info_free2;
