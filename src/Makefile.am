@@ -825,7 +825,7 @@ libpulse_la_LIBADD += $(DBUS_LIBS)
 endif
 
 libpulse_simple_la_SOURCES = pulse/simple.c pulse/simple.h
-libpulse_simple_la_CFLAGS = $(AM_CFLAGS)
+libpulse_simple_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
 libpulse_simple_la_LIBADD = $(AM_LIBADD) libpulse.la libpulsecommon-@PA_MAJORMINOR@.la
 libpulse_simple_la_LDFLAGS = $(AM_LDFLAGS) $(VERSIONING_LDFLAGS) -version-info $(LIBPULSE_SIMPLE_VERSION_INFO)
 
