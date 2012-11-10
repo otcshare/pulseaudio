@@ -433,10 +433,10 @@ setup-pulseaudio --auto > /dev/null
 %defattr(-,root,root)
 #%{_libdir}/pulse-%{drvver}/modules/libavahi-wrap.so
 %{_libdir}/pulse-%{drvver}/modules/libraop.so
-%{_libdir}/pulse-%{drvver}/modules/module-raop-discover.so
+#%{_libdir}/pulse-%{drvver}/modules/module-raop-discover.so
 %{_libdir}/pulse-%{drvver}/modules/module-raop-sink.so
-%{_libdir}/pulse-%{drvver}/modules/module-zeroconf-discover.so
-%{_libdir}/pulse-%{drvver}/modules/module-zeroconf-publish.so
+#%{_libdir}/pulse-%{drvver}/modules/module-zeroconf-discover.so
+#%{_libdir}/pulse-%{drvver}/modules/module-zeroconf-publish.so
 
 %files utils
 %defattr(-,root,root)
