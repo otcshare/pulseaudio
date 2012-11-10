@@ -163,7 +163,7 @@ static void AEC_leaky(AEC *a)
     } else if (1 == a->hangover) {
       --(a->hangover);
       // My Leaky NLMS is to erase vector w when hangover expires
-      memset(a->w, 0, sizeof(a->w));
+      memset(a->w, 0, sizeof(REAL));
     }
   }
 }
