@@ -1,0 +1,43 @@
+From: Anas Nashif <anas.nashif@intel.com>
+Date: Sat, 10 Nov 2012 11:20:46 -0800
+Subject: disabled start
+
+---
+ src/daemon/start-pulseaudio-kde.in |    6 ++++++
+ src/daemon/start-pulseaudio-x11.in |    6 ++++++
+ 2 files changed, 12 insertions(+), 0 deletions(-)
+
+diff --git a/src/daemon/start-pulseaudio-kde.in b/src/daemon/start-pulseaudio-kde.in
+index c319e7d..e83fdea 100755
+--- a/src/daemon/start-pulseaudio-kde.in
++++ b/src/daemon/start-pulseaudio-kde.in
+@@ -19,6 +19,12 @@
+ 
+ set -e
+ 
++. /etc/sysconfig/sound
++
++if [ x"$PULSEAUDIO_ENABLE" = x"no" ] ; then
++    exit 1
++fi
++
+ [ -z "$PULSE_SERVER" ]
+ 
+ @PA_BINARY@ --start "$@"
+diff --git a/src/daemon/start-pulseaudio-x11.in b/src/daemon/start-pulseaudio-x11.in
+index 391a6d3..401828d 100755
+--- a/src/daemon/start-pulseaudio-x11.in
++++ b/src/daemon/start-pulseaudio-x11.in
+@@ -19,6 +19,12 @@
+ 
+ set -e
+ 
++. /etc/sysconfig/sound
++
++if [ x"$PULSEAUDIO_ENABLE" = x"no" ] ; then
++    exit 1
++fi
++
+ @PA_BINARY@ --start "$@"
+ 
+ if [ x"$DISPLAY" != x ] ; then

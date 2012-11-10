@@ -1,0 +1,9 @@
+
+## Path:	Hardware/Soundcard/PulseAudio
+## Description:	PulseAudio configuration
+## Type:	list(yes,no,custom)
+#
+# Enable or disable PulseAudio system. Can be set to "custom" to not have
+# scripts automatically change sound-related configuration for PulseAudio.
+#
+PULSEAUDIO_ENABLE="yes"

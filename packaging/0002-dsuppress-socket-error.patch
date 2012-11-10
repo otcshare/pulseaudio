@@ -1,0 +1,21 @@
+From: Anas Nashif <anas.nashif@intel.com>
+Date: Sat, 10 Nov 2012 11:21:15 -0800
+Subject: dsuppress socket error
+
+---
+ src/pulsecore/socket-client.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/pulsecore/socket-client.c b/src/pulsecore/socket-client.c
+index 23d5d88..051cf68 100644
+--- a/src/pulsecore/socket-client.c
++++ b/src/pulsecore/socket-client.c
+@@ -253,7 +253,7 @@ static int sockaddr_prepare(pa_socket_client *c, const struct sockaddr *sa, size
+     c->local = pa_socket_address_is_local(sa);
+ 
+     if ((c->fd = pa_socket_cloexec(sa->sa_family, SOCK_STREAM, 0)) < 0) {
+-        pa_log("socket(): %s", pa_cstrerror(errno));
++        /*pa_log("socket(): %s", pa_cstrerror(errno));*/
+         return -1;
+     }
+ 
