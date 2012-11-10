@@ -253,7 +253,7 @@ static int sockaddr_prepare(pa_socket_client *c, const struct sockaddr *sa, size
     c->local = pa_socket_address_is_local(sa);
 
     if ((c->fd = pa_socket_cloexec(sa->sa_family, SOCK_STREAM, 0)) < 0) {
-        pa_log("socket(): %s", pa_cstrerror(errno));
+        /*pa_log("socket(): %s", pa_cstrerror(errno));*/
         return -1;
     }
 
