@@ -210,7 +210,6 @@ This package contains GDM integration hooks for the PulseAudio sound server.
 %setup -q -T -b0
 
 %build
-%autogen
 export CFLAGS="%{optflags} -fno-strict-aliasing"
 # libpulse and libpulsecommon need each other - no way with as-needed
 export LD_AS_NEEDED=0
