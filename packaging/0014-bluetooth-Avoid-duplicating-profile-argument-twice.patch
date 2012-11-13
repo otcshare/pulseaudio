@@ -1,0 +1,33 @@
+From 4b80c824219f6c8fdf92100aceeea1f9fdb58cfa Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Fri, 27 Jul 2012 16:41:22 +0200
+Subject: [PATCH 14/48] bluetooth: Avoid duplicating profile argument twice
+
+The module module-bluetooth-device should never be given parameter
+'profile' twice, even if both HFGW and A2DP are playing. This patch
+proposed to consider HFGW first.
+---
+ src/modules/bluetooth/module-bluetooth-discover.c |    5 ++---
+ 1 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-discover.c b/src/modules/bluetooth/module-bluetooth-discover.c
+index e96a4f3..d4e056e 100644
+--- a/src/modules/bluetooth/module-bluetooth-discover.c
++++ b/src/modules/bluetooth/module-bluetooth-discover.c
+@@ -107,11 +107,10 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const
+                 args = tmp;
+             }
+ 
+-            if (d->audio_source_state >= PA_BT_AUDIO_STATE_CONNECTED)
+-                args = pa_sprintf_malloc("%s profile=\"a2dp_source\" auto_connect=no", args);
+-
+             if (d->hfgw_state >= PA_BT_AUDIO_STATE_CONNECTED)
+                 args = pa_sprintf_malloc("%s profile=\"hfgw\"", args);
++            else if (d->audio_source_state >= PA_BT_AUDIO_STATE_CONNECTED)
++                args = pa_sprintf_malloc("%s profile=\"a2dp_source\" auto_connect=no", args);
+ 
+             pa_log_debug("Loading module-bluetooth-device %s", args);
+             m = pa_module_load(u->module->core, "module-bluetooth-device", args);
+-- 
+1.7.7.6
+

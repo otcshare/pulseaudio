@@ -1,0 +1,180 @@
+From 0edddf7edc7b087b3f0edc07f47437ff89e395aa Mon Sep 17 00:00:00 2001
+From: Jaska Uimonen <jaska.uimonen@intel.com>
+Date: Mon, 8 Oct 2012 16:04:20 +0300
+Subject: [PATCH 43/48] add support for dlog - Samsung
+
+---
+ configure.ac        |   19 +++++++++++
+ src/pulsecore/log.c |   89 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/pulsecore/log.h |    4 ++
+ 3 files changed, 112 insertions(+), 0 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 69603c6..5cff178 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1079,6 +1079,23 @@ AS_IF([test "x$HAVE_SPEEX" = "x1"], AC_DEFINE([HAVE_SPEEX], 1, [Have speex]))
+ AC_SUBST(LIBSPEEX_CFLAGS)
+ AC_SUBST(LIBSPEEX_LIBS)
+ 
++#### dlog support ####
++AC_ARG_ENABLE(dlog, AC_HELP_STRING([--enable-dlog], [using dlog]),
++[
++ case "${enableval}" in
++         yes) USE_DLOG=yes ;;
++         no)  USE_DLOG=no ;;
++         *)   AC_MSG_ERROR(bad value ${enableval} for --enable-dlog) ;;
++ esac
++ ],[USE_DLOG=no])
++
++if test "x$USE_DLOG" = "xyes"; then
++        PKG_CHECK_MODULES(DLOG, dlog)
++        AC_SUBST(DLOG_CFLAGS)
++        AC_SUBST(DLOG_LIBS)
++fi
++AM_CONDITIONAL(USE_DLOG, test "x$USE_DLOG" = "xyes")
++
+ #### Xen support (optional) ####
+ 
+ AC_ARG_ENABLE([xen],
+@@ -1391,6 +1408,7 @@ AS_IF([test "x$HAVE_ORC" = "xyes"], ENABLE_ORC=yes, ENABLE_ORC=no)
+ AS_IF([test "x$HAVE_ADRIAN_EC" = "x1"], ENABLE_ADRIAN_EC=yes, ENABLE_ADRIAN_EC=no)
+ AS_IF([test "x$HAVE_SPEEX" = "x1"], ENABLE_SPEEX=yes, ENABLE_SPEEX=no)
+ AS_IF([test "x$HAVE_WEBRTC" = "x1"], ENABLE_WEBRTC=yes, ENABLE_WEBRTC=no)
++AS_IF([test "x$HAVE_DLOG" = "xyes"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
+ AS_IF([test "x$HAVE_TDB" = "x1"], ENABLE_TDB=yes, ENABLE_TDB=no)
+ AS_IF([test "x$HAVE_GDBM" = "x1"], ENABLE_GDBM=yes, ENABLE_GDBM=no)
+ AS_IF([test "x$HAVE_SIMPLEDB" = "x1"], ENABLE_SIMPLEDB=yes, ENABLE_SIMPLEDB=no)
+@@ -1444,6 +1462,7 @@ echo "
+     Enable Adrian echo canceller:  ${ENABLE_ADRIAN_EC}
+     Enable speex (resampler, AEC): ${ENABLE_SPEEX}
+     Enable WebRTC echo canceller:  ${ENABLE_WEBRTC}
++    Enable DLOG:                   ${ENABLE_DLOG}
+     Database
+       tdb:                         ${ENABLE_TDB}
+       gdbm:                        ${ENABLE_GDBM}
+diff --git a/src/pulsecore/log.c b/src/pulsecore/log.c
+index 8eaef54..c51155b 100644
+--- a/src/pulsecore/log.c
++++ b/src/pulsecore/log.c
+@@ -53,6 +53,28 @@
+ 
+ #include "log.h"
+ 
++#ifdef USE_DLOG
++#include <dlog.h>
++#define	DLOG_TAG	"PULSEAUDIO"
++
++#define COLOR_BLACK		30
++#define COLOR_RED		31
++#define COLOR_GREEN		32
++#define COLOR_BLUE		34
++#define COLOR_MAGENTA		35
++#define COLOR_CYAN		36
++#define COLOR_WHITE		97
++#define COLOR_B_GRAY		100
++#define COLOR_B_RED		101
++#define COLOR_B_GREEN		102
++#define COLOR_B_YELLOW		103
++#define COLOR_B_BLUE		104
++#define COLOR_B_MAGENTA	105
++#define COLOR_B_CYAN		106
++#define COLOR_REVERSE		7
++
++#endif
++
+ #define ENV_LOG_SYSLOG "PULSE_LOG_SYSLOG"
+ #define ENV_LOG_LEVEL "PULSE_LOG"
+ #define ENV_LOG_COLORS "PULSE_LOG_COLORS"
+@@ -427,6 +449,73 @@ void pa_log_levelv_meta(
+ 
+                 break;
+             }
++#ifdef USE_DLOG
++            case PA_LOG_DLOG: {
++                char *local_t;
++
++                openlog(ident, LOG_PID, LOG_USER);
++
++                if ((local_t = pa_utf8_to_locale(t)))
++                    t = local_t;
++
++                switch (level)
++                {
++                                        case PA_LOG_DEBUG:
++                                                SLOG (LOG_DEBUG, DLOG_TAG, "%s%s%s%s",  timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                        case PA_LOG_INFO:
++                                        case PA_LOG_NOTICE:     // no notice category in dlog, use info instead.
++                                                SLOG (LOG_INFO, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                        case PA_LOG_WARN:
++                                                SLOG (LOG_WARN, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                        case PA_LOG_ERROR:
++                                                SLOG (LOG_ERROR, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                        default:
++                                                SLOG (LOG_DEBUG, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
++                                                break;
++                }
++
++                pa_xfree(local_t);
++
++                break;
++            }
++            case PA_LOG_DLOG_COLOR: {
++                                char *local_t;
++
++                                openlog(ident, LOG_PID, LOG_USER);
++
++                                if ((local_t = pa_utf8_to_locale(t)))
++                                        t = local_t;
++
++                                switch (level)
++                                {
++                                        case PA_LOG_DEBUG:
++                                                SLOG (LOG_DEBUG, DLOG_TAG, "\033[%dm%s%s%s%s\033[0m", COLOR_GREEN, timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                        case PA_LOG_INFO:
++                                        case PA_LOG_NOTICE:     // no notice category in dlog, use info instead.
++                                                SLOG (LOG_INFO, DLOG_TAG, "\033[%dm%s%s%s%s\033[0m", COLOR_BLUE, timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                        case PA_LOG_WARN:
++                                                SLOG (LOG_WARN, DLOG_TAG, "\033[%dm%s%s%s%s\033[0m", COLOR_MAGENTA, timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                        case PA_LOG_ERROR:
++                                                SLOG (LOG_ERROR, DLOG_TAG, "\033[%dm%s%s%s%s\033[0m", COLOR_RED, timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                        default:
++                                                SLOG (LOG_DEBUG, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
++                                                break;
++                                }
++
++                                pa_xfree(local_t);
++
++                                break;
++                        }
++
++#endif
+             case PA_LOG_NULL:
+             default:
+                 break;
+diff --git a/src/pulsecore/log.h b/src/pulsecore/log.h
+index 8dd056b..3daf93a 100644
+--- a/src/pulsecore/log.h
++++ b/src/pulsecore/log.h
+@@ -37,6 +37,10 @@ typedef enum pa_log_target {
+     PA_LOG_SYSLOG,
+     PA_LOG_NULL,    /* to /dev/null */
+     PA_LOG_FD,      /* to a file descriptor, e.g. a char device */
++#ifdef USE_DLOG
++    PA_LOG_DLOG,
++    PA_LOG_DLOG_COLOR,
++#endif
+     PA_LOG_TARGET_MAX
+ } pa_log_target_t;
+ 
+-- 
+1.7.7.6
+

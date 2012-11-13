@@ -1,0 +1,47 @@
+From cd7d4d1f04ea4589b75b9a1436cffae236793137 Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Fri, 31 Aug 2012 12:50:54 +0200
+Subject: [PATCH 24/48] bluetooth: Remove return value of setup_stream()
+
+The function setup_stream() never fails so the code can be simplified by
+just removing the return value.
+---
+ src/modules/bluetooth/module-bluetooth-device.c |    8 ++++----
+ 1 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index ead78cc..1502b9f 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -244,7 +244,7 @@ static void a2dp_set_bitpool(struct userdata *u, uint8_t bitpool)
+ 
+ /* from IO thread, except in SCO over PCM */
+ 
+-static int setup_stream(struct userdata *u) {
++static void setup_stream(struct userdata *u) {
+     struct pollfd *pollfd;
+     int one;
+ 
+@@ -277,8 +277,6 @@ static int setup_stream(struct userdata *u) {
+                 10,
+                 pa_rtclock_now(),
+                 TRUE);
+-
+-    return 0;
+ }
+ 
+ static void bt_transport_release(struct userdata *u) {
+@@ -346,7 +344,9 @@ static int bt_transport_acquire(struct userdata *u, pa_bool_t start) {
+ 
+ done:
+     pa_log_info("Transport %s resuming", u->transport);
+-    return setup_stream(u);
++    setup_stream(u);
++
++    return 0;
+ }
+ 
+ /* Run from IO thread */
+-- 
+1.7.7.6
+

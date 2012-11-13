@@ -1,0 +1,217 @@
+From 523b824f051daff9b1fd393e46a2da03f1310347 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Fr=C3=A9d=C3=A9ric=20Danis?= <frederic.danis@linux.intel.com>
+Date: Tue, 12 Jun 2012 15:49:50 +0200
+Subject: [PATCH 09/48] bluetooth: Fix bluetooth.nrec property not updated
+
+PropertyChanged signal of org.BlueZ.MediaTransport is processed in
+pa_bluetooth_transport_parse_property() which updates t->nrec.
+This is called by :
+- First by filter_cb() of bluetooth-util.c
+- Then by filter_cb() of module-bluetooth-device.c which retrieve value
+  of t->nrec before calling parse function, then it checks if t->nrec
+  has changed before updating bluetooth.nrec property.
+  As t->nrec has alreday been changed during first process, property
+  update is never performed.
+
+This patch creates a new hook in pa_bluetooth_transport called
+PA_BLUETOOTH_TRANSPORT_HOOK_NREC_CHANGED.
+The hook is fired by bluetooth-util.c when the transport's NREC
+property changes.
+module-bluetooth-device.c won't listen the PropertyChanged signal of
+MediaTransport anymore. Instead, it will use the hook in
+pa_bluetooth_transport to get a notification when the NREC property
+changes, and update the sink or source proplist accordingly.
+
+const qualifier for returned pointer of
+pa_bluetooth_discovery_get_transport() is removed.
+---
+ src/modules/bluetooth/bluetooth-util.c          |   16 +++++++-
+ src/modules/bluetooth/bluetooth-util.h          |   10 ++++-
+ src/modules/bluetooth/module-bluetooth-device.c |   47 ++++++++++++-----------
+ 3 files changed, 47 insertions(+), 26 deletions(-)
+
+diff --git a/src/modules/bluetooth/bluetooth-util.c b/src/modules/bluetooth/bluetooth-util.c
+index b786502..cc3b8c6 100644
+--- a/src/modules/bluetooth/bluetooth-util.c
++++ b/src/modules/bluetooth/bluetooth-util.c
+@@ -138,8 +138,13 @@ static pa_bluetooth_device* device_new(const char *path) {
+ }
+ 
+ static void transport_free(pa_bluetooth_transport *t) {
++    unsigned i;
++
+     pa_assert(t);
+ 
++    for (i = 0; i < PA_BLUETOOTH_TRANSPORT_HOOK_MAX; i++)
++        pa_hook_done(&t->hooks[i]);
++
+     pa_xfree(t->path);
+     pa_xfree(t->config);
+     pa_xfree(t);
+@@ -756,8 +761,11 @@ int pa_bluetooth_transport_parse_property(pa_bluetooth_transport *t, DBusMessage
+             dbus_bool_t value;
+             dbus_message_iter_get_basic(&variant_i, &value);
+ 
+-            if (pa_streq(key, "NREC"))
++            if (pa_streq(key, "NREC") && t->nrec != value) {
+                 t->nrec = value;
++                pa_log_debug("Transport %s: Property 'NREC' changed to %s.", t->path, t->nrec ? "True" : "False");
++                pa_hook_fire(&t->hooks[PA_BLUETOOTH_TRANSPORT_HOOK_NREC_CHANGED], NULL);
++            }
+ 
+             break;
+          }
+@@ -979,7 +987,7 @@ const pa_bluetooth_device* pa_bluetooth_discovery_get_by_path(pa_bluetooth_disco
+     return NULL;
+ }
+ 
+-const pa_bluetooth_transport* pa_bluetooth_discovery_get_transport(pa_bluetooth_discovery *y, const char *path) {
++pa_bluetooth_transport* pa_bluetooth_discovery_get_transport(pa_bluetooth_discovery *y, const char *path) {
+     pa_bluetooth_device *d;
+     pa_bluetooth_transport *t;
+     void *state = NULL;
+@@ -1085,6 +1093,7 @@ static int setup_dbus(pa_bluetooth_discovery *y) {
+ 
+ static pa_bluetooth_transport *transport_new(pa_bluetooth_discovery *y, const char *path, enum profile p, const uint8_t *config, int size) {
+     pa_bluetooth_transport *t;
++    unsigned i;
+ 
+     t = pa_xnew0(pa_bluetooth_transport, 1);
+     t->y = y;
+@@ -1097,6 +1106,9 @@ static pa_bluetooth_transport *transport_new(pa_bluetooth_discovery *y, const ch
+         memcpy(t->config, config, size);
+     }
+ 
++    for (i = 0; i < PA_BLUETOOTH_TRANSPORT_HOOK_MAX; i++)
++        pa_hook_init(&t->hooks[i], t);
++
+     return t;
+ }
+ 
+diff --git a/src/modules/bluetooth/bluetooth-util.h b/src/modules/bluetooth/bluetooth-util.h
+index 2752a69..a2ad9aa 100644
+--- a/src/modules/bluetooth/bluetooth-util.h
++++ b/src/modules/bluetooth/bluetooth-util.h
+@@ -63,6 +63,12 @@ enum profile {
+     PROFILE_OFF
+ };
+ 
++/* Hook data: pa_bluetooth_transport pointer. */
++typedef enum pa_bluetooth_transport_hook {
++    PA_BLUETOOTH_TRANSPORT_HOOK_NREC_CHANGED, /* Call data: NULL. */
++    PA_BLUETOOTH_TRANSPORT_HOOK_MAX
++} pa_bluetooth_transport_hook_t;
++
+ struct pa_bluetooth_transport {
+     pa_bluetooth_discovery *y;
+     char *path;
+@@ -71,6 +77,8 @@ struct pa_bluetooth_transport {
+     uint8_t *config;
+     int config_size;
+     pa_bool_t nrec;
++
++    pa_hook hooks[PA_BLUETOOTH_TRANSPORT_HOOK_MAX];
+ };
+ 
+ /* This enum is shared among Audio, Headset, AudioSink, and AudioSource, although not all values are acceptable in all profiles */
+@@ -124,7 +132,7 @@ void pa_bluetooth_discovery_sync(pa_bluetooth_discovery *d);
+ const pa_bluetooth_device* pa_bluetooth_discovery_get_by_path(pa_bluetooth_discovery *d, const char* path);
+ const pa_bluetooth_device* pa_bluetooth_discovery_get_by_address(pa_bluetooth_discovery *d, const char* address);
+ 
+-const pa_bluetooth_transport* pa_bluetooth_discovery_get_transport(pa_bluetooth_discovery *y, const char *path);
++pa_bluetooth_transport* pa_bluetooth_discovery_get_transport(pa_bluetooth_discovery *y, const char *path);
+ const pa_bluetooth_transport* pa_bluetooth_device_get_transport(const pa_bluetooth_device *d, enum profile profile);
+ 
+ int pa_bluetooth_transport_acquire(const pa_bluetooth_transport *t, const char *accesstype, size_t *imtu, size_t *omtu);
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index 4901ef9..d62cf06 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -124,6 +124,7 @@ struct hsp_info {
+     void (*sco_source_set_volume)(pa_source *s);
+     pa_hook_slot *sink_state_changed_slot;
+     pa_hook_slot *source_state_changed_slot;
++    pa_hook_slot *nrec_changed_slot;
+ };
+ 
+ struct bluetooth_msg {
+@@ -1818,28 +1819,6 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
+                 pa_source_volume_changed(u->source, &v);
+             }
+         }
+-    } else if (dbus_message_is_signal(m, "org.bluez.MediaTransport", "PropertyChanged")) {
+-        DBusMessageIter arg_i;
+-        pa_bluetooth_transport *t;
+-        pa_bool_t nrec;
+-
+-        t = (pa_bluetooth_transport *) pa_bluetooth_discovery_get_transport(u->discovery, u->transport);
+-        pa_assert(t);
+-
+-        if (!dbus_message_iter_init(m, &arg_i)) {
+-            pa_log("Failed to parse PropertyChanged: %s", err.message);
+-            goto fail;
+-        }
+-
+-        nrec = t->nrec;
+-
+-        if (pa_bluetooth_transport_parse_property(t, &arg_i) < 0)
+-            goto fail;
+-
+-        if (nrec != t->nrec) {
+-            pa_log_debug("dbus: property 'NREC' changed to value '%s'", t->nrec ? "True" : "False");
+-            pa_proplist_sets(u->source->proplist, "bluetooth.nrec", t->nrec ? "1" : "0");
+-        }
+     } else if (dbus_message_is_signal(m, "org.bluez.HandsfreeGateway", "PropertyChanged")) {
+         const char *key;
+         DBusMessageIter iter;
+@@ -2073,6 +2052,20 @@ static pa_hook_result_t source_state_changed_cb(pa_core *c, pa_source *s, struct
+     return PA_HOOK_OK;
+ }
+ 
++static pa_hook_result_t nrec_changed_cb(pa_bluetooth_transport *t, void *call_data, struct userdata *u) {
++    pa_proplist *p;
++
++    pa_assert(t);
++    pa_assert(u);
++
++    p = pa_proplist_new();
++    pa_proplist_sets(p, "bluetooth.nrec", t->nrec ? "1" : "0");
++    pa_source_update_proplist(u->source, PA_UPDATE_REPLACE, p);
++    pa_proplist_free(p);
++
++    return PA_HOOK_OK;
++}
++
+ static void connect_ports(struct userdata *u, void *sink_or_source_new_data, pa_direction_t direction) {
+     union {
+         pa_sink_new_data *sink_new_data;
+@@ -2247,10 +2240,13 @@ static int add_source(struct userdata *u) {
+ 
+     if ((u->profile == PROFILE_HSP) || (u->profile == PROFILE_HFGW)) {
+         if (u->transport) {
+-            const pa_bluetooth_transport *t;
++            pa_bluetooth_transport *t;
+             t = pa_bluetooth_discovery_get_transport(u->discovery, u->transport);
+             pa_assert(t);
+             pa_proplist_sets(u->source->proplist, "bluetooth.nrec", t->nrec ? "1" : "0");
++
++            if (!u->hsp.nrec_changed_slot)
++                u->hsp.nrec_changed_slot = pa_hook_connect(&t->hooks[PA_BLUETOOTH_TRANSPORT_HOOK_NREC_CHANGED], PA_HOOK_NORMAL, (pa_hook_cb_t) nrec_changed_cb, u);
+         } else
+             pa_proplist_sets(u->source->proplist, "bluetooth.nrec", (u->hsp.pcm_capabilities.flags & BT_PCM_FLAG_NREC) ? "1" : "0");
+     }
+@@ -2546,6 +2542,11 @@ static void stop_thread(struct userdata *u) {
+         u->hsp.source_state_changed_slot = NULL;
+     }
+ 
++    if (u->hsp.nrec_changed_slot) {
++        pa_hook_slot_free(u->hsp.nrec_changed_slot);
++        u->hsp.nrec_changed_slot = NULL;
++    }
++
+     if (u->sink) {
+         if (u->profile == PROFILE_HSP) {
+             k = pa_sprintf_malloc("bluetooth-device@%p", (void*) u->sink);
+-- 
+1.7.7.6
+

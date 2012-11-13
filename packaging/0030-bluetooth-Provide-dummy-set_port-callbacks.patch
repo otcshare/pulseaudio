@@ -1,0 +1,53 @@
+From 5d80562c796f8edfdab40b56c6bee228b6b1d4f6 Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Fri, 31 Aug 2012 12:51:01 +0200
+Subject: [PATCH 30/48] bluetooth: Provide dummy set_port callbacks
+
+There should be one port per sink/source so a dummy set_port callback
+will be enough.
+
+Adding this callback avoid the "operation not implemented" error
+message and additionally makes the module work nicely with
+module-switch-on-port-available.
+---
+ src/modules/bluetooth/module-bluetooth-device.c |   10 ++++++++++
+ 1 files changed, 10 insertions(+), 0 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index 0323a45..180f8fb 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -1517,6 +1517,14 @@ static const char *profile_to_string(enum profile profile) {
+     }
+ }
+ 
++static int sink_set_port_cb(pa_sink *s, pa_device_port *p) {
++    return 0;
++}
++
++static int source_set_port_cb(pa_source *s, pa_device_port *p) {
++    return 0;
++}
++
+ /* Run from main thread */
+ static int add_sink(struct userdata *u) {
+     char *k;
+@@ -1565,6 +1573,7 @@ static int add_sink(struct userdata *u) {
+ 
+         u->sink->userdata = u;
+         u->sink->parent.process_msg = sink_process_msg;
++        u->sink->set_port = sink_set_port_cb;
+ 
+         pa_sink_set_max_request(u->sink, u->write_block_size);
+         pa_sink_set_fixed_latency(u->sink,
+@@ -1628,6 +1637,7 @@ static int add_source(struct userdata *u) {
+ 
+         u->source->userdata = u;
+         u->source->parent.process_msg = source_process_msg;
++        u->source->set_port = source_set_port_cb;
+ 
+         pa_source_set_fixed_latency(u->source,
+                                     (u->profile == PROFILE_A2DP_SOURCE ? FIXED_LATENCY_RECORD_A2DP : FIXED_LATENCY_RECORD_HSP) +
+-- 
+1.7.7.6
+

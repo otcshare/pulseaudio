@@ -1,0 +1,121 @@
+From 22fa04a008ea2197e17b9865020f47f37683e636 Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Fri, 31 Aug 2012 12:51:03 +0200
+Subject: [PATCH 31/48] bluetooth: Config MTU transport after acquire
+
+The configuration of the transport that depends on the MTU should be
+performed every time the transport has been acquired, since the
+parameters depend on what the Media API provides. This requires to
+update the parameters of the sinks and sources as well.
+
+This patch moves this code into a new function that will be called
+when the stream is starting (setup_stream), from the IO thread.
+
+This makes the code more robust, since the existing multiple calls to
+bt_transport_acquire() do not rely on setup_bt() being able to acquire
+the transport.
+---
+ src/modules/bluetooth/module-bluetooth-device.c |   55 +++++++++++++++--------
+ 1 files changed, 36 insertions(+), 19 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index 180f8fb..8e3e48d 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -243,11 +243,47 @@ static void a2dp_set_bitpool(struct userdata *u, uint8_t bitpool)
+ }
+ 
+ /* from IO thread, except in SCO over PCM */
++static void bt_transport_config_mtu(struct userdata *u) {
++    /* Calculate block sizes */
++    if (u->profile == PROFILE_HSP || u->profile == PROFILE_HFGW) {
++        u->read_block_size = u->read_link_mtu;
++        u->write_block_size = u->write_link_mtu;
++    } else {
++        u->read_block_size =
++            (u->read_link_mtu - sizeof(struct rtp_header) - sizeof(struct rtp_payload))
++            / u->a2dp.frame_length * u->a2dp.codesize;
++
++        u->write_block_size =
++            (u->write_link_mtu - sizeof(struct rtp_header) - sizeof(struct rtp_payload))
++            / u->a2dp.frame_length * u->a2dp.codesize;
++    }
++
++    if (USE_SCO_OVER_PCM(u))
++        return;
++
++    if (u->sink) {
++        pa_sink_set_max_request_within_thread(u->sink, u->write_block_size);
++        pa_sink_set_fixed_latency_within_thread(u->sink,
++                                                (u->profile == PROFILE_A2DP ?
++                                                 FIXED_LATENCY_PLAYBACK_A2DP : FIXED_LATENCY_PLAYBACK_HSP) +
++                                                pa_bytes_to_usec(u->write_block_size, &u->sample_spec));
++    }
++
++    if (u->source)
++        pa_source_set_fixed_latency_within_thread(u->source,
++                                                  (u->profile == PROFILE_A2DP_SOURCE ?
++                                                   FIXED_LATENCY_RECORD_A2DP : FIXED_LATENCY_RECORD_HSP) +
++                                                  pa_bytes_to_usec(u->read_block_size, &u->sample_spec));
++}
++
++/* from IO thread, except in SCO over PCM */
+ 
+ static void setup_stream(struct userdata *u) {
+     struct pollfd *pollfd;
+     int one;
+ 
++    bt_transport_config_mtu(u);
++
+     pa_make_fd_nonblock(u->stream_fd);
+     pa_make_socket_low_delay(u->stream_fd);
+ 
+@@ -1574,11 +1610,6 @@ static int add_sink(struct userdata *u) {
+         u->sink->userdata = u;
+         u->sink->parent.process_msg = sink_process_msg;
+         u->sink->set_port = sink_set_port_cb;
+-
+-        pa_sink_set_max_request(u->sink, u->write_block_size);
+-        pa_sink_set_fixed_latency(u->sink,
+-                                  (u->profile == PROFILE_A2DP ? FIXED_LATENCY_PLAYBACK_A2DP : FIXED_LATENCY_PLAYBACK_HSP) +
+-                                  pa_bytes_to_usec(u->write_block_size, &u->sample_spec));
+     }
+ 
+     if (u->profile == PROFILE_HSP) {
+@@ -1638,10 +1669,6 @@ static int add_source(struct userdata *u) {
+         u->source->userdata = u;
+         u->source->parent.process_msg = source_process_msg;
+         u->source->set_port = source_set_port_cb;
+-
+-        pa_source_set_fixed_latency(u->source,
+-                                    (u->profile == PROFILE_A2DP_SOURCE ? FIXED_LATENCY_RECORD_A2DP : FIXED_LATENCY_RECORD_HSP) +
+-                                    pa_bytes_to_usec(u->read_block_size, &u->sample_spec));
+     }
+ 
+     if ((u->profile == PROFILE_HSP) || (u->profile == PROFILE_HFGW)) {
+@@ -1773,22 +1800,12 @@ static void bt_transport_config_a2dp(struct userdata *u) {
+     a2dp->codesize = sbc_get_codesize(&a2dp->sbc);
+     a2dp->frame_length = sbc_get_frame_length(&a2dp->sbc);
+ 
+-    u->read_block_size =
+-        (u->read_link_mtu - sizeof(struct rtp_header) - sizeof(struct rtp_payload))
+-        / a2dp->frame_length * a2dp->codesize;
+-
+-    u->write_block_size =
+-        (u->write_link_mtu - sizeof(struct rtp_header) - sizeof(struct rtp_payload))
+-        / a2dp->frame_length * a2dp->codesize;
+-
+     pa_log_info("SBC parameters:\n\tallocation=%u\n\tsubbands=%u\n\tblocks=%u\n\tbitpool=%u\n",
+                 a2dp->sbc.allocation, a2dp->sbc.subbands, a2dp->sbc.blocks, a2dp->sbc.bitpool);
+ }
+ 
+ static void bt_transport_config(struct userdata *u) {
+     if (u->profile == PROFILE_HSP || u->profile == PROFILE_HFGW) {
+-        u->read_block_size = u->read_link_mtu;
+-        u->write_block_size = u->write_link_mtu;
+         u->sample_spec.format = PA_SAMPLE_S16LE;
+         u->sample_spec.channels = 1;
+         u->sample_spec.rate = 8000;
+-- 
+1.7.7.6
+

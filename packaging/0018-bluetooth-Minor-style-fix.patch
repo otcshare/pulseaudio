@@ -1,0 +1,32 @@
+From 13e563fa58e143c3e449a84095f66d6dc84a691c Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Thu, 16 Aug 2012 13:08:28 +0200
+Subject: [PATCH 18/48] bluetooth: Minor style fix
+
+Else clause should be in the same line as the closing brace.
+---
+ src/modules/bluetooth/module-bluetooth-device.c |    6 ++----
+ 1 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index 3f5a2ae..86cd40c 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -1971,12 +1971,10 @@ static int card_set_profile(pa_card *c, pa_card_profile *new_profile) {
+     if (device->headset_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_HSP) {
+         pa_log_warn("HSP is not connected, refused to switch profile");
+         return -PA_ERR_IO;
+-    }
+-    else if (device->audio_sink_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_A2DP) {
++    } else if (device->audio_sink_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_A2DP) {
+         pa_log_warn("A2DP is not connected, refused to switch profile");
+         return -PA_ERR_IO;
+-    }
+-    else if (device->hfgw_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_HFGW) {
++    } else if (device->hfgw_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_HFGW) {
+         pa_log_warn("HandsfreeGateway is not connected, refused to switch profile");
+         return -PA_ERR_IO;
+     }
+-- 
+1.7.7.6
+
