@@ -1,0 +1,32 @@
+From e0d2fac7d245bd82d70345c3a9140d7231cd2eb9 Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Fri, 31 Aug 2012 12:50:59 +0200
+Subject: [PATCH 28/48] bluetooth: Fix check if transport exists before
+ acquire
+
+The transport might have disapeared exactly before acquiring, so we
+should avoid an assertion failure, in this case inside the function
+pa_bluetooth_discovery_get_by_path().
+---
+ src/modules/bluetooth/module-bluetooth-device.c |    5 +++++
+ 1 files changed, 5 insertions(+), 0 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index c83fc80..8da0d7e 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -326,6 +326,11 @@ static int bt_transport_acquire(struct userdata *u, pa_bool_t start) {
+     const char *accesstype = "rw";
+     const pa_bluetooth_transport *t;
+ 
++    if (u->transport == NULL) {
++        pa_log("Transport no longer available.");
++        return -1;
++    }
++
+     if (bt_transport_is_acquired(u)) {
+         if (start)
+             goto done;
+-- 
+1.7.7.6
+

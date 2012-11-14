@@ -1,0 +1,25 @@
+From 51412550670b85c338899f25c8286df6dc9bb108 Mon Sep 17 00:00:00 2001
+From: Arti Trivedi Bora <tbaarti@gmail.com>
+Date: Wed, 6 Jun 2012 01:28:13 +0530
+Subject: [PATCH 08/48] modules: Use pa_streq instead of strcmp.
+
+---
+ src/modules/bluetooth/module-bluetooth-proximity.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-proximity.c b/src/modules/bluetooth/module-bluetooth-proximity.c
+index 3247017..7d69e82 100644
+--- a/src/modules/bluetooth/module-bluetooth-proximity.c
++++ b/src/modules/bluetooth/module-bluetooth-proximity.c
+@@ -228,7 +228,7 @@ static struct bonding* bonding_new(struct userdata *u, const char *a) {
+         goto fail;
+     }
+ 
+-    if (strcmp(class, "phone")) {
++    if (!pa_streq(class, "phone")) {
+         pa_log_info("Found device '%s' of class '%s', ignoring.", a, class);
+         goto fail;
+     }
+-- 
+1.7.7.6
+

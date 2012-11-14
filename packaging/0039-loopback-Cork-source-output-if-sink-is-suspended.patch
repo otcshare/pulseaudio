@@ -1,0 +1,65 @@
+From a18883777579b97984801e30471929f55bdcac56 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Fr=C3=A9d=C3=A9ric=20Dalleau?=
+ <frederic.dalleau@linux.intel.com>
+Date: Thu, 20 Sep 2012 14:28:33 +0200
+Subject: [PATCH 39/48] loopback: Cork source-output if sink is suspended
+
+During initialization, the approach avoids having a needless short
+period of corked state in case the sink is suspended, by always creating
+the source-output corked and uncorking it immediately afterwards when
+the sink is not suspended.
+---
+ src/modules/module-loopback.c |   16 ++++++++++++++++
+ 1 files changed, 16 insertions(+), 0 deletions(-)
+
+diff --git a/src/modules/module-loopback.c b/src/modules/module-loopback.c
+index 25a2ba8..ad03816 100644
+--- a/src/modules/module-loopback.c
++++ b/src/modules/module-loopback.c
+@@ -655,6 +655,17 @@ static pa_bool_t sink_input_may_move_to_cb(pa_sink_input *i, pa_sink *dest) {
+     return dest != u->source_output->source->monitor_of;
+ }
+ 
++/* Called from main thread */
++static void sink_input_suspend_cb(pa_sink_input *i, pa_bool_t suspended) {
++    struct userdata *u;
++
++    pa_sink_input_assert_ref(i);
++    pa_assert_ctl_context();
++    pa_assert_se(u = i->userdata);
++
++    pa_source_output_cork(u->source_output, suspended);
++}
++
+ int pa__init(pa_module *m) {
+     pa_modargs *ma = NULL;
+     struct userdata *u;
+@@ -817,6 +828,7 @@ int pa__init(pa_module *m) {
+     u->sink_input->update_max_request = sink_input_update_max_request_cb;
+     u->sink_input->may_move_to = sink_input_may_move_to_cb;
+     u->sink_input->moving = sink_input_moving_cb;
++    u->sink_input->suspend = sink_input_suspend_cb;
+     u->sink_input->userdata = u;
+ 
+     pa_sink_input_set_requested_latency(u->sink_input, u->latency/3);
+@@ -838,6 +850,7 @@ int pa__init(pa_module *m) {
+ 
+     pa_source_output_new_data_set_sample_spec(&source_output_data, &ss);
+     pa_source_output_new_data_set_channel_map(&source_output_data, &map);
++    source_output_data.flags = PA_SOURCE_OUTPUT_START_CORKED;
+ 
+     if (!remix)
+         source_output_data.flags |= PA_SOURCE_OUTPUT_NO_REMIX;
+@@ -917,6 +930,9 @@ int pa__init(pa_module *m) {
+     if (pa_source_get_state(u->source_output->source) != PA_SOURCE_SUSPENDED)
+ 	    pa_sink_input_cork(u->sink_input, FALSE);
+ 
++    if (pa_sink_get_state(u->sink_input->sink) != PA_SINK_SUSPENDED)
++	    pa_source_output_cork(u->source_output, FALSE);
++
+     if (u->adjust_time > 0)
+         u->time_event = pa_core_rttime_new(m->core, pa_rtclock_now() + u->adjust_time, time_callback, u);
+ 
+-- 
+1.7.7.6
+
