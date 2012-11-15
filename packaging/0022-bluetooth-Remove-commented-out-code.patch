@@ -1,0 +1,32 @@
+From f7db11b36adbf423bc38c25fa350a846fbdf8241 Mon Sep 17 00:00:00 2001
+From: Tanu Kaskinen <tanu.kaskinen@jollamobile.com>
+Date: Thu, 6 Sep 2012 15:47:17 +0300
+Subject: [PATCH 22/48] bluetooth: Remove commented out code.
+
+---
+ src/modules/bluetooth/module-bluetooth-discover.c |    9 ---------
+ 1 files changed, 0 insertions(+), 9 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-discover.c b/src/modules/bluetooth/module-bluetooth-discover.c
+index cddb21c..1ec71eb 100644
+--- a/src/modules/bluetooth/module-bluetooth-discover.c
++++ b/src/modules/bluetooth/module-bluetooth-discover.c
+@@ -86,15 +86,6 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const
+             /* Oh, awesome, a new device has shown up and been connected! */
+ 
+             args = pa_sprintf_malloc("address=\"%s\" path=\"%s\"", d->address, d->path);
+-#if 0
+-            /* This is in case we have to use hsp immediately, without waiting for .Audio.State = Connected */
+-            if (d->headset_state >= PA_BT_AUDIO_STATE_CONNECTED && somecondition) {
+-                char *tmp;
+-                tmp = pa_sprintf_malloc("%s profile=\"hsp\"", args);
+-                pa_xfree(args);
+-                args = tmp;
+-            }
+-#endif
+ 
+             if (pa_modargs_get_value(u->modargs, "sco_sink", NULL) &&
+                 pa_modargs_get_value(u->modargs, "sco_source", NULL)) {
+-- 
+1.7.7.6
+

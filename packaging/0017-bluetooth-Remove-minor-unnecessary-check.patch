@@ -1,0 +1,39 @@
+From c343008d95c17dd790604a5372d8378797c5241e Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Thu, 26 Jul 2012 12:36:33 +0200
+Subject: [PATCH 17/48] bluetooth: Remove minor unnecessary check
+
+The return value of dbus_message_iter_next() doesn't need to be checked
+since the while condition will be false anyway (arg type will be
+DBUS_TYPE_INVALID).
+---
+ src/modules/bluetooth/bluetooth-util.c |    6 ++----
+ 1 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/src/modules/bluetooth/bluetooth-util.c b/src/modules/bluetooth/bluetooth-util.c
+index bb32ad2..bfe00dc 100644
+--- a/src/modules/bluetooth/bluetooth-util.c
++++ b/src/modules/bluetooth/bluetooth-util.c
+@@ -396,8 +396,7 @@ static int parse_device_property(pa_bluetooth_discovery *y, pa_bluetooth_device
+                         has_audio = TRUE;
+                     }
+ 
+-                    if (!dbus_message_iter_next(&ai))
+-                        break;
++                    dbus_message_iter_next(&ai);
+                 }
+ 
+                 /* this might eventually be racy if .Audio is not there yet, but the State change will come anyway later, so this call is for cold-detection mostly */
+@@ -589,8 +588,7 @@ static void get_properties_reply(DBusPendingCall *pending, void *userdata) {
+             }
+         }
+ 
+-        if (!dbus_message_iter_next(&element_i))
+-            break;
++        dbus_message_iter_next(&element_i);
+     }
+ 
+ finish:
+-- 
+1.7.7.6
+

@@ -1,0 +1,31 @@
+From 00f24688e2107bf5e314ddc622cb84d000a537ee Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Fri, 31 Aug 2012 12:50:57 +0200
+Subject: [PATCH 27/48] bluetooth: Fix wrongly set "phone" role for HFGW
+
+The HFGW source should be consistent with the sink by not setting the
+"phone" intended role.
+
+Even though setting this role seems to make sense strictly speaking, the
+rest of the codebase doesn't handle this well. Therefore, the audio
+coming from a Bluetooth phone can be routed back to the same device.
+---
+ src/modules/bluetooth/module-bluetooth-device.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index 115416d..c83fc80 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -1595,7 +1595,7 @@ static int add_source(struct userdata *u) {
+         data.module = u->module;
+         pa_source_new_data_set_sample_spec(&data, &u->sample_spec);
+         pa_proplist_sets(data.proplist, "bluetooth.protocol", profile_to_string(u->profile));
+-        if ((u->profile == PROFILE_HSP) || (u->profile == PROFILE_HFGW))
++        if (u->profile == PROFILE_HSP)
+             pa_proplist_sets(data.proplist, PA_PROP_DEVICE_INTENDED_ROLES, "phone");
+ 
+         data.card = u->card;
+-- 
+1.7.7.6
+

@@ -1,0 +1,43 @@
+From 3a9355b6953300065545322af1071766a9ea0ec2 Mon Sep 17 00:00:00 2001
+From: Tanu Kaskinen <tanuk@iki.fi>
+Date: Mon, 4 Jun 2012 17:44:20 +0300
+Subject: [PATCH 41/48] device-port: Create the profiles hashmap at
+ initialization.
+
+I doesn't make sense to require all callers of
+pa_device_port_new() to create the hashmap themselves. There
+are and there will be no cases where a port without any
+profiles would be desired.
+---
+ src/modules/alsa/alsa-mixer.c |    1 -
+ src/pulsecore/device-port.c   |    2 +-
+ 2 files changed, 1 insertions(+), 2 deletions(-)
+
+diff --git a/src/modules/alsa/alsa-mixer.c b/src/modules/alsa/alsa-mixer.c
+index 8b54f75..260573c 100644
+--- a/src/modules/alsa/alsa-mixer.c
++++ b/src/modules/alsa/alsa-mixer.c
+@@ -4509,7 +4509,6 @@ static pa_device_port* device_port_alsa_init(pa_hashmap *ports,
+         p = pa_device_port_new(core, name, description, sizeof(pa_alsa_port_data));
+         pa_assert(p);
+         pa_hashmap_put(ports, p->name, p);
+-        p->profiles = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+ 
+         data = PA_DEVICE_PORT_DATA(p);
+         data->path = path;
+diff --git a/src/pulsecore/device-port.c b/src/pulsecore/device-port.c
+index 50c99b8..5870913 100644
+--- a/src/pulsecore/device-port.c
++++ b/src/pulsecore/device-port.c
+@@ -94,7 +94,7 @@ pa_device_port *pa_device_port_new(pa_core *c, const char *name, const char *des
+     p->core = c;
+     p->priority = 0;
+     p->available = PA_PORT_AVAILABLE_UNKNOWN;
+-    p->profiles = NULL;
++    p->profiles = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+     p->is_input = FALSE;
+     p->is_output = FALSE;
+     p->proplist = pa_proplist_new();
+-- 
+1.7.7.6
+
