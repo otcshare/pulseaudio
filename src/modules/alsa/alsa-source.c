@@ -1726,6 +1726,195 @@ static int setup_mixer(struct userdata *u, pa_bool_t ignore_dB) {
     return 0;
 }
 
+static void guess_device_node_type_and_name_from_source(
+        pa_node_new_data *data,
+        const char *source_name,
+        const char *bus,
+        const char *form) {
+
+    const char *name;
+    uint32_t type;
+    char *c;
+
+    pa_assert(data);
+    pa_assert(source_name);
+    pa_assert(bus);
+
+    type = 0;
+
+    if (form) {
+        if (pa_streq(form, "headset")) {
+            name = "HeadsetIn";
+            type = pa_streq(bus, "usb") ? PA_USB_HEADSET : PA_WIRED_HEADSET;
+        } else if (pa_streq(form, "microphone")) {
+            if (!pa_streq(bus, "usb")) {
+                name = "Microphone";
+                type = PA_MICROPHONE;
+            }
+        } else if (pa_streq(form, "tv")) {
+            name = "Tuner";
+            type = pa_streq(bus, "usb") ? PA_USB_TUNER : PA_TUNER;
+        } else if (pa_streq(form, "webcam")) {
+            name = "Camera";
+            type = pa_streq(bus, "usb") ? PA_USB_CAMERA : PA_CAMERA;
+        } else if (pa_streq(form, "car")) {
+            name = "Microphone";
+            type = PA_MICROPHONE;
+        }
+    } else {
+        /* no form factor, so even wilder guesses from the description */
+        if ((c = strcasestr(data->description, "cam")) && c[3] <= 0x20) {
+            name = "Camera";
+            type = pa_streq(bus, "usb") ? PA_USB_CAMERA : PA_CAMERA;
+        } else if (strcasestr(data->description, "tuner")   ||
+                   strcasestr(data->description, "decoder") ||
+                   strcasestr(data->description, "radio")   ||
+                   ((c = strcasestr(data->description, "tv") && c[2] <= 0x20))) {
+            name = "Tuner";
+            type = pa_streq(bus, "usb") ? PA_USB_TUNER : PA_TUNER;
+        }
+    }
+
+    if (!type)
+        name = source_name;
+
+    pa_node_new_data_set_name(data, name);
+    data->type = type;
+}
+
+static void guess_device_node_name_and_type_from_port(
+        pa_node_new_data *data,
+        const char *port_name,
+        const char *bus,
+        const char *form) {
+
+    typedef struct {
+        const char *pattern;
+        const char *name;
+        uint32_t    position;
+    } posdef;
+
+    static posdef  position_definitions[] = {
+        { "front" , "front"     , PA_DEVICE_POSITION_FRONT  },
+        { "rear"  , "rear"      , PA_DEVICE_POSITION_REAR   },
+        { "side"  , "side"      , PA_DEVICE_POSITION_SIDE   },
+        { "center", "center"    , PA_DEVICE_POSITION_CENTER },
+        { "lfe"   , "subwoofer" , PA_DEVICE_POSITION_LFE    },
+        {   NULL  ,   NULL      , PA_DEVICE_POSITION_ANY    }
+    };
+
+    const char *name;
+    uint32_t type;
+    posdef *p;
+    char *c;
+
+    pa_assert(data);
+    pa_assert(data->description);
+    pa_assert(port_name);
+    pa_assert(bus);
+
+    type = 0;
+
+    if (!strcmp(bus, "usb") && form) {
+        if (!strcasecmp(form, "headset")) {
+            name = "HeadsetIn";
+            type = PA_USB_HEADSET;
+        }
+    }
+
+    if (!type) {
+        if ((c = strcasestr(data->description, "cam")) && c[3] <= 0x20) {
+            name = "Camera";
+            type = pa_streq(bus, "usb") ? PA_USB_CAMERA : PA_CAMERA;
+        } else if (strcasestr(data->description, "tuner")   ||
+                   strcasestr(data->description, "decoder") ||
+                   strcasestr(data->description, "radio")   ||
+                   ((c = strcasestr(data->description, "tv") && c[2] <= 0x20))) {
+            name = "Tuner";
+            type = pa_streq(bus, "usb") ? PA_USB_TUNER : PA_TUNER;
+        } else if (strcasestr(port_name, "headset")) {
+            name = "HeadsetIn";
+            type = pa_streq(bus, "usb") ? PA_USB_HEADSET : PA_WIRED_HEADSET;
+        } else if (strcasestr(port_name, "line")) {
+            name = "LineIn";
+            type = PA_JACK_LINK;
+        } else if (strcasestr(port_name,"analog-input")) {
+            name = "Microphone";
+            type = PA_MICROPHONE;
+        } else {
+            name = port_name;
+        }
+    }
+
+    if (type) {
+        for (p = position_definitions;  p->pattern;  p++) {
+            if (strcasestr(port_name, p->pattern)) {
+                type |= p->position;
+                break;
+            }
+        }
+    }
+
+    pa_node_new_data_set_name(data, name);
+    data->type = type;
+}
+
+static void make_alsa_source_nodes(struct userdata *u) {
+    pa_node_new_data data;
+    pa_core *core;
+    pa_source *source;
+    const char *bus;
+    const char *form;
+    const char *description;
+    pa_device_port *p;
+    pa_node *n;
+    void *state;
+
+    pa_assert(u);
+    pa_assert_se((core = u->core));
+    pa_assert_se((source = u->source));
+    pa_assert_se((bus = pa_proplist_gets(source->proplist, PA_PROP_DEVICE_BUS)));
+
+    form = pa_proplist_gets(source->proplist, PA_PROP_DEVICE_FORM_FACTOR);
+
+    if (!(description = pa_proplist_gets(source->proplist, PA_PROP_DEVICE_DESCRIPTION)) &&
+        !(description = pa_proplist_gets(source->proplist, "alsa.card_name")))
+        description = source->name;
+
+    pa_node_new_data_init(&data);
+
+    data.direction = pa_node_input;
+    data.implement = pa_node_device;
+    data.description = (char *)description;
+    data.channels = source->channel_map.channels;
+    data.visible = TRUE;
+
+    if (!source->ports || pa_hashmap_isempty(source->ports)) {
+        guess_device_node_type_and_name_from_source(&data, source->name, bus, form);
+        pa_node_set_location(&data);
+        pa_node_set_privacy(&data);
+        n = pa_node_new(core, &data);
+        n->available = 1;
+        n->pulse_object.source = source;
+
+        pa_node_dump(n, "New");
+    } else {
+        PA_HASHMAP_FOREACH(p, source->ports, state) {
+            guess_device_node_name_and_type_from_port(&data, p->name, bus, form);
+            pa_node_set_location(&data);
+            pa_node_set_privacy(&data);
+            data.port = p;
+            n = pa_node_new(core, &data);
+            n->available = (p->available == PA_PORT_AVAILABLE_NO) ? 0 : 1;
+            n->pulse_object.source = source;
+
+            pa_node_dump(n, "New");
+        }
+    }
+
+    pa_node_new_data_done(&data);
+}
+
 pa_source *pa_alsa_source_new(pa_module *m, pa_modargs *ma, const char*driver, pa_card *card, pa_alsa_mapping *mapping) {
 
     struct userdata *u = NULL;
@@ -2088,6 +2277,8 @@ pa_source *pa_alsa_source_new(pa_module *m, pa_modargs *ma, const char*driver, p
         u->source->write_volume(u->source);
 
     pa_source_put(u->source);
+
+    make_alsa_source_nodes(u);
 
     if (profile_set)
         pa_alsa_profile_set_free(profile_set);
