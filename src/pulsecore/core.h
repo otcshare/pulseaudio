@@ -118,6 +118,9 @@ typedef enum pa_core_hook {
     PA_CORE_HOOK_PORT_AVAILABLE_CHANGED,
     PA_CORE_HOOK_PORT_ADDED,
     PA_CORE_HOOK_PORT_LATENCY_OFFSET_CHANGED,
+    PA_CORE_HOOK_NODE_NEW,
+    PA_CORE_HOOK_NODE_PUT,
+    PA_CORE_HOOK_NODE_UNLINK,
     PA_CORE_HOOK_MAX
 } pa_core_hook_t;
 
@@ -137,7 +140,7 @@ struct pa_core {
     pa_mainloop_api *mainloop;
 
     /* idxset of all kinds of entities */
-    pa_idxset *clients, *cards, *sinks, *sources, *sink_inputs, *source_outputs, *modules, *scache;
+    pa_idxset *clients, *cards, *sinks, *sources, *sink_inputs, *source_outputs, *modules, *scache, *nodes;
 
     /* Some hashmaps for all sorts of entities */
     pa_hashmap *namereg, *shared;
