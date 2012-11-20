@@ -249,6 +249,7 @@ pa_sink* pa_sink_new(
     s->state = PA_SINK_INIT;
     s->flags = flags;
     s->priority = 0;
+    s->node = NULL;
     s->suspend_cause = data->suspend_cause;
     pa_sink_set_mixer_dirty(s, FALSE);
     s->name = pa_xstrdup(name);
@@ -666,6 +667,9 @@ void pa_sink_put(pa_sink* s) {
 void pa_sink_unlink(pa_sink* s) {
     pa_bool_t linked;
     pa_sink_input *i, *j = NULL;
+    pa_node *n;
+    pa_device_port *p;
+    void *pstate, *nstate;
 
     pa_assert(s);
     pa_assert_ctl_context();
@@ -677,6 +681,17 @@ void pa_sink_unlink(pa_sink* s) {
     /* All operations here shall be idempotent, i.e. pa_sink_unlink()
      * may be called multiple times on the same sink without bad
      * effects. */
+
+    if ((n = s->node)) {
+        pa_assert(n->pulse_object.sink == s);
+        pa_node_unlink(n);
+    } else if (s->ports && !pa_hashmap_isempty(s->ports))
+        PA_HASHMAP_FOREACH(p, s->ports, pstate)
+            PA_HASHMAP_FOREACH(n, p->nodes, nstate)
+                if (s == n->pulse_object.sink) {
+                    pa_assert(pa_node_issink(n));
+                    pa_node_unlink(n);
+                }
 
     linked = PA_SINK_IS_LINKED(s->state);
 

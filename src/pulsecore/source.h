@@ -47,6 +47,7 @@ typedef struct pa_source_volume_change pa_source_volume_change;
 #include <pulsecore/queue.h>
 #include <pulsecore/thread-mq.h>
 #include <pulsecore/source-output.h>
+#include <pulsecore/node.h>
 
 #define PA_MAX_OUTPUTS_PER_SOURCE 32
 
@@ -117,6 +118,12 @@ struct pa_source {
     int64_t latency_offset;
 
     unsigned priority;
+
+    /* The sink maps to a single node if it had no ports. In such case
+     * the back pointer to the node is stored here. Otherwise this pointer
+     * were NULL and node back pointers were stored in correspondingg
+     * pa_device_port as each port mapped to a node */
+    pa_node *node;
 
     /* Called when the main loop requests a state change. Called from
      * main loop context. If returns -1 the state change will be

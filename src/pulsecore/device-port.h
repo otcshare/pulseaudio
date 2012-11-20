@@ -37,6 +37,7 @@ typedef struct pa_device_port pa_device_port;
 #include <pulsecore/hashmap.h>
 #include <pulsecore/core.h>
 #include <pulsecore/card.h>
+#include <pulsecore/node.h>
 
 struct pa_device_port {
     pa_object parent; /* Needed for reference counting */
@@ -54,6 +55,8 @@ struct pa_device_port {
     pa_bool_t is_input:1;
     pa_bool_t is_output:1;
     int64_t latency_offset;
+
+    pa_hashmap *nodes;
 
     /* .. followed by some implementation specific data */
 };

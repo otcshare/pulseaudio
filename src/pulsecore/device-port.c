@@ -29,6 +29,9 @@ PA_DEFINE_PUBLIC_CLASS(pa_device_port, pa_object);
 void pa_device_port_set_available(pa_device_port *p, pa_available_t status)
 {
     pa_core *core;
+    pa_node *n;
+    void *st;
+    pa_bool_t available;
 
     pa_assert(p);
 
@@ -45,7 +48,19 @@ void pa_device_port_set_available(pa_device_port *p, pa_available_t status)
     pa_assert_se(core = p->core);
     pa_subscription_post(core, PA_SUBSCRIPTION_EVENT_CARD|PA_SUBSCRIPTION_EVENT_CHANGE, p->card->index);
 
+    if (!pa_hashmap_isempty(p->nodes) && (status == PA_PORT_AVAILABLE_YES || status == PA_PORT_AVAILABLE_NO)) {
+        available = (status == PA_PORT_AVAILABLE_YES);
+        PA_HASHMAP_FOREACH(n, p->nodes, st)
+            pa_node_availability_changed(n, available);
+    }
+
     pa_hook_fire(&core->hooks[PA_CORE_HOOK_PORT_AVAILABLE_CHANGED], p);
+}
+
+static void node_free(void *p, void *userdata)
+{
+    (void)userdata;
+    pa_node_unlink((pa_node *)p);
 }
 
 static void device_port_free(pa_object *o) {
@@ -53,6 +68,8 @@ static void device_port_free(pa_object *o) {
 
     pa_assert(p);
     pa_assert(pa_device_port_refcnt(p) == 0);
+
+    pa_hashmap_free(p->nodes, node_free, NULL);
 
     if (p->proplist)
         pa_proplist_free(p->proplist);
@@ -81,6 +98,7 @@ pa_device_port *pa_device_port_new(pa_core *c, const char *name, const char *des
     p->priority = 0;
     p->available = PA_AVAILABLE_UNKNOWN;
     p->profiles = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+    p->nodes = pa_hashmap_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
     p->is_input = FALSE;
     p->is_output = FALSE;
     p->latency_offset = 0;

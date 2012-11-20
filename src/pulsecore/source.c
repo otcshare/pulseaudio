@@ -235,6 +235,7 @@ pa_source* pa_source_new(
     s->state = PA_SOURCE_INIT;
     s->flags = flags;
     s->priority = 0;
+    s->node = NULL;
     s->suspend_cause = data->suspend_cause;
     pa_source_set_mixer_dirty(s, FALSE);
     s->name = pa_xstrdup(name);
@@ -608,12 +609,26 @@ void pa_source_put(pa_source *s) {
 void pa_source_unlink(pa_source *s) {
     pa_bool_t linked;
     pa_source_output *o, *j = NULL;
+    pa_node *n;
+    pa_device_port *p;
+    void *pstate, *nstate;
 
     pa_assert(s);
     pa_assert_ctl_context();
 
     /* See pa_sink_unlink() for a couple of comments how this function
      * works. */
+
+    if ((n = s->node)) {
+        pa_assert(n->pulse_object.source == s);
+        pa_node_unlink(n);
+    } else if (s->ports && !pa_hashmap_isempty(s->ports))
+        PA_HASHMAP_FOREACH(p, s->ports, pstate)
+            PA_HASHMAP_FOREACH(n, p->nodes, nstate)
+                if (s == n->pulse_object.sink) {
+                    pa_assert(pa_node_issource(n));
+                    pa_node_unlink(n);
+                }
 
     linked = PA_SOURCE_IS_LINKED(s->state);
 
