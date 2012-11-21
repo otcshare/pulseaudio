@@ -1,0 +1,120 @@
+From 5b282a7af4206e0fbcc2e5cf51a3a01fd87758fb Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Wed, 25 Jul 2012 16:29:52 +0200
+Subject: [PATCH 11/48] bluetooth: Refactor property parsing code
+
+Use a separate method to perform the common checks when a property needs
+to be parsed.
+---
+ src/modules/bluetooth/bluetooth-util.c |   60 ++++++++++++--------------------
+ 1 files changed, 22 insertions(+), 38 deletions(-)
+
+diff --git a/src/modules/bluetooth/bluetooth-util.c b/src/modules/bluetooth/bluetooth-util.c
+index cc3b8c6..778eecb 100644
+--- a/src/modules/bluetooth/bluetooth-util.c
++++ b/src/modules/bluetooth/bluetooth-util.c
+@@ -184,31 +184,42 @@ static pa_bool_t device_is_audio(pa_bluetooth_device *d) {
+           d->headset_state != PA_BT_AUDIO_STATE_INVALID)));
+ }
+ 
+-static int parse_device_property(pa_bluetooth_discovery *y, pa_bluetooth_device *d, DBusMessageIter *i) {
++static const char *check_variant_property(DBusMessageIter *i) {
+     const char *key;
+-    DBusMessageIter variant_i;
+ 
+-    pa_assert(y);
+-    pa_assert(d);
+     pa_assert(i);
+ 
+     if (dbus_message_iter_get_arg_type(i) != DBUS_TYPE_STRING) {
+         pa_log("Property name not a string.");
+-        return -1;
++        return NULL;
+     }
+ 
+     dbus_message_iter_get_basic(i, &key);
+ 
+     if (!dbus_message_iter_next(i)) {
+         pa_log("Property value missing");
+-        return -1;
++        return NULL;
+     }
+ 
+     if (dbus_message_iter_get_arg_type(i) != DBUS_TYPE_VARIANT) {
+         pa_log("Property value not a variant.");
+-        return -1;
++        return NULL;
+     }
+ 
++    return key;
++}
++
++static int parse_device_property(pa_bluetooth_discovery *y, pa_bluetooth_device *d, DBusMessageIter *i) {
++    const char *key;
++    DBusMessageIter variant_i;
++
++    pa_assert(y);
++    pa_assert(d);
++
++    key = check_variant_property(i);
++    if (key == NULL)
++        return -1;
++
+     dbus_message_iter_recurse(i, &variant_i);
+ 
+ /*     pa_log_debug("Parsing property org.bluez.Device.%s", key); */
+@@ -327,24 +338,10 @@ static int parse_audio_property(pa_bluetooth_discovery *u, int *state, DBusMessa
+ 
+     pa_assert(u);
+     pa_assert(state);
+-    pa_assert(i);
+ 
+-    if (dbus_message_iter_get_arg_type(i) != DBUS_TYPE_STRING) {
+-        pa_log("Property name not a string.");
++    key = check_variant_property(i);
++    if (key == NULL)
+         return -1;
+-    }
+-
+-    dbus_message_iter_get_basic(i, &key);
+-
+-    if (!dbus_message_iter_next(i)) {
+-        pa_log("Property value missing");
+-        return -1;
+-    }
+-
+-    if (dbus_message_iter_get_arg_type(i) != DBUS_TYPE_VARIANT) {
+-        pa_log("Property value not a variant.");
+-        return -1;
+-    }
+ 
+     dbus_message_iter_recurse(i, &variant_i);
+ 
+@@ -735,22 +732,9 @@ int pa_bluetooth_transport_parse_property(pa_bluetooth_transport *t, DBusMessage
+     const char *key;
+     DBusMessageIter variant_i;
+ 
+-    if (dbus_message_iter_get_arg_type(i) != DBUS_TYPE_STRING) {
+-        pa_log("Property name not a string.");
++    key = check_variant_property(i);
++    if (key == NULL)
+         return -1;
+-    }
+-
+-    dbus_message_iter_get_basic(i, &key);
+-
+-    if (!dbus_message_iter_next(i))  {
+-        pa_log("Property value missing");
+-        return -1;
+-    }
+-
+-    if (dbus_message_iter_get_arg_type(i) != DBUS_TYPE_VARIANT) {
+-        pa_log("Property value not a variant.");
+-        return -1;
+-    }
+ 
+     dbus_message_iter_recurse(i, &variant_i);
+ 
+-- 
+1.7.7.6
+

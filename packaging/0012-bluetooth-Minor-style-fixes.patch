@@ -1,0 +1,41 @@
+From 692eb1958ee6047e9331fca60a3dbfcd047c7766 Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Fri, 27 Jul 2012 16:41:20 +0200
+Subject: [PATCH 12/48] bluetooth: Minor style fixes
+
+Fix some minor style fixes to be consistent with the project coding
+style.
+---
+ src/modules/bluetooth/module-bluetooth-device.c |    9 ++++-----
+ 1 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index 032750e..8695a6d 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -227,8 +227,8 @@ static void a2dp_set_bitpool(struct userdata *u, uint8_t bitpool)
+     pa_log_debug("Bitpool has changed to %u", a2dp->sbc.bitpool);
+ 
+     u->block_size =
+-            (u->link_mtu - sizeof(struct rtp_header) - sizeof(struct rtp_payload))
+-            / a2dp->frame_length * a2dp->codesize;
++        (u->link_mtu - sizeof(struct rtp_header) - sizeof(struct rtp_payload))
++        / a2dp->frame_length * a2dp->codesize;
+ 
+     pa_sink_set_max_request_within_thread(u->sink, u->block_size);
+     pa_sink_set_fixed_latency_within_thread(u->sink,
+@@ -1704,9 +1704,8 @@ static int bt_transport_config_a2dp(struct userdata *u) {
+     a2dp->frame_length = sbc_get_frame_length(&a2dp->sbc);
+ 
+     u->block_size =
+-        ((u->link_mtu - sizeof(struct rtp_header) - sizeof(struct rtp_payload))
+-        / a2dp->frame_length
+-        * a2dp->codesize);
++        (u->link_mtu - sizeof(struct rtp_header) - sizeof(struct rtp_payload))
++        / a2dp->frame_length * a2dp->codesize;
+ 
+     pa_log_info("SBC parameters:\n\tallocation=%u\n\tsubbands=%u\n\tblocks=%u\n\tbitpool=%u\n",
+                 a2dp->sbc.allocation, a2dp->sbc.subbands, a2dp->sbc.blocks, a2dp->sbc.bitpool);
+-- 
+1.7.7.6
+

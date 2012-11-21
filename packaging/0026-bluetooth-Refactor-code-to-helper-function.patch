@@ -1,0 +1,52 @@
+From 55f0a57cf3bc02b0c4546afee291112185ab734a Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Fri, 31 Aug 2012 12:50:55 +0200
+Subject: [PATCH 26/48] bluetooth: Refactor code to helper function
+
+Make code more readable by introducing the helper function
+bt_transport_is_acquired(). This also adds assertions to check whether
+the internal state is consistent.
+---
+ src/modules/bluetooth/module-bluetooth-device.c |   14 ++++++++++++--
+ 1 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index 7b4164d..115416d 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -279,12 +279,22 @@ static void setup_stream(struct userdata *u) {
+                 TRUE);
+ }
+ 
++static bool bt_transport_is_acquired(struct userdata *u) {
++    if (u->accesstype == NULL) {
++        pa_assert(u->stream_fd < 0);
++        return FALSE;
++    } else {
++        pa_assert(u->stream_fd >= 0);
++        return TRUE;
++    }
++}
++
+ static void bt_transport_release(struct userdata *u) {
+     const char *accesstype = "rw";
+     const pa_bluetooth_transport *t;
+ 
+     /* Ignore if already released */
+-    if (!u->accesstype)
++    if (!bt_transport_is_acquired(u))
+         return;
+ 
+     pa_log_debug("Releasing transport %s", u->transport);
+@@ -316,7 +326,7 @@ static int bt_transport_acquire(struct userdata *u, pa_bool_t start) {
+     const char *accesstype = "rw";
+     const pa_bluetooth_transport *t;
+ 
+-    if (u->accesstype) {
++    if (bt_transport_is_acquired(u)) {
+         if (start)
+             goto done;
+         return 0;
+-- 
+1.7.7.6
+

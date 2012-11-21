@@ -1,0 +1,39 @@
+From 73f58b8591428cc2c8b9d249f6025d9d73ac6e72 Mon Sep 17 00:00:00 2001
+From: Mikel Astiz <mikel.astiz@bmw-carit.de>
+Date: Thu, 16 Aug 2012 13:08:29 +0200
+Subject: [PATCH 19/48] bluetooth: Fix missing state checks for a2dp_source
+
+Profile a2dp_source, just like any other card profile, should have
+state guards when the profile is being changed. If the BlueZ interface
+is not connected, the profile should be set to "off".
+---
+ src/modules/bluetooth/module-bluetooth-device.c |    6 +++++-
+ 1 files changed, 5 insertions(+), 1 deletions(-)
+
+diff --git a/src/modules/bluetooth/module-bluetooth-device.c b/src/modules/bluetooth/module-bluetooth-device.c
+index 86cd40c..7066a7a 100644
+--- a/src/modules/bluetooth/module-bluetooth-device.c
++++ b/src/modules/bluetooth/module-bluetooth-device.c
+@@ -1972,7 +1972,10 @@ static int card_set_profile(pa_card *c, pa_card_profile *new_profile) {
+         pa_log_warn("HSP is not connected, refused to switch profile");
+         return -PA_ERR_IO;
+     } else if (device->audio_sink_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_A2DP) {
+-        pa_log_warn("A2DP is not connected, refused to switch profile");
++        pa_log_warn("A2DP Sink is not connected, refused to switch profile");
++        return -PA_ERR_IO;
++    } else if (device->audio_source_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_A2DP_SOURCE) {
++        pa_log_warn("A2DP Source is not connected, refused to switch profile");
+         return -PA_ERR_IO;
+     } else if (device->hfgw_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_HFGW) {
+         pa_log_warn("HandsfreeGateway is not connected, refused to switch profile");
+@@ -2230,6 +2233,7 @@ static int add_card(struct userdata *u, const pa_bluetooth_device *device) {
+ 
+     if ((device->headset_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_HSP) ||
+         (device->audio_sink_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_A2DP) ||
++        (device->audio_source_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_A2DP_SOURCE) ||
+         (device->hfgw_state < PA_BT_AUDIO_STATE_CONNECTED && *d == PROFILE_HFGW)) {
+         pa_log_warn("Default profile not connected, selecting off profile");
+         u->card->active_profile = pa_hashmap_get(u->card->profiles, "off");
+-- 
+1.7.7.6
+
