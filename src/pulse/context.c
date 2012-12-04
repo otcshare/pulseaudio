@@ -122,6 +122,9 @@ static void reset_callbacks(pa_context *c) {
 
     c->ext_stream_restore.callback = NULL;
     c->ext_stream_restore.userdata = NULL;
+
+    c->ext_node_manager.callback = NULL;
+    c->ext_node_manager.userdata = NULL;
 }
 
 pa_context *pa_context_new_with_proplist(pa_mainloop_api *mainloop, const char *name, pa_proplist *p) {
@@ -1431,6 +1434,8 @@ void pa_command_extension(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_t
         pa_ext_device_restore_command(c, tag, t);
     else if (pa_streq(name, "module-stream-restore"))
         pa_ext_stream_restore_command(c, tag, t);
+    else if (pa_streq(name, "module-node-manager"))
+        pa_ext_node_manager_command(c, tag, t);
     else
         pa_log(_("Received message for unknown extension '%s'"), name);
 
