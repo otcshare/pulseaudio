@@ -37,6 +37,7 @@
 
 #include <pulse/pulseaudio.h>
 #include <pulse/ext-device-restore.h>
+#include <pulse/ext-node-manager.h>
 
 #include <pulsecore/i18n.h>
 #include <pulsecore/macro.h>
@@ -89,6 +90,10 @@ static int actions = 1;
 
 static pa_bool_t nl = FALSE;
 
+static uint32_t src_node_id;
+static uint32_t dst_node_id;
+static uint32_t conn_id;
+
 static enum {
     NONE,
     EXIT,
@@ -116,7 +121,9 @@ static enum {
     SET_SINK_INPUT_MUTE,
     SET_SOURCE_OUTPUT_MUTE,
     SET_SINK_FORMATS,
-    SUBSCRIBE
+    SUBSCRIBE,
+    NODE_CONNECT,
+    NODE_DISCONNECT
 } action = NONE;
 
 static void quit(int ret) {
@@ -920,6 +927,31 @@ static void get_source_output_volume_callback(pa_context *c, const pa_source_out
     pa_operation_unref(pa_context_set_source_output_volume(c, source_output_idx, &cv, simple_callback, NULL));
 }
 
+static void node_list_callback(pa_context *c,
+			       const pa_ext_node_manager_info *info,
+			       int eol,
+			       void *userdata) {
+
+    if (!eol) {
+	const char *node_id = pa_proplist_gets(info->props, "index");
+	if (node_id != NULL) {
+	    printf("Node #%s (%s)\n", node_id, info->name);
+	    printf("%s\n", pa_proplist_to_string(info->props));
+	}
+    } else
+	complete_action();
+}
+
+static void node_connect_callback(pa_context *c,
+			    uint32_t conne_id,
+			    void *userdata) {
+
+    printf("New connection id: %d\n", conne_id);
+
+    complete_action();
+}
+
+
 /* PA_MAX_FORMATS is defined in internal.h so we just define a sane value here */
 #define MAX_FORMATS 256
 
@@ -1124,6 +1156,8 @@ static void context_state_callback(pa_context *c, void *userdata) {
                             pa_operation_unref(pa_context_get_sample_info_list(c, get_sample_info_callback, NULL));
                         else if (pa_streq(list_type, "cards"))
                             pa_operation_unref(pa_context_get_card_info_list(c, get_card_info_callback, NULL));
+			else if (pa_streq(list_type, "nodes"))
+			    pa_operation_unref(pa_ext_node_manager_read_nodes(c, node_list_callback, NULL));
                         else
                             pa_assert_not_reached();
                     } else {
@@ -1258,6 +1292,18 @@ static void context_state_callback(pa_context *c, void *userdata) {
                                               NULL,
                                               NULL));
                     break;
+	        case NODE_CONNECT:
+		    pa_operation_unref(pa_ext_node_manager_connect_nodes(c,
+									 src_node_id,
+									 dst_node_id,
+									 node_connect_callback,
+									 NULL));
+		    break;
+	        case NODE_DISCONNECT:
+		    pa_operation_unref(pa_ext_node_manager_disconnect_nodes(c, conn_id,
+									simple_callback,
+									NULL));
+		    break;
 
                 default:
                     pa_assert_not_reached();
@@ -1356,6 +1402,9 @@ static void help(const char *argv0) {
     printf("%s %s %s %s\n", argv0, _("[options]"), "set-(sink-input|source-output)-mute", _("#N 1|0"));
     printf("%s %s %s %s\n", argv0, _("[options]"), "set-sink-formats", _("#N FORMATS"));
     printf("%s %s %s\n",    argv0, _("[options]"), "subscribe");
+    printf("%s %s %s\n",    argv0, _("[options]"), "node-list ");
+    printf("%s %s %s %s %s\n", argv0, _("[options]"), "node-connect ", _("#N"), _("#N"));
+    printf("%s %s %s %s\n", argv0, _("[options]"), "node-disconnect ", _("#N"));
 
     printf(_("\n"
              "  -h, --help                            Show this help\n"
@@ -1452,7 +1501,7 @@ int main(int argc, char *argv[]) {
                 if (pa_streq(argv[i], "modules") || pa_streq(argv[i], "clients") ||
                     pa_streq(argv[i], "sinks")   || pa_streq(argv[i], "sink-inputs") ||
                     pa_streq(argv[i], "sources") || pa_streq(argv[i], "source-outputs") ||
-                    pa_streq(argv[i], "samples") || pa_streq(argv[i], "cards")) {
+                    pa_streq(argv[i], "samples") || pa_streq(argv[i], "cards") || pa_streq(argv[i], "nodes")) {
                     list_type = pa_xstrdup(argv[i]);
                 } else if (pa_streq(argv[i], "short")) {
                     short_list_format = TRUE;
@@ -1782,7 +1831,28 @@ int main(int argc, char *argv[]) {
             action = SET_SINK_FORMATS;
             formats = pa_xstrdup(argv[optind+2]);
 
-        } else if (pa_streq(argv[optind], "help")) {
+        } else if (pa_streq(argv[optind], "node-connect")) {
+	    action = NODE_CONNECT;
+
+	    if (argc != optind+3) {
+		pa_log(_("You have to specify a source and destination node indexes"));
+		goto quit;
+	    }
+
+	    src_node_id = (uint32_t) atoi(argv[optind+1]);
+	    dst_node_id = (uint32_t) atoi(argv[optind+2]);
+
+	} else if (pa_streq(argv[optind], "node-disconnect")) {
+	    action = NODE_DISCONNECT;
+
+	    if (argc != optind+2) {
+		pa_log(_("You have to specify a connection id"));
+		goto quit;
+	    }
+
+	    conn_id = (uint32_t) atoi(argv[optind+1]);
+
+	} else if (pa_streq(argv[optind], "help")) {
             help(bn);
             ret = 0;
             goto quit;
