@@ -202,6 +202,7 @@ export LD_AS_NEEDED=0
 %configure \
         --disable-static \
         --disable-rpath \
+        --enable-systemd \
         --with-system-user=pulse \
         --with-system-group=pulse \
         --with-access-group=pulse-access \
