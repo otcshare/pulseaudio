@@ -17,21 +17,13 @@ BuildRequires:  bluez-devel
 BuildRequires:  fdupes
 BuildRequires:  gdbm-devel
 BuildRequires:  intltool
-#BuildRequires:  jack-devel
-#BuildRequires:  libavahi-devel
 BuildRequires:  libopenssl-devel
-#BuildRequires:  libsamplerate-devel
 BuildRequires:  libsndfile-devel
-#our libtdb-devel does not have a .pc file
-#BuildRequires:  libtdb-devel
 BuildRequires:  libtool
 BuildRequires:  libudev-devel >= 143
 BuildRequires:  orc
 BuildRequires:  speex-devel
-#BuildRequires:  tcpd-devel
-#BuildRequires:  translation-update-upstream
 BuildRequires:  update-desktop-files
-#BuildRequires:  xorg-x11-devel
 BuildRequires:  pkgconfig(x11)
 BuildRequires:  pkgconfig(xi)
 BuildRequires:  pkgconfig(x11-xcb)
@@ -40,17 +32,12 @@ BuildRequires:  pkgconfig(ice)
 BuildRequires:  pkgconfig(sm)
 BuildRequires:  pkgconfig(xtst)
 BuildRequires:  pkgconfig(dbus-1)
-#BuildRequires:  pkgconfig(avahi-client)
 BuildRequires:  libcap-devel
 BuildRequires:  orc
-# Only needed because we don't (and won't) support building xz tarballs by default... See bnc#697467
-BuildRequires:  xz
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(json) >= 0.9
 Requires(pre):         pwdutils
-#Requires:       rtkit
 Requires:       udev >= 146
-BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 
 %description
 pulseaudio is a networked sound server for Linux, other Unix like
@@ -194,7 +181,6 @@ Summary:        PulseAudio GDM integration
 Group:          Productivity/Multimedia/Other
 Requires:       %{name} = %{version}
 Requires:       gdm >= 2.22
-#for the gdm user
 Requires(pre):  gdm
 #avoid cycle
 #!BuildIgnore: gdm
@@ -229,8 +215,6 @@ make %{?_smp_mflags} V=1
 %find_lang %{name}
 install %{SOURCE2} %{buildroot}%{_bindir}
 chmod 755 %{buildroot}%{_bindir}/setup-pulseaudio
-#install -d %{buildroot}%{_localstatedir}/adm/fillup-templates
-#install -m 0644 %{SOURCE3} %{buildroot}%{_localstatedir}/adm/fillup-templates
 mkdir -p %{buildroot}%{_sysconfdir}/profile.d
 touch %{buildroot}%{_sysconfdir}/profile.d/pulseaudio.sh
 touch %{buildroot}%{_sysconfdir}/profile.d/pulseaudio.csh
@@ -270,7 +254,6 @@ setup-pulseaudio --auto > /dev/null
 %doc README LICENSE GPL LGPL
 %{_bindir}/pulseaudio
 %{_bindir}/setup-pulseaudio
-#%{_bindir}/qpaeq
 %dir %{_datadir}/pulseaudio
 %{_datadir}/pulseaudio/alsa-mixer
 %{_libdir}/libpulsecore-%{drvver}.so
@@ -310,7 +293,6 @@ setup-pulseaudio --auto > /dev/null
 %{_libdir}/pulse-%{drvver}/modules/module-esound-protocol-tcp.so
 %{_libdir}/pulse-%{drvver}/modules/module-esound-protocol-unix.so
 %{_libdir}/pulse-%{drvver}/modules/module-esound-sink.so
-#%{_libdir}/pulse-%{drvver}/modules/module-equalizer-sink.so
 %{_libdir}/pulse-%{drvver}/modules/module-filter-apply.so
 %{_libdir}/pulse-%{drvver}/modules/module-filter-heuristics.so
 %{_libdir}/pulse-%{drvver}/modules/module-hal-detect.so

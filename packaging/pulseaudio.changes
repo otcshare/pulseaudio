@@ -1,4 +1,2 @@
-* Tue Dec 11 00:36:20 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.1
-- release: added external api for node management and updated module dev kit
-* Wed Nov 21 13:30:05 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.1
-- release: releasing 2.1...
+* Fri Dec 14 2012 Anas Nashif <anas.nashif@intel.com> upstream/2.1@8df5628
+- Initial release
