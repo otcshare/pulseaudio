@@ -401,6 +401,7 @@ cp pulseaudio-module-devel.pc %{buildroot}/%{_libdir}/pkgconfig
 %files module-devel
 %defattr(-,root,root)
 %{_includedir}/pulsecore
+%{_includedir}/pulsemodule/pulse
 %{_libdir}/pkgconfig/pulseaudio-module-devel.pc
 
 %files localization
