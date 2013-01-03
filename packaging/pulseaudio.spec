@@ -199,6 +199,8 @@ This package contains GDM integration hooks for the PulseAudio sound server.
 export CFLAGS="%{optflags} -fno-strict-aliasing"
 # libpulse and libpulsecommon need each other - no way with as-needed
 export LD_AS_NEEDED=0
+echo "%{version}" > .tarball-version
+./bootstrap.sh
 %configure \
         --disable-static \
         --disable-rpath \
