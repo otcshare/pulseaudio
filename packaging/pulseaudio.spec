@@ -221,8 +221,6 @@ make %{?_smp_mflags} V=1
 
 %install
 %make_install
-#tizen_update_desktop_file pulseaudio
-#tizen_update_desktop_file pulseaudio-kde
 %find_lang %{name}
 install %{SOURCE2} %{buildroot}%{_bindir}
 chmod 755 %{buildroot}%{_bindir}/setup-pulseaudio
@@ -234,6 +232,7 @@ cp $RPM_SOURCE_DIR/default.pa-for-gdm %{buildroot}%{_localstatedir}/lib/gdm/.pul
 ln -s esdcompat %{buildroot}%{_bindir}/esd
 rm -rf %{buildroot}/etc/xdg/autostart/pulseaudio-kde.desktop
 
+install -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/sound
 %clean
 rm -rf %{buildroot}
 
@@ -262,7 +261,8 @@ setup-pulseaudio --auto > /dev/null
 
 %files
 %defattr(-,root,root)
-%doc README LICENSE GPL LGPL
+%license LICENSE GPL LGPL
+%config(noreplace) %{_sysconfdir}/sysconfig/sound
 %{_bindir}/pulseaudio
 %{_bindir}/setup-pulseaudio
 %dir %{_datadir}/pulseaudio
