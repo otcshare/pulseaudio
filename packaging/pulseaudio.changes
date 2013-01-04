@@ -1,3 +1,6 @@
+* Fri Jan 04 2013 Anas Nashif <anas.nashif@intel.com> submit/trunk/20130104.143211@a196c38
+- enable policy
+
 * Thu Jan 03 2013 Anas Nashif <anas.nashif@intel.com> submit/trunk/20130104.045038@0b4a02e
 - install sysconfig file
 
