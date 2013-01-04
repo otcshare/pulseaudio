@@ -212,6 +212,7 @@ echo "%{version}" > .tarball-version
 %configure \
         --disable-static \
         --disable-rpath \
+        --enable-spolicy \
         --enable-systemd \
         --with-system-user=pulse \
         --with-system-group=pulse \
