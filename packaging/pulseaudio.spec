@@ -1,3 +1,5 @@
+%bcond_with spolicy
+
 Name:           pulseaudio
 Version:        2.1
 Release:        0
@@ -36,6 +38,9 @@ BuildRequires:  libcap-devel
 BuildRequires:  orc
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(json) >= 0.9
+%if %{with spolicy}
+BuildRequires:  pkgconfig(vconf)
+%endif
 Requires(pre):         pwdutils
 Requires:       udev >= 146
 
@@ -212,7 +217,9 @@ echo "%{version}" > .tarball-version
 %configure \
         --disable-static \
         --disable-rpath \
+%if %{with spolicy}
         --enable-spolicy \
+%endif
         --enable-systemd \
         --with-system-user=pulse \
         --with-system-group=pulse \
