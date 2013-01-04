@@ -57,6 +57,14 @@ improved drop-in replacement for the Enlightened Sound Daemon (ESOUND).
 This package provides the compatibility layer for drop-in replacement
 of ESOUND.
 
+%package module-devel
+Summary:        Headers and libraries for PulseAudio module development
+License:        LGPLv2+
+Group:          Development/Libraries
+Requires:       libpulse-devel = %{version}-%{release}
+
+%description module-devel
+Headers and libraries for developing pulseaudio modules
 
 %package module-x11
 Summary:        X11 module for PulseAudio
@@ -370,6 +378,12 @@ setup-pulseaudio --auto > /dev/null
 %{_libdir}/libpulse-simple.so.*
 %dir %{_libdir}/pulseaudio
 %{_libdir}/pulseaudio/libpulsecommon-%{drvver}.so
+
+%files module-devel
+%defattr(-,root,root)
+%{_includedir}/pulsecore/*.h
+%{_includedir}/pulsemodule/pulse/*.h
+%{_libdir}/pkgconfig/pulseaudio-module-devel.pc
 
 %files -n libpulse-devel
 %defattr(-,root,root)
