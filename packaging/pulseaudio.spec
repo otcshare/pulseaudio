@@ -1,4 +1,4 @@
-%bcond_with spolicy
+%bcond_with tizen
 
 Name:           pulseaudio
 Version:        2.1
@@ -38,8 +38,10 @@ BuildRequires:  libcap-devel
 BuildRequires:  orc
 BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(json) >= 0.9
-%if %{with spolicy}
+%if %{with tizen}
 BuildRequires:  pkgconfig(vconf)
+BuildRequires:  pkgconfig(dlog)
+BuildRequires:  pkgconfig(capi-system-power)
 %endif
 Requires(pre):         pwdutils
 Requires:       udev >= 146
@@ -217,13 +219,16 @@ echo "%{version}" > .tarball-version
 %configure \
         --disable-static \
         --disable-rpath \
-%if %{with spolicy}
+%if %{with tizen}
+        --enable-dlog \
+        --enable-pmapi \
         --enable-spolicy \
 %endif
         --enable-systemd \
         --with-system-user=pulse \
         --with-system-group=pulse \
         --with-access-group=pulse-access \
+        --with-udev-rules-dir=/usr/lib/udev/rules.d \
         --disable-hal
 make %{?_smp_mflags} V=1
 
@@ -355,7 +360,11 @@ setup-pulseaudio --auto > /dev/null
 %{_libdir}/pulse-%{drvver}/modules/module-virtual-source.so
 %{_libdir}/pulse-%{drvver}/modules/module-virtual-surround-sink.so
 %{_libdir}/pulse-%{drvver}/modules/module-volume-restore.so
-/lib/udev/rules.d/90-pulseaudio.rules
+%if %{with tizen}
+%{_libdir}/pulse-%{drvver}/modules/module-policy.so
+%endif
+
+/usr/lib/udev/rules.d/90-pulseaudio.rules
 %dir %{_sysconfdir}/pulse/
 %config(noreplace) %{_sysconfdir}/pulse/daemon.conf
 %config(noreplace) %{_sysconfdir}/pulse/default.pa
