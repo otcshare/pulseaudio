@@ -625,9 +625,16 @@ void pa_source_unlink(pa_source *s) {
     } else if (s->ports && !pa_hashmap_isempty(s->ports))
         PA_HASHMAP_FOREACH(p, s->ports, pstate)
             PA_HASHMAP_FOREACH(n, p->nodes, nstate)
-                if (s == n->pulse_object.sink) {
+                if (s == n->pulse_object.source) {
+                    uint32_t link = n->type & PA_DEVICE_LINK_MASK;
                     pa_assert(pa_node_issource(n));
-                    pa_node_unlink(n);
+                    if (link != PA_DEVICE_LINK_A2DP && link != PA_DEVICE_LINK_SCO)
+                        pa_node_unlink(n);
+                    else {
+                        n->available = 0;
+                        n->pulse_object.source = NULL;
+                        pa_node_dump(n, "Changed");
+                    }
                 }
 
     linked = PA_SOURCE_IS_LINKED(s->state);

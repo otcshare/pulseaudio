@@ -1769,7 +1769,7 @@ static void guess_device_node_type_and_name_from_source(
         } else if (strcasestr(data->description, "tuner")   ||
                    strcasestr(data->description, "decoder") ||
                    strcasestr(data->description, "radio")   ||
-                   ((c = strcasestr(data->description, "tv") && c[2] <= 0x20))) {
+                   ((c = strcasestr(data->description, "tv")) && c[2] <= 0x20)) {
             name = "Tuner";
             type = pa_streq(bus, "usb") ? PA_USB_TUNER : PA_TUNER;
         }
@@ -1829,7 +1829,7 @@ static void guess_device_node_name_and_type_from_port(
         } else if (strcasestr(data->description, "tuner")   ||
                    strcasestr(data->description, "decoder") ||
                    strcasestr(data->description, "radio")   ||
-                   ((c = strcasestr(data->description, "tv") && c[2] <= 0x20))) {
+                   ((c = strcasestr(data->description, "tv")) && c[2] <= 0x20)) {
             name = "Tuner";
             type = pa_streq(bus, "usb") ? PA_USB_TUNER : PA_TUNER;
         } else if (strcasestr(port_name, "headset")) {
@@ -1905,7 +1905,7 @@ static void make_alsa_source_nodes(struct userdata *u) {
             pa_node_set_privacy(&data);
             data.port = p;
             n = pa_node_new(core, &data);
-            n->available = (p->available == PA_PORT_AVAILABLE_NO) ? 0 : 1;
+            n->available = (p->available == PA_AVAILABLE_NO) ? 0 : 1;
             n->pulse_object.source = source;
 
             pa_node_dump(n, "New");

@@ -49,6 +49,7 @@
 #include <pulsecore/rtpoll.h>
 #include <pulsecore/time-smoother.h>
 #include <pulsecore/namereg.h>
+#include <pulsecore/node.h>
 
 #include <sbc/sbc.h>
 
@@ -1513,8 +1514,8 @@ static pa_hook_result_t transport_speaker_gain_changed_cb(pa_bluetooth_discovery
     return PA_HOOK_OK;
 }
 
-static void connect_ports(struct userdata *u, void *sink_or_source_new_data, pa_direction_t direction) {
-    pa_device_port *port;
+static pa_device_port *connect_ports(struct userdata *u, void *sink_or_source_new_data, pa_direction_t direction) {
+    pa_device_port *port = NULL;
 
     if (direction == PA_DIRECTION_OUTPUT) {
         pa_sink_new_data *sink_new_data = sink_or_source_new_data;
@@ -1529,6 +1530,8 @@ static void connect_ports(struct userdata *u, void *sink_or_source_new_data, pa_
         pa_assert_se(pa_hashmap_put(source_new_data->ports, port->name, port) >= 0);
         pa_device_port_ref(port);
     }
+
+    return port;
 }
 
 static int sink_set_port_cb(pa_sink *s, pa_device_port *p) {
@@ -1539,9 +1542,29 @@ static int source_set_port_cb(pa_source *s, pa_device_port *p) {
     return 0;
 }
 
+static void update_node(pa_device_port *port, pa_node_direction dir, void *sink_or_source)
+{
+    pa_node *n;
+    void *state;
+
+    pa_assert(port);
+    pa_assert(sink_or_source);
+
+    PA_HASHMAP_FOREACH(n, port->nodes, state) {
+        if (dir != n->direction)
+            continue;
+
+        n->available = (port->available == PA_AVAILABLE_NO) ? 0 : 1;
+        n->pulse_object.ptr = sink_or_source;
+
+        pa_node_dump(n, "Changed");
+    }
+}
+
 /* Run from main thread */
 static int add_sink(struct userdata *u) {
     char *k;
+    pa_device_port *port;
 
     pa_assert(u->transport);
 
@@ -1573,7 +1596,7 @@ static int add_sink(struct userdata *u) {
             pa_sink_new_data_done(&data);
             return -1;
         }
-        connect_ports(u, &data, PA_DIRECTION_OUTPUT);
+        port = connect_ports(u, &data, PA_DIRECTION_OUTPUT);
 
         if (!u->transport_acquired)
             switch (u->profile) {
@@ -1590,6 +1613,7 @@ static int add_sink(struct userdata *u) {
             }
 
         u->sink = pa_sink_new(u->core, &data, PA_SINK_HARDWARE|PA_SINK_LATENCY);
+        update_node(port, pa_node_output, u->sink);
         pa_sink_new_data_done(&data);
 
         if (!u->sink) {
@@ -1617,6 +1641,7 @@ static int add_sink(struct userdata *u) {
 /* Run from main thread */
 static int add_source(struct userdata *u) {
     char *k;
+    pa_device_port *port;
 
     pa_assert(u->transport);
 
@@ -1645,7 +1670,7 @@ static int add_source(struct userdata *u) {
             return -1;
         }
 
-        connect_ports(u, &data, PA_DIRECTION_INPUT);
+        port = connect_ports(u, &data, PA_DIRECTION_INPUT);
 
         if (!u->transport_acquired)
             switch (u->profile) {
@@ -1662,6 +1687,7 @@ static int add_source(struct userdata *u) {
             }
 
         u->source = pa_source_new(u->core, &data, PA_SOURCE_HARDWARE|PA_SOURCE_LATENCY);
+        update_node(port, pa_node_input, u->source);
         pa_source_new_data_done(&data);
 
         if (!u->source) {
@@ -2067,6 +2093,126 @@ off:
     return -PA_ERR_IO;
 }
 
+static uint32_t guess_node_type(struct userdata *u, enum profile profile_type, pa_direction_t direction)
+{
+    pa_bluetooth_device *device;
+    int class;
+    int major_device_class;
+    int minor_device_class;
+
+    pa_assert_se((device = u->device));
+    class = device->class;
+
+    major_device_class = (class >> 8) & 31;
+    minor_device_class = (class >> 2) & 63;
+
+    switch (major_device_class) {
+    case 2:  /* phone */
+        switch (profile_type) {
+        case PROFILE_A2DP_SOURCE:
+            return (direction & PA_DIRECTION_INPUT) ? PA_HANDSET_MEDIA : PA_NODE_TYPE_UNKNOWN;
+        case PROFILE_HSP:
+            return PA_BLUETOOTH_MONO_HEADSET;
+        case PROFILE_HFGW:
+            return PA_HANDSET_HANDSFREE;
+        default:
+            return PA_NODE_TYPE_UNKNOWN;
+        }
+    case 4: /* audio/video */
+        switch (profile_type) {
+        case PROFILE_A2DP_SOURCE:
+            if (!(direction & PA_DIRECTION_INPUT))
+                return PA_NODE_TYPE_UNKNOWN;
+            switch (minor_device_class) {
+            case 8:   /* car audio */
+            case 9:   /* settop box */
+            case 10:  /* HiFi device */
+            case 11:  /* VCR */
+                return PA_DEVICE_CLASS_UNKNOWN | PA_DEVICE_LINK_A2DP | PA_DEVICE_POSITION_ANY;
+            case 12:  /* video camera */
+            case 13:  /* camcorder */
+                return PA_DEVICE_CLASS_CAMERA | PA_DEVICE_LINK_A2DP | PA_DEVICE_POSITION_ANY;
+            default:
+                return PA_NODE_TYPE_UNKNOWN;
+            }
+        case PROFILE_A2DP:
+            if (!(direction & PA_DIRECTION_OUTPUT))
+                return PA_NODE_TYPE_UNKNOWN;
+            switch (minor_device_class) {
+            case 1:   /* wearable headset device */
+            case 2:   /* handsfree device */
+            case 6:   /* headphones */
+                return PA_BLUETOOTH_STEREO_HEADSET;
+            case 5:   /* loudspeaker */
+            case 8:   /* car audio */
+            case 9:   /* settop box */
+            case 10:  /* HiFi device */
+            case 11:  /* VCR */
+                return PA_DEVICE_CLASS_SPEAKERS | PA_DEVICE_LINK_A2DP | PA_DEVICE_POSITION_ANY;
+            default:
+                return PA_NODE_TYPE_UNKNOWN;
+            }
+        case PROFILE_HSP:
+            return PA_BLUETOOTH_MONO_HEADSET;
+        case PROFILE_HFGW:
+            return PA_HANDSET_HANDSFREE;
+        default:
+            return PA_NODE_TYPE_UNKNOWN;
+        }
+    default: /* not defined or unsupported */
+        return PA_NODE_TYPE_UNKNOWN;
+    }
+
+    return PA_NODE_TYPE_UNKNOWN;
+}
+
+static void make_bluetooth_nodes(struct userdata *u, pa_card_profile *profile)
+{
+    static pa_direction_t directions[] = { PA_DIRECTION_INPUT, PA_DIRECTION_OUTPUT };
+
+    enum profile *pd, profile_type;
+    pa_node_new_data data;
+    pa_direction_t profile_direction, direction;
+    pa_node *n;
+    size_t i;
+
+    pa_assert(u);
+    pa_assert(profile);
+
+    profile_type = (pd = PA_CARD_PROFILE_DATA(profile)) ? *pd : PROFILE_OFF;
+    profile_direction = get_profile_direction(profile_type);
+
+    for (i = 0;  i < PA_ELEMENTSOF(directions);  i++) {
+        direction = directions[i];
+
+        if (!(profile_direction & direction))
+            continue;
+
+        pa_node_new_data_init(&data);
+
+        pa_node_new_data_set_name(&data, "foo");
+        data.description = (char *)"bar";
+
+        data.direction = (direction == PA_DIRECTION_OUTPUT) ? pa_node_output : pa_node_input;
+        data.implement = pa_node_device;
+        data.location = pa_node_external;
+        data.type = guess_node_type(u, profile_type, direction);
+        data.privacy = ((data.type & PA_DEVICE_CLASS_MASK) == PA_DEVICE_CLASS_HANDSET) ? pa_node_public : pa_node_private;
+        data.channels = (direction == PA_DIRECTION_OUTPUT) ? profile->max_sink_channels : profile->max_source_channels;
+        data.priority = profile->priority;
+        data.visible = 1;
+        data.profile = profile;
+        data.port = NULL;  /* we will not set the ports */
+
+        n = pa_node_new(u->core, &data);
+        pa_node_new_data_done(&data);
+
+        n->available = 1;
+
+        pa_node_dump(n, "New");
+    }
+}
+
 /* Run from main thread */
 static void create_card_ports(struct userdata *u, pa_hashmap *ports) {
     pa_device_port *port;
@@ -2373,6 +2519,8 @@ static pa_hook_result_t uuid_added_cb(pa_bluetooth_discovery *y, const struct pa
     }
 
     pa_card_add_profile(u->card, p);
+
+    make_bluetooth_nodes(u, p);
 
     return PA_HOOK_OK;
 }

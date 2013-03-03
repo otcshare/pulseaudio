@@ -689,8 +689,15 @@ void pa_sink_unlink(pa_sink* s) {
         PA_HASHMAP_FOREACH(p, s->ports, pstate)
             PA_HASHMAP_FOREACH(n, p->nodes, nstate)
                 if (s == n->pulse_object.sink) {
+                    uint32_t link = n->type & PA_DEVICE_LINK_MASK;
                     pa_assert(pa_node_issink(n));
-                    pa_node_unlink(n);
+                    if (link != PA_DEVICE_LINK_A2DP && link != PA_DEVICE_LINK_SCO)
+                        pa_node_unlink(n);
+                    else {
+                        n->available = 0;
+                        n->pulse_object.sink = NULL;
+                        pa_node_dump(n, "Changed");
+                    }
                 }
 
     linked = PA_SINK_IS_LINKED(s->state);

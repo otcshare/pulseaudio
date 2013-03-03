@@ -2154,7 +2154,7 @@ static void make_alsa_sink_nodes(struct userdata *u) {
             pa_node_set_privacy(&data);
             data.port = p;
             n = pa_node_new(core, &data);
-            n->available = (p->available == PA_PORT_AVAILABLE_NO) ? 0 : 1;
+            n->available = (p->available == PA_AVAILABLE_NO) ? 0 : 1;
             n->pulse_object.sink = sink;
 
             pa_node_dump(n, "New");
