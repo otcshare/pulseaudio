@@ -134,6 +134,9 @@ void pa_memblockq_flush_read(pa_memblockq *bq);
 /* Ignore prebuf for now */
 void pa_memblockq_prebuf_disable(pa_memblockq *bq);
 
+/* Ignore prebuf for now and adjust prebuf size to actual size */
+void pa_memblockq_prebuf_disable_and_adjust(pa_memblockq *bq);
+
 /* Force prebuf */
 void pa_memblockq_prebuf_force(pa_memblockq *bq);
 

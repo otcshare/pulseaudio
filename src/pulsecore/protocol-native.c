@@ -1487,8 +1487,14 @@ static int sink_input_process_msg(pa_msgobject *o, int code, void *userdata, int
                     break;
 
                 case SINK_INPUT_MESSAGE_DRAIN:
+		    if (i->thread_info.state == PA_SINK_INPUT_CORKED)
+			func = pa_memblockq_prebuf_disable_and_adjust;
+		    else
+			func = pa_memblockq_prebuf_disable;
+                    break;
+
                 case SINK_INPUT_MESSAGE_TRIGGER:
-                    func = pa_memblockq_prebuf_disable;
+		    func = pa_memblockq_prebuf_disable;
                     break;
 
                 default:

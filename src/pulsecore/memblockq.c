@@ -814,6 +814,19 @@ void pa_memblockq_prebuf_disable(pa_memblockq *bq) {
     bq->in_prebuf = FALSE;
 }
 
+void pa_memblockq_prebuf_disable_and_adjust(pa_memblockq *bq) {
+    size_t len;
+
+    pa_assert(bq);
+
+    bq->in_prebuf = FALSE;
+
+    if (bq->prebuf > 0 && (len = pa_memblockq_get_length(bq)) > 0) {
+	pa_log("adjusting prebuf length to %u", len);
+	bq->prebuf = len;
+    }
+}
+
 void pa_memblockq_prebuf_force(pa_memblockq *bq) {
     pa_assert(bq);
 
