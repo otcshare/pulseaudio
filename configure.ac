@@ -971,7 +971,7 @@ AC_ARG_ENABLE([dbus],
     AS_HELP_STRING([--disable-dbus],[Disable optional D-Bus support]))
 
 AS_IF([test "x$enable_dbus" != "xno"],
-    [PKG_CHECK_MODULES(DBUS, [ dbus-1 >= 1.4.12 ], HAVE_DBUS=1, HAVE_DBUS=0)],
+    [PKG_CHECK_MODULES(DBUS, [ dbus-1 >= 1.4.10 ], HAVE_DBUS=1, HAVE_DBUS=0)],
     HAVE_DBUS=0)
 
 AS_IF([test "x$enable_dbus" = "xyes" && test "x$HAVE_DBUS" = "x0"],
@@ -982,6 +982,7 @@ AS_IF([test "x$HAVE_DBUS" = "x1"],
         save_CFLAGS="$CFLAGS"; CFLAGS="$CFLAGS $DBUS_CFLAGS"
         save_LIBS="$LIBS"; LIBS="$LIBS $DBUS_LIBS"
         AC_CHECK_FUNCS(dbus_watch_get_unix_fd)
+        AC_CHECK_DECL(DBUS_TIMEOUT_USE_DEFAULT, [], [DBUS_CFLAGS="$DBUS_CFLAGS -DDBUS_TIMEOUT_USE_DEFAULT=-1"])
         CFLAGS="$save_CFLAGS"
         LIBS="$save_LIBS"
     ])
