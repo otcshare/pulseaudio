@@ -804,6 +804,9 @@ void pa_sink_input_put(pa_sink_input *i) {
     update_n_corked(i, state);
     i->state = state;
 
+    i->corked = FALSE;
+    i->corked_internal = FALSE;
+
     /* We might need to update the sink's volume if we are in flat volume mode. */
     if (pa_sink_flat_volume_enabled(i->sink))
         pa_sink_set_volume(i->sink, NULL, false, i->save_volume);
@@ -1522,13 +1525,38 @@ void pa_sink_input_update_proplist(pa_sink_input *i, pa_update_mode_t mode, pa_p
     }
 }
 
+static void pa_sink_input_cork_really(pa_sink_input *i, bool b) {
+    pa_sink_input_assert_ref(i);
+    pa_assert_ctl_context();
+    pa_assert(PA_SINK_INPUT_IS_LINKED(i->state));
+
+    if (i->corked_internal == false && i->corked == false)
+	b = false;
+    else
+	b = true;
+
+    sink_input_set_state(i, b ? PA_SINK_INPUT_CORKED : PA_SINK_INPUT_RUNNING);
+}
+
 /* Called from main context */
 void pa_sink_input_cork(pa_sink_input *i, bool b) {
     pa_sink_input_assert_ref(i);
     pa_assert_ctl_context();
     pa_assert(PA_SINK_INPUT_IS_LINKED(i->state));
 
-    sink_input_set_state(i, b ? PA_SINK_INPUT_CORKED : PA_SINK_INPUT_RUNNING);
+    i->corked = b;
+
+    pa_sink_input_cork_really(i, b);
+}
+
+void pa_sink_input_cork_internal(pa_sink_input *i, bool b) {
+    pa_sink_input_assert_ref(i);
+    pa_assert_ctl_context();
+    pa_assert(PA_SINK_INPUT_IS_LINKED(i->state));
+
+    i->corked_internal = b;
+
+    pa_sink_input_cork_really(i, b);
 }
 
 /* Called from main context */
