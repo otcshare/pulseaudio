@@ -35,6 +35,7 @@ typedef struct pa_sink_input pa_sink_input;
 #include <pulsecore/client.h>
 #include <pulsecore/sink.h>
 #include <pulsecore/core.h>
+#include <pulsecore/node.h>
 
 typedef enum pa_sink_input_state {
     PA_SINK_INPUT_INIT,         /*< The stream is not active yet, because pa_sink_input_put() has not been called yet */
@@ -308,6 +309,8 @@ typedef struct pa_sink_input_new_data {
     pa_bool_t volume_writable:1;
 
     pa_bool_t save_sink:1, save_volume:1, save_muted:1;
+
+    pa_node *node;
 } pa_sink_input_new_data;
 
 pa_sink_input_new_data* pa_sink_input_new_data_init(pa_sink_input_new_data *data);

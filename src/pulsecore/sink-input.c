@@ -275,6 +275,31 @@ static void reset_callbacks(pa_sink_input *i) {
 }
 
 /* Called from main context */
+uint32_t guess_node_type(pa_sink_input_new_data *data) {
+    return PA_STREAM_PLAYER;
+}
+
+/* Called from main context */
+const char *node_name(uint32_t node_type) {
+    const char *name;
+
+    switch (node_type & PA_STREAM_TYPE_MASK) {
+    case PA_STREAM_PLAYER:      name = "PlayerOut";       break;
+    case PA_STREAM_NAVIGATOR:   name = "NavigatorOut";    break;
+    case PA_STREAM_GAME:        name = "GameOut";         break;
+    case PA_STREAM_CAMERA:      name = "CameraOut";       break;
+    case PA_STREAM_PHONE:       name = "PhoneOut";        break;
+    case PA_STREAM_SPEECH:      name = "SpeechOut";       break;
+    case PA_STREAM_ALERT:       name = "Alert";           break;
+    case PA_STREAM_EVENT:       name = "Event";           break;
+    case PA_STREAM_SYSTEM:      name = "System";          break;
+    default:                    name = "OutputStream";    break;
+    }
+
+    return name;
+}
+
+/* Called from main context */
 int pa_sink_input_new(
         pa_sink_input **_i,
         pa_core *core,
@@ -289,6 +314,14 @@ int pa_sink_input_new(
     char *memblockq_name;
     pa_sample_spec ss;
     pa_channel_map map;
+    char nodnam[256];
+    char noddesc[2048];
+    pa_client *cl;
+    const char *h;
+    const char *nhost;
+    const char *ndesc;
+    pa_node_new_data nd;
+    pa_node *node;
 
     pa_assert(_i);
     pa_assert(core);
@@ -312,15 +345,54 @@ int pa_sink_input_new(
         pa_sink_input_new_data_set_formats(data, tmp);
     }
 
-    if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_NEW], data)) < 0)
+    ndesc = NULL;
+    nhost = NULL;
+
+    if ((cl = data->client)) {
+        ndesc = pa_proplist_gets(cl->proplist, PA_PROP_APPLICATION_PROCESS_BINARY);
+        nhost = pa_proplist_gets(cl->proplist, PA_PROP_APPLICATION_PROCESS_HOST);
+    }
+
+    pa_return_val_if_fail(!data->node, -PA_ERR_INVALID);
+
+    h = pa_get_host_name_malloc();
+
+    pa_node_new_data_init(&nd);
+    nd.description = ndesc ? ndesc : "unknown host";
+    nd.direction = pa_node_output;
+    nd.implement = pa_node_stream;
+    nd.privacy = pa_node_private;
+    nd.location = (h && nhost) ? (pa_streq(h, nhost) ? pa_node_internal : pa_node_external) : pa_node_internal;
+    nd.type = guess_node_type(data);
+    nd.channels = 2;
+    nd.visible = TRUE;
+
+    pa_node_new_data_set_name(&nd, node_name(nd.type));
+
+    pa_xfree(h);
+
+    if (!(node = pa_node_new(core, &nd)))
+        return -PA_ERR_INTERNAL;
+
+    data->node = node;
+
+    if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_NEW], data)) < 0) {
+        pa_node_unlink(node);
         return r;
+    }
 
     pa_return_val_if_fail(!data->driver || pa_utf8_valid(data->driver), -PA_ERR_INVALID);
 
     if (!data->sink) {
-        pa_sink *sink = pa_namereg_get(core, NULL, PA_NAMEREG_SINK);
-        pa_return_val_if_fail(sink, -PA_ERR_NOENTITY);
-        pa_sink_input_new_data_set_sink(data, sink, FALSE);
+        if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_ROUTE], data)) < 0) {
+            pa_node_unlink(node);
+            return r;
+        }
+        if (!data->sink) {
+            pa_sink *sink = pa_namereg_get(core, NULL, PA_NAMEREG_SINK);
+            pa_return_val_if_fail(sink, -PA_ERR_NOENTITY);
+            pa_sink_input_new_data_set_sink(data, sink, FALSE);
+        }
     }
     /* Routing's done, we have a sink. Now let's fix the format and set up the
      * sample spec */
@@ -343,8 +415,10 @@ int pa_sink_input_new(
     pa_return_val_if_fail(!data->sync_base || (data->sync_base->sink == data->sink && pa_sink_input_get_state(data->sync_base) == PA_SINK_INPUT_CORKED), -PA_ERR_INVALID);
 
     r = check_passthrough_connection(pa_sink_input_new_data_is_passthrough(data), data->sink);
-    if (r != PA_OK)
+    if (r != PA_OK) {
+        pa_node_unlink(node);
         return r;
+    }
 
     if (!data->sample_spec_is_set)
         data->sample_spec = data->sink->sample_spec;
@@ -411,6 +485,8 @@ int pa_sink_input_new(
         /* rate update failed, or other parts of sample spec didn't match */
 
         pa_log_debug("Could not update sink sample spec to match passthrough stream");
+
+        pa_node_unlink(node);
         return -PA_ERR_NOTSUPPORTED;
     }
 
@@ -422,17 +498,23 @@ int pa_sink_input_new(
 
     pa_return_val_if_fail(data->resample_method < PA_RESAMPLER_MAX, -PA_ERR_INVALID);
 
-    if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_FIXATE], data)) < 0)
+    if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_FIXATE], data)) < 0) {
+        pa_node_unlink(node);
         return r;
+    }
 
     if ((data->flags & PA_SINK_INPUT_NO_CREATE_ON_SUSPEND) &&
         pa_sink_get_state(data->sink) == PA_SINK_SUSPENDED) {
         pa_log_warn("Failed to create sink input: sink is suspended.");
+
+        pa_node_unlink(node);
         return -PA_ERR_BADSTATE;
     }
 
     if (pa_idxset_size(data->sink->inputs) >= PA_MAX_INPUTS_PER_SINK) {
         pa_log_warn("Failed to create sink input: too many inputs per sink.");
+
+        pa_node_unlink(node);
         return -PA_ERR_TOOLARGE;
     }
 
@@ -452,6 +534,8 @@ int pa_sink_input_new(
                           (core->disable_remixing || (data->flags & PA_SINK_INPUT_NO_REMIX) ? PA_RESAMPLER_NO_REMIX : 0) |
                           (core->disable_lfe_remixing ? PA_RESAMPLER_NO_LFE : 0)))) {
                 pa_log_warn("Unsupported resampling operation.");
+
+                pa_node_unlink(node);
                 return -PA_ERR_NOTSUPPORTED;
             }
     }
@@ -553,6 +637,12 @@ int pa_sink_input_new(
             0,
             &i->sink->silence);
     pa_xfree(memblockq_name);
+
+    node->channels = i->channel_map.channels;
+    node->available = TRUE;
+    node->pulse_object.sink_input = i;
+
+    pa_node_dump(node, "New");
 
     pt = pa_proplist_to_string_sep(i->proplist, "\n    ");
     pa_log_info("Created input %u \"%s\" on %s with sample spec %s and channel map %s\n    %s",
