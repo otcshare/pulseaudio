@@ -1,3 +1,6 @@
+* Fri Mar 22 2013 Anas Nashif <anas.nashif@intel.com> accepted/trunk/20130207.031005@3411be6
+- Fixed package groups
+
 * Thu Jan 31 2013 Anas Nashif <anas.nashif@intel.com> submit/trunk/20130104.143337@72303c1
 - enable tizen with all options
 
