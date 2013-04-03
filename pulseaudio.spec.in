@@ -314,6 +314,7 @@ cp pulseaudio-module-devel.pc %{buildroot}/%{_libdir}/pkgconfig
 %{_libdir}/pulse-%{pulseversion}/modules/module-role-cork.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-switch-on-port-available.so
 %{_libdir}/pulse-%{pulseversion}/modules/module-virtual-surround-sink.so
+%{_libdir}/pulse-%{pulseversion}/modules/module-systemd-login.so
 /%{_lib}/systemd/system/pulseaudio.service
 /%{_lib}/systemd/system/multi-user.target.wants/pulseaudio.service
 
