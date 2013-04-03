@@ -54,6 +54,13 @@ Requires:   %{name} = %{version}-%{release}
 Headers and libraries for developing applications that access a PulseAudio
  sound server via PulseAudio's native interface
 
+%package libs-glib2
+Summary:    PulseAudio support for glib
+Group:      Development/Libraries
+Requires:   %{name} = %{version}-%{release}
+
+%description libs-glib2
+PulseAudio support for glib.
 
 %package utils
 Summary:    Command line tools for the PulseAudio sound server
@@ -242,7 +249,6 @@ cp pulseaudio-module-devel.pc %{buildroot}/%{_libdir}/pkgconfig
 %dir %{_libexecdir}/pulse
 %{_libexecdir}/pulse/*
 %{_libdir}/libpulsecore-%{pulseversion}.so
-%{_libdir}/libpulse-mainloop-glib.so.*
 /lib/udev/rules.d/90-pulseaudio.rules
 %{_datadir}/pulseaudio/alsa-mixer/paths/*
 %{_datadir}/pulseaudio/alsa-mixer/profile-sets/*
@@ -324,6 +330,10 @@ cp pulseaudio-module-devel.pc %{buildroot}/%{_libdir}/pkgconfig
 %{_libdir}/libpulse.so.*
 %{_libdir}/libpulse-simple.so.*
 %{_libdir}/pulseaudio/libpulsecommon-*.so
+
+%files libs-glib2
+%defattr(-,root,root,-)
+%{_libdir}/libpulse-mainloop-glib.so.*
 
 %files libs-devel
 %defattr(-,root,root,-)
