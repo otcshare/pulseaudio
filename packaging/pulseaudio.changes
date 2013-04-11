@@ -1,3 +1,6 @@
+* Thu Apr 11 2013 Anas Nashif <anas.nashif@intel.com> v2.1@278f744
+- Remove IVI configuration patch
+
 * Fri Mar 22 2013 Anas Nashif <anas.nashif@intel.com> accepted/trunk/20130207.031005@3411be6
 - Fixed package groups
 
