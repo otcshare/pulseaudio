@@ -1,11 +1,9 @@
-#
-
 %bcond_with tizen
 
 Name:           pulseaudio
 Version:        2.1
 Release:        0
-License:        GPL-2.0+ ; LGPL-2.1+
+License:        GPL-2.0+ and  LGPL-2.1+
 %define drvver  2.1
 %define soname  0
 Summary:        A Networked Sound Server
