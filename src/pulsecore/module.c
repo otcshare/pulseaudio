@@ -64,6 +64,7 @@ pa_module* pa_module_load(pa_core *c, const char *name, const char *argument) {
     m->argument = pa_xstrdup(argument);
     m->load_once = FALSE;
     m->proplist = pa_proplist_new();
+    m->index = PA_IDXSET_INVALID;
 
     if (!(m->dl = lt_dlopenext(name))) {
         pa_log("Failed to open module \"%s\": %s", name, lt_dlerror());
