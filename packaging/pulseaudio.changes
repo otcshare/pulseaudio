@@ -1,0 +1,10 @@
+* Mon Apr 15 15:57:19 EEST 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 2.1
+- release: fix bug in module loading
+* Tue Mar 12 13:10:13 EET 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 2.1
+- release: fix various bugs related to resource management
+* Mon Jan 28 12:32:27 EET 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 2.1
+- release: multichannel ramp code added, fixes sample cache bug
+* Tue Dec 11 00:36:20 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.1
+- release: added external api for node management and updated module dev kit
+* Wed Nov 21 13:30:05 EET 2012 Jaska Uimonen <jaska.uimonen@intel.com> - 2.1
+- release: releasing 2.1...
