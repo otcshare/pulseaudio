@@ -617,6 +617,7 @@ libpulsecommon_@PA_MAJORMINOR@_la_SOURCES = \
 		pulsecore/core-rtclock.c pulsecore/core-rtclock.h \
 		pulsecore/core-util.c pulsecore/core-util.h \
 		pulsecore/creds.h \
+		pulsecore/device-class.c pulsecore/device-class.h \
 		pulsecore/dynarray.c pulsecore/dynarray.h \
 		pulsecore/endianmacros.h \
 		pulsecore/flist.c pulsecore/flist.h \
