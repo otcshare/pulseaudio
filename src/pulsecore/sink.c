@@ -1375,6 +1375,20 @@ void pa_sink_render_full(pa_sink *s, size_t length, pa_memchunk *result) {
     pa_sink_unref(s);
 }
 
+/* Called from the main thread. */
+const char *pa_sink_get_description(pa_sink *s) {
+    const char *description;
+
+    pa_assert(s);
+
+    description = pa_proplist_gets(s->proplist, PA_PROP_DEVICE_DESCRIPTION);
+
+    if (!description || !*description)
+        description = s->name;
+
+    return description;
+}
+
 /* Called from main thread */
 bool pa_sink_update_rate(pa_sink *s, uint32_t rate, bool passthrough) {
     bool ret = false;
