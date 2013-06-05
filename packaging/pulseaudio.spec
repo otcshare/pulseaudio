@@ -15,7 +15,6 @@ Source2:        setup-pulseaudio
 Source3:        sysconfig.sound-pulseaudio
 Source99:       baselibs.conf
 BuildRequires:  fdupes
-BuildRequires:  gdbm-devel
 BuildRequires:  intltool
 BuildRequires:  libcap-devel
 BuildRequires:  libtool
@@ -29,6 +28,7 @@ BuildRequires:  pkgconfig(x11-xcb)
 BuildRequires:  pkgconfig(xcb) >= 1.6
 BuildRequires:  pkgconfig(ice)
 BuildRequires:  pkgconfig(sm)
+BuildRequires:  pkgconfig(tdb)
 BuildRequires:  pkgconfig(xtst)
 BuildRequires:  pkgconfig(dbus-1)
 BuildRequires:  pkgconfig(glib-2.0)
@@ -44,6 +44,8 @@ BuildRequires:  pkgconfig(vconf)
 %endif
 Requires:       udev >= 146
 Requires(pre):         pwdutils
+Recommends:     alsa-utils
+
 
 %description
 pulseaudio is a networked sound server for Linux, other Unix like
@@ -214,7 +216,7 @@ export CFLAGS="%{optflags} -fno-strict-aliasing"
 # libpulse and libpulsecommon need each other - no way with as-needed
 export LD_AS_NEEDED=0
 echo "%{version}" > .tarball-version
-./bootstrap.sh
+./bootstrap.sh || :
 %configure \
         --disable-static \
         --disable-rpath \
@@ -224,11 +226,14 @@ echo "%{version}" > .tarball-version
         --enable-spolicy \
 %endif
         --enable-systemd \
+        --with-database=tdb \
         --with-system-user=pulse \
         --with-system-group=pulse \
         --with-access-group=pulse-access \
         --with-udev-rules-dir=/usr/lib/udev/rules.d \
         --disable-hal
+
+
 make %{?_smp_mflags} V=1
 
 %install
