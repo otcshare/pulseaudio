@@ -2167,19 +2167,30 @@ pa_hook* pa_bluetooth_discovery_hook(pa_bluetooth_discovery *y, pa_bluetooth_hoo
     return &y->hooks[hook];
 }
 
-pa_bt_form_factor_t pa_bluetooth_get_form_factor(uint32_t class) {
+pa_device_class_t pa_bluetooth_convert_device_class(uint32_t class) {
     unsigned major, minor;
-    pa_bt_form_factor_t r;
+    pa_device_class_t r;
 
-    static const pa_bt_form_factor_t table[] = {
-        [1] = PA_BT_FORM_FACTOR_HEADSET,
-        [2] = PA_BT_FORM_FACTOR_HANDSFREE,
-        [4] = PA_BT_FORM_FACTOR_MICROPHONE,
-        [5] = PA_BT_FORM_FACTOR_SPEAKER,
-        [6] = PA_BT_FORM_FACTOR_HEADPHONE,
-        [7] = PA_BT_FORM_FACTOR_PORTABLE,
-        [8] = PA_BT_FORM_FACTOR_CAR,
-        [10] = PA_BT_FORM_FACTOR_HIFI
+    static const pa_device_class_t table[] = {
+        [0] = PA_DEVICE_CLASS_UNKNOWN, /* Uncategorized, code not assigned */
+        [1] = PA_DEVICE_CLASS_HEADSET,
+        [2] = PA_DEVICE_CLASS_HANDSFREE,
+        [3] = PA_DEVICE_CLASS_UNKNOWN, /* (Reserved) */
+        [4] = PA_DEVICE_CLASS_MICROPHONE,
+        [5] = PA_DEVICE_CLASS_SPEAKERS,
+        [6] = PA_DEVICE_CLASS_HEADPHONES,
+        [7] = PA_DEVICE_CLASS_PORTABLE,
+        [8] = PA_DEVICE_CLASS_CAR,
+        [9] = PA_DEVICE_CLASS_SETTOP_BOX,
+        [10] = PA_DEVICE_CLASS_HIFI,
+        [11] = PA_DEVICE_CLASS_VCR,
+        [12] = PA_DEVICE_CLASS_VIDEO_CAMERA,
+        [13] = PA_DEVICE_CLASS_CAMCORDER,
+        [14] = PA_DEVICE_CLASS_UNKNOWN, /* Video Monitor */
+        [15] = PA_DEVICE_CLASS_VIDEO_DISPLAY_AND_SPEAKERS,
+        [16] = PA_DEVICE_CLASS_VIDEO_CONFERENCING,
+        [17] = PA_DEVICE_CLASS_UNKNOWN, /* (Reserved) */
+        [18] = PA_DEVICE_CLASS_GAMING_OR_TOY
     };
 
     /*
@@ -2190,48 +2201,23 @@ pa_bt_form_factor_t pa_bluetooth_get_form_factor(uint32_t class) {
     minor = (class >> 2) & 0x3F;
 
     switch (major) {
+        case 1:
+            return PA_DEVICE_CLASS_COMPUTER;
         case 2:
-            return PA_BT_FORM_FACTOR_PHONE;
+            return PA_DEVICE_CLASS_PHONE;
         case 4:
             break;
         default:
             pa_log_debug("Unknown Bluetooth major device class %u", major);
-            return PA_BT_FORM_FACTOR_UNKNOWN;
+            return PA_DEVICE_CLASS_UNKNOWN;
     }
 
-    r = minor < PA_ELEMENTSOF(table) ? table[minor] : PA_BT_FORM_FACTOR_UNKNOWN;
+    r = minor < PA_ELEMENTSOF(table) ? table[minor] : PA_DEVICE_CLASS_UNKNOWN;
 
-    if (!r)
+    if (r == PA_DEVICE_CLASS_UNKNOWN)
         pa_log_debug("Unknown Bluetooth minor device class %u", minor);
 
     return r;
-}
-
-const char *pa_bt_form_factor_to_string(pa_bt_form_factor_t ff) {
-    switch (ff) {
-        case PA_BT_FORM_FACTOR_UNKNOWN:
-            return "unknown";
-        case PA_BT_FORM_FACTOR_HEADSET:
-            return "headset";
-        case PA_BT_FORM_FACTOR_HANDSFREE:
-            return "hands-free";
-        case PA_BT_FORM_FACTOR_MICROPHONE:
-            return "microphone";
-        case PA_BT_FORM_FACTOR_SPEAKER:
-            return "speaker";
-        case PA_BT_FORM_FACTOR_HEADPHONE:
-            return "headphone";
-        case PA_BT_FORM_FACTOR_PORTABLE:
-            return "portable";
-        case PA_BT_FORM_FACTOR_CAR:
-            return "car";
-        case PA_BT_FORM_FACTOR_HIFI:
-            return "hifi";
-        case PA_BT_FORM_FACTOR_PHONE:
-            return "phone";
-    }
-
-    pa_assert_not_reached();
 }
 
 char *pa_bluetooth_cleanup_name(const char *name) {
