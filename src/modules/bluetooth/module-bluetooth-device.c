@@ -2061,6 +2061,7 @@ off:
 
 /* Run from main thread */
 static int create_card_ports(struct userdata *u, pa_hashmap *ports) {
+    pa_device_class_t device_class;
     pa_device_port *output_port = NULL;
     pa_device_port *input_port = NULL;
     pa_device_port_new_data port_data;
@@ -2069,62 +2070,42 @@ static int create_card_ports(struct userdata *u, pa_hashmap *ports) {
     const char *input_description = NULL;
     const char *output_description = NULL;
 
+    static const char *input_description_table[PA_DEVICE_CLASS_MAX] = {
+        [PA_DEVICE_CLASS_HEADSET] = N_("Headset"),
+        [PA_DEVICE_CLASS_HANDSFREE] = N_("Hands-free"),
+        [PA_DEVICE_CLASS_MICROPHONE] = N_("Microphone"),
+        [PA_DEVICE_CLASS_PORTABLE] = N_("Portable"),
+        [PA_DEVICE_CLASS_CAR] = N_("Car"),
+        [PA_DEVICE_CLASS_SETTOP_BOX] = N_("Set-top Box"),
+        [PA_DEVICE_CLASS_HIFI] = N_("HiFi"),
+        [PA_DEVICE_CLASS_VCR] = N_("VCR"),
+        [PA_DEVICE_CLASS_VIDEO_CAMERA] = N_("Video Camera"),
+        [PA_DEVICE_CLASS_CAMCORDER] = N_("Camcorder"),
+        [PA_DEVICE_CLASS_VIDEO_CONFERENCING] = N_("Video Conferencing")
+    };
+
+    static const char *output_description_table[PA_DEVICE_CLASS_MAX] = {
+        [PA_DEVICE_CLASS_HEADSET] = N_("Headset"),
+        [PA_DEVICE_CLASS_HANDSFREE] = N_("Hands-free"),
+        [PA_DEVICE_CLASS_SPEAKERS] = N_("Speakers"),
+        [PA_DEVICE_CLASS_HEADPHONES] = N_("Headphones"),
+        [PA_DEVICE_CLASS_PORTABLE] = N_("Portable"),
+        [PA_DEVICE_CLASS_CAR] = N_("Car"),
+        [PA_DEVICE_CLASS_SETTOP_BOX] = N_("Set-top Box"),
+        [PA_DEVICE_CLASS_HIFI] = N_("HiFi"),
+        [PA_DEVICE_CLASS_VCR] = N_("VCR"),
+        [PA_DEVICE_CLASS_VIDEO_DISPLAY_AND_SPEAKERS] = N_("Video Display and Speakers"),
+        [PA_DEVICE_CLASS_VIDEO_CONFERENCING] = N_("Video Conferencing")
+    };
+
     pa_assert(u);
     pa_assert(ports);
     pa_assert(u->device);
 
-    switch (pa_bluetooth_get_form_factor(u->device->class)) {
-        case PA_BT_FORM_FACTOR_UNKNOWN:
-            break;
-
-        case PA_BT_FORM_FACTOR_HEADSET:
-            name_prefix = "headset";
-            input_description = output_description = _("Headset");
-            break;
-
-        case PA_BT_FORM_FACTOR_HANDSFREE:
-            name_prefix = "handsfree";
-            input_description = output_description = _("Handsfree");
-            break;
-
-        case PA_BT_FORM_FACTOR_MICROPHONE:
-            name_prefix = "microphone";
-            input_description = _("Microphone");
-            break;
-
-        case PA_BT_FORM_FACTOR_SPEAKER:
-            name_prefix = "speaker";
-            output_description = _("Speaker");
-            break;
-
-        case PA_BT_FORM_FACTOR_HEADPHONE:
-            name_prefix = "headphone";
-            output_description = _("Headphone");
-            break;
-
-        case PA_BT_FORM_FACTOR_PORTABLE:
-            name_prefix = "portable";
-            input_description = output_description = _("Portable");
-            break;
-
-        case PA_BT_FORM_FACTOR_CAR:
-            name_prefix = "car";
-            input_description = output_description = _("Car");
-            break;
-
-        case PA_BT_FORM_FACTOR_HIFI:
-            name_prefix = "hifi";
-            input_description = output_description = _("HiFi");
-            break;
-
-        case PA_BT_FORM_FACTOR_PHONE:
-            name_prefix = "phone";
-            input_description = output_description = _("Phone");
-            break;
-    }
-
-    if (!name_prefix)
-        name_prefix = "unknown";
+    device_class = pa_bluetooth_convert_device_class(u->device->class);
+    name_prefix = pa_device_class_to_string(device_class);
+    input_description = input_description_table[device_class];
+    output_description = output_description_table[device_class];
 
     if (!output_description)
         output_description = _("Bluetooth Output");
@@ -2142,6 +2123,7 @@ static int create_card_ports(struct userdata *u, pa_hashmap *ports) {
     pa_device_port_new_data_set_available(&port_data, get_port_availability(u, PA_DIRECTION_OUTPUT));
     pa_device_port_new_data_set_create_node(&port_data, true);
     pa_node_new_data_set_fallback_name_prefix(&port_data.node_data, "bluetooth");
+    pa_node_new_data_set_device_class(&port_data.node_data, device_class);
 
     output_port = pa_device_port_new(u->core, &port_data, 0);
     pa_device_port_new_data_done(&port_data);
@@ -2158,6 +2140,7 @@ static int create_card_ports(struct userdata *u, pa_hashmap *ports) {
     pa_device_port_new_data_set_available(&port_data, get_port_availability(u, PA_DIRECTION_INPUT));
     pa_device_port_new_data_set_create_node(&port_data, true);
     pa_node_new_data_set_fallback_name_prefix(&port_data.node_data, "bluetooth");
+    pa_node_new_data_set_device_class(&port_data.node_data, device_class);
 
     input_port = pa_device_port_new(u->core, &port_data, 0);
     pa_device_port_new_data_done(&port_data);
@@ -2257,8 +2240,8 @@ static int add_card(struct userdata *u) {
     bool b;
     pa_card_profile *p;
     enum profile *d;
-    pa_bt_form_factor_t ff;
     char *n;
+    const char *form_factor;
     const char *default_profile;
     const pa_bluetooth_device *device;
     const pa_bluetooth_uuid *uuid;
@@ -2280,8 +2263,8 @@ static int add_card(struct userdata *u) {
     pa_proplist_sets(data.proplist, PA_PROP_DEVICE_CLASS, "sound");
     pa_proplist_sets(data.proplist, PA_PROP_DEVICE_BUS, "bluetooth");
 
-    if ((ff = pa_bluetooth_get_form_factor(device->class)) != PA_BT_FORM_FACTOR_UNKNOWN)
-        pa_proplist_sets(data.proplist, PA_PROP_DEVICE_FORM_FACTOR, pa_bt_form_factor_to_string(ff));
+    if ((form_factor = pa_device_class_to_form_factor_string(pa_bluetooth_convert_device_class(device->class))))
+        pa_proplist_sets(data.proplist, PA_PROP_DEVICE_FORM_FACTOR, form_factor);
 
     pa_proplist_sets(data.proplist, "bluez.path", device->path);
     pa_proplist_setf(data.proplist, "bluez.class", "0x%06x", (unsigned) device->class);
