@@ -1,3 +1,7 @@
+* Mon Jun 10 2013 Philippe Coval <philippe.coval@eurogiciel.fr> accepted/tizen/20130520.100459@54c01bc
+- spec: change database format from gdbm to tdb
+  Bug-Tizen: #TZPC-945
+
 * Thu Apr 11 2013 Anas Nashif <anas.nashif@intel.com> v2.1@278f744
 - Remove IVI configuration patch
 
