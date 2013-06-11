@@ -1,0 +1,36 @@
+* Thu Aug 15 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 4.0
+- upgrade to 4.0 version
+
+* Fri Jun 28 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- do not use nested ifdefs in default.pa
+
+* Wed Jun 26 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- make separate packages out of combine and augment modules
+- add conditional murphy module loading to default.pa
+- add internal corking state for sink-input
+- revert and update patches for module development kit.
+
+* Tue Jun 25 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- updated volume ramp patches to be able to compile pulseaudio-module-murphy-ivi
+
+* Mon Jun 10 2013 Philippe Coval <philippe.coval@eurogiciel.fr> accepted/tizen/20130520.100459@54c01bc
+- spec: change database format from gdbm to tdb
+  Bug-Tizen: #TZPC-945
+
+* Thu Apr 11 2013 Anas Nashif <anas.nashif@intel.com> v2.1@278f744
+- Remove IVI configuration patch
+
+* Fri Mar 22 2013 Anas Nashif <anas.nashif@intel.com> accepted/trunk/20130207.031005@3411be6
+- Fixed package groups
+
+* Thu Jan 31 2013 Anas Nashif <anas.nashif@intel.com> submit/trunk/20130104.143337@72303c1
+- enable tizen with all options
+
+* Fri Jan 04 2013 Anas Nashif <anas.nashif@intel.com> submit/trunk/20130104.143211@a196c38
+- enable policy
+
+* Thu Jan 03 2013 Anas Nashif <anas.nashif@intel.com> submit/trunk/20130104.045038@0b4a02e
+- install sysconfig file
+
+* Fri Dec 14 2012 Anas Nashif <anas.nashif@intel.com> upstream/2.1@8df5628
+- Initial release
