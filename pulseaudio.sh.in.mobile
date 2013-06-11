@@ -1,0 +1,35 @@
+#!/bin/sh
+
+start () {
+    /usr/bin/pulseaudio --log-level=4 --system -D
+}
+
+stop () {
+    /usr/bin/pactl exit
+}
+
+restore_alsa () {
+    if [ -f /etc/pulse/alsa.conf ]; then
+        /usr/sbin/alsactl -f /etc/pulse/alsa.conf restore
+    else
+        /usr/bin/amixer sset Master on
+    fi
+}
+
+save_alsa () {
+    /usr/sbin/alsactl -f /etc/pulse/alsa.conf store
+}
+
+case ${1:-start} in
+    start)
+        restore_alsa
+        start;;
+    stop)
+        stop
+        save_alsa
+        ;;
+    restart)
+        stop
+        start
+        ;;
+esac
