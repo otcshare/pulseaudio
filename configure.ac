@@ -1090,6 +1090,26 @@ AS_IF([test "x$BLUETOOTH_HEADSET_BACKEND" != "xofono" && test "x$BLUETOOTH_HEADS
 
 AC_SUBST(BLUETOOTH_HEADSET_BACKEND)
 
+#### Bluetooth A2DP aptx codec support(optional) ####
+AC_ARG_ENABLE([bt_a2dp_aptx],
+    AS_HELP_STRING([--enable-bt-a2dp-aptx],[Enable optional Bluetooth A2DP aptx codec support(arm only)]),
+        [
+            case "${enableval}" in
+                yes) bt_a2dp_aptx=yes ;;
+                no) bt_a2dp_aptx=no ;;
+                *) AC_MSG_ERROR(bad value ${enableval} for --enable-bt-a2dp-aptx) ;;
+            esac
+        ],
+        [bt_a2dp_aptx=false])
+if test "x${bt_a2dp_aptx}" == xyes ; then
+	HAVE_BT_A2DP_APTX=1
+else
+	HAVE_BT_A2DP_APTX=0
+fi
+
+AC_SUBST(HAVE_BT_A2DP_APTX)
+AM_CONDITIONAL([HAVE_BT_A2DP_APTX], [test "x$HAVE_BT_A2DP_APTX" = x1])
+
 #### UDEV support (optional) ####
 
 AC_ARG_ENABLE([udev],
@@ -1526,6 +1546,7 @@ AS_IF([test "x$enable_legacy_database_entry_format" != "xno"], ENABLE_LEGACY_DAT
 AS_IF([test "x$USE_PM_LOCK" = "x1"], ENABLE_PM_LOCK=yes, ENABLE_PM_LOCK=no)
 AS_IF([test "x$USE_DLOG" = "x1"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
 AS_IF([test "x$USE_SAMSUNG_POLICY" = "x1"], ENABLE_SAMSUNG_POLICY=yes, ENABLE_SAMSUNG_POLICY=no)
+AS_IF([test "x$HAVE_BT_A2DP_APTX" = "x1"], HAVE_BT_A2DP_APTX=yes, HAVE_BT_A2DP_APTX=no)
 
 echo "
  ---{ $PACKAGE_NAME $VERSION }---
@@ -1596,6 +1617,7 @@ echo "
       pmapi:                       ${ENABLE_PM_LOCK}
       dlog:                        ${ENABLE_DLOG}
       samsung policy:              ${ENABLE_SAMSUNG_POLICY}
+      bluetooth aptx codec:        ${HAVE_BT_A2DP_APTX}
 "
 
 if test "${ENABLE_SPEEX}" = "no" && test "${ENABLE_WEBRTC}" = "no" && test "${ENABLE_ADRIAN_EC}" = "no" ; then

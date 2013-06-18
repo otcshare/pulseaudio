@@ -27,6 +27,7 @@
 #define A2DP_CODEC_MPEG24		0x02
 #define A2DP_CODEC_ATRAC		0x03
 
+#define A2DP_CODEC_NON_A2DP		0xFF
 #define SBC_SAMPLING_FREQ_16000		(1 << 3)
 #define SBC_SAMPLING_FREQ_32000		(1 << 2)
 #define SBC_SAMPLING_FREQ_44100		(1 << 1)
@@ -67,6 +68,32 @@
 #define MAX_BITPOOL 64
 #define MIN_BITPOOL 2
 
+/*#define APTX_CHANNEL_MODE_STEREO			2 */
+/*
+ * aptX codec for Bluetooth only supports stereo mode with value 2
+ * But we do have sink devices programmed to send capabilities with other channel mode support.
+ * So to handle the case and keeping codec symmetry with SBC etc., we do define other channel mode,
+ * and we always make sure to set configuration with APTX_CHANNEL_MODE_STEREO only.
+ *
+ * */
+
+#define APTX_CHANNEL_MODE_MONO			(1 << 3)
+#define APTX_CHANNEL_MODE_DUAL_CHANNEL	(1 << 2)
+#define APTX_CHANNEL_MODE_STEREO		(1 << 1)
+#define APTX_CHANNEL_MODE_JOINT_STEREO	1
+
+#define APTX_VENDOR_ID0		0x4F /*APTX codec ID 79*/
+#define APTX_VENDOR_ID1		0x0
+#define APTX_VENDOR_ID2		0x0
+#define APTX_VENDOR_ID3		0x0
+
+#define APTX_CODEC_ID0		0x1
+#define APTX_CODEC_ID1		0x0
+
+#define APTX_SAMPLING_FREQ_16000	(1 << 3)
+#define APTX_SAMPLING_FREQ_32000	(1 << 2)
+#define APTX_SAMPLING_FREQ_44100	(1 << 1)
+#define APTX_SAMPLING_FREQ_48000	1
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 
 typedef struct {
@@ -89,6 +116,12 @@ typedef struct {
 	uint16_t bitrate;
 } __attribute__ ((packed)) a2dp_mpeg_t;
 
+typedef struct {
+	uint8_t vendor_id[4];
+	uint8_t codec_id[2];
+	uint8_t channel_mode:4;
+	uint8_t frequency:4;
+} __attribute__ ((packed)) a2dp_aptx_t;
 #elif __BYTE_ORDER == __BIG_ENDIAN
 
 typedef struct {
@@ -110,6 +143,12 @@ typedef struct {
 	uint8_t frequency:6;
 	uint16_t bitrate;
 } __attribute__ ((packed)) a2dp_mpeg_t;
+typedef struct {
+	uint8_t vendor_id[4];
+	uint8_t codec_id[2];
+	uint8_t frequency:4;
+	uint8_t channel_mode:4;
+} __attribute__ ((packed)) a2dp_aptx_t;
 
 #else
 #error "Unknown byte order"
