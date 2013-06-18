@@ -35,6 +35,10 @@
 typedef enum pa_log_target {
     PA_LOG_STDERR,  /* default */
     PA_LOG_SYSLOG,
+#ifdef USE_DLOG
+    PA_LOG_DLOG,
+    PA_LOG_DLOG_COLOR,
+#endif
     PA_LOG_NULL,    /* to /dev/null */
     PA_LOG_FD,      /* to a file descriptor, e.g. a char device */
     PA_LOG_TARGET_MAX
