@@ -638,6 +638,10 @@ PKG_CHECK_MODULES(LIBSNDFILE, [ sndfile >= 1.0.20 ])
 AC_SUBST(LIBSNDFILE_CFLAGS)
 AC_SUBST(LIBSNDFILE_LIBS)
 
+PKG_CHECK_MODULES(VCONF, vconf)
+AC_SUBST(VCONF_CFLAGS)
+AC_SUBST(VCONF_LIBS)
+
 dnl use dlog --------------------------------------------------------------------------
 AC_ARG_ENABLE(dlog, AC_HELP_STRING([--enable-dlog], [using dlog]),
 [
