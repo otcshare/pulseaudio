@@ -2038,7 +2038,11 @@ proximity_helper_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS)
 module_bluetooth_discover_la_SOURCES = modules/bluetooth/module-bluetooth-discover.c
 module_bluetooth_discover_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_bluetooth_discover_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) libbluetooth-util.la
+if HAVE_BT_A2DP_APTX
+module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) -DBLUETOOTH_APTX_SUPPORT
+else
 module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
+endif
 
 
 libbluetooth_util_la_SOURCES = \
@@ -2047,12 +2051,21 @@ libbluetooth_util_la_SOURCES = \
 		modules/bluetooth/bluetooth-util.h
 libbluetooth_util_la_LDFLAGS = -avoid-version
 libbluetooth_util_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS)
+if HAVE_BT_A2DP_APTX
+libbluetooth_util_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) -DBLUETOOTH_APTX_SUPPORT
+else
 libbluetooth_util_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
+endif
 
 module_bluetooth_device_la_SOURCES = modules/bluetooth/module-bluetooth-device.c modules/bluetooth/rtp.h
-module_bluetooth_device_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_bluetooth_device_la_LDFLAGS = $(MODULE_LDFLAGS) -Lmodules/bluetooth
 module_bluetooth_device_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) $(SBC_LIBS) libbluetooth-util.la
+if HAVE_BT_A2DP_APTX
+module_bluetooth_device_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) $(SBC_CFLAGS) \
+                                    -DBLUETOOTH_APTX_SUPPORT
+else
 module_bluetooth_device_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) $(SBC_CFLAGS)
+endif
 
 module_bluetooth_policy_la_SOURCES = modules/bluetooth/module-bluetooth-policy.c
 module_bluetooth_policy_la_LDFLAGS = $(MODULE_LDFLAGS)

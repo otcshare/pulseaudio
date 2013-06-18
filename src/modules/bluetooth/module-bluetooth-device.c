@@ -29,6 +29,9 @@
 #include <math.h>
 #include <linux/sockios.h>
 #include <arpa/inet.h>
+#ifdef BLUETOOTH_APTX_SUPPORT
+#include <dlfcn.h>
+#endif
 
 #include <pulse/rtclock.h>
 #include <pulse/sample.h>
@@ -107,6 +110,10 @@ struct a2dp_info {
     bool sbc_initialized;                /* Keep track if the encoder is initialized */
     size_t codesize, frame_length;       /* SBC Codesize, frame_length. We simply cache those values here */
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+    pa_bool_t aptx_initialized; 	/* Keep track if the encoder is initialized */
+    void *aptx; 			/* Codec data */
+#endif
     void* buffer;                        /* Codec transfer buffer */
     size_t buffer_size;                  /* Size of the buffer */
 
@@ -206,6 +213,42 @@ enum {
 #define USE_SCO_OVER_PCM(u) (u->profile == PROFILE_HSP && (u->hsp.sco_sink && u->hsp.sco_source))
 
 static int init_profile(struct userdata *u);
+
+#ifdef BLUETOOTH_APTX_SUPPORT
+void* (*aptx_new)(short endian);
+int (*aptx_encode)(void* _state, void* _pcmL, void* _pcmR, void* _buffer);
+
+const char *aptx_new_name = "NewAptxEnc";
+const char *aptx_encode_name = "aptxbtenc_encodestereo";
+
+static pa_bool_t pa_load_aptx_sym(void *handle )
+{
+	if (!handle)
+		return FALSE;
+
+	aptx_new = (void* (*)(short endian))dlsym(handle, aptx_new_name);
+
+	if (aptx_new) {
+	    pa_log_debug("Load Symbol(%s)", aptx_new_name);
+        } else {
+	    pa_log_debug("Fail to Load Symbol(%s)", aptx_new_name);
+	    return FALSE;
+	}
+
+	aptx_encode = (int (*)(void* _state, void* _pcmL, void* _pcmR,
+                                void* _buffer))
+                      dlsym(handle, "aptxbtenc_encodestereo");
+
+	if (aptx_encode) {
+	    pa_log_debug("Load Symbol(%s)", aptx_encode_name);
+        } else {
+	    pa_log_debug("Fail to Load Symbol(%s)", aptx_encode_name);
+	    return FALSE;
+        }
+
+	return TRUE;
+}
+#endif
 
 /* from IO thread */
 static void a2dp_set_bitpool(struct userdata *u, uint8_t bitpool)
@@ -854,6 +897,123 @@ static int a2dp_process_render(struct userdata *u) {
     return ret;
 }
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+/* Run from IO thread */
+static int a2dp_aptx_process_render(struct userdata *u) {
+    struct a2dp_info *a2dp;
+    size_t nbytes;
+    void *d;
+    const void *p;
+    size_t to_write, to_encode;
+    int ret = 0;
+
+    int pcmL[4],pcmR[4];
+    int i=0;
+    const short *mybuffer;
+
+    pa_assert(u);
+    pa_assert(u->profile == PROFILE_A2DP);
+    pa_assert(u->sink);
+
+    /* First, render some data */
+    if (!u->write_memchunk.memblock)
+        pa_sink_render_full(u->sink, u->write_block_size, &u->write_memchunk);
+
+    pa_assert(u->write_memchunk.length == u->write_block_size);
+
+    a2dp_prepare_buffer(u);
+
+    a2dp = &u->a2dp;
+
+    /* Try to create a packet of the full MTU */
+    p = (const uint8_t*) pa_memblock_acquire(u->write_memchunk.memblock) + u->write_memchunk.index;
+    to_encode = u->write_memchunk.length;
+
+    d = (uint8_t*) a2dp->buffer ;
+    to_write = a2dp->buffer_size;
+
+    while (PA_LIKELY(to_encode > 0 && to_write > 0)) {
+        size_t written;
+        ssize_t encoded;
+
+        mybuffer=(uint8_t *)p;
+
+        for (i = 0; i < 4; i += 1) {
+           pcmL[i] = mybuffer[2*i];
+           pcmR[i] = mybuffer[2*i+1];
+        }
+	/*(8 audio samples)16 bytes of audo data encoded to 4 bytes*/
+	aptx_encode(a2dp->aptx, pcmL, pcmR, (short*)d);
+
+        encoded=16;
+        written=4;
+
+        pa_assert_fp((size_t) encoded <= to_encode);
+        pa_assert_fp((size_t) written <= to_write);
+
+        p = (const uint8_t*) p + encoded;
+        to_encode -= encoded;
+
+        d = (uint8_t*) d + written;
+        to_write -= written;
+
+    }
+
+    pa_memblock_release(u->write_memchunk.memblock);
+
+    pa_assert(to_encode == 0);
+
+    PA_ONCE_BEGIN {
+        pa_log_debug("Using APTX encoder implementation");
+    } PA_ONCE_END;
+
+    nbytes = (uint8_t*) d - (uint8_t*) a2dp->buffer;
+
+    for (;;) {
+        ssize_t l;
+
+        l = pa_write(u->stream_fd, a2dp->buffer, nbytes, &u->stream_write_type);
+
+        pa_assert(l != 0);
+
+        if (l < 0) {
+
+            if (errno == EINTR)
+                /* Retry right away if we got interrupted */
+                continue;
+
+            else if (errno == EAGAIN)
+                /* Hmm, apparently the socket was not writable, give up for now */
+                break;
+
+            pa_log_error("Failed to write data to socket: %s", pa_cstrerror(errno));
+            ret  = -1;
+            break;
+        }
+
+        pa_assert((size_t) l <= nbytes);
+
+        if ((size_t) l != nbytes) {
+            pa_log_warn("Wrote memory block to socket only partially! %llu written, wanted to write %llu.",
+                        (unsigned long long) l,
+                        (unsigned long long) nbytes);
+            ret = -1;
+            break;
+        }
+
+        u->write_index += (uint64_t) u->write_memchunk.length;
+        pa_memblock_unref(u->write_memchunk.memblock);
+        pa_memchunk_reset(&u->write_memchunk);
+
+        ret = 1;
+
+        break;
+    }
+
+    return ret;
+}
+#endif
+
 static int a2dp_process_push(struct userdata *u) {
     int ret = 0;
     pa_memchunk memchunk;
@@ -1100,8 +1260,16 @@ static void thread_func(void *userdata) {
                         u->started_at = pa_rtclock_now();
 
                     if (u->profile == PROFILE_A2DP) {
+                        if(u->a2dp.sbc_initialized) {
                         if ((n_written = a2dp_process_render(u)) < 0)
                             goto io_fail;
+                        }
+#ifdef BLUETOOTH_APTX_SUPPORT
+			else {
+                            if ((n_written = a2dp_aptx_process_render(u)) < 0)
+                                goto io_fail;
+                        }
+#endif
                     } else {
                         if ((n_written = hsp_process_render(u)) < 0)
                             goto io_fail;
@@ -1685,13 +1853,72 @@ static int add_source(struct userdata *u) {
     return 0;
 }
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+/* should be implemeted */
+static int bt_transport_config_a2dp_for_aptx(struct userdata *u) {
+    //const pa_bluetooth_transport *t;
+    struct a2dp_info *a2dp = &u->a2dp;
+    //a2dp_sbc_t *config;
+
+    //t = pa_bluetooth_discovery_get_transport(u->discovery, u->transport);
+    //pa_assert(t);
+
+    //config = (a2dp_sbc_t *) t->config;
+
+    u->sample_spec.format = PA_SAMPLE_S16LE;
+
+    if (!a2dp->aptx_initialized){
+	#if __BYTE_ORDER==__LITTLE_ENDIAN
+		a2dp->aptx = aptx_new(1);
+	#elif __BYTE_ORDER==__BIG_ENDIAN
+		a2dp->aptx = aptx_new(0);
+	#else
+		#error "Unknown byte order"
+	#endif
+		a2dp->aptx_initialized = TRUE;
+    }
+
+    pa_log_debug("aptx Encoder is intialized !!");
+
+    u->write_block_size =(size_t)(u->write_link_mtu/(size_t)16) *16*4 ;
+    u->read_block_size =(size_t)(u->read_link_mtu/(size_t)16) *16*4 ;
+
+    pa_log_info("APTX parameters write_block_size(%d),write_link_mtu(%d)",u->write_block_size,u->write_link_mtu);
+    pa_log_info("APTX parameters read_block_size(%d),read_link_mtu(%d)",u->read_block_size,u->read_link_mtu);
+
+    return 0;
+}
+#endif
+
 static void bt_transport_config_a2dp(struct userdata *u) {
     const pa_bluetooth_transport *t;
     struct a2dp_info *a2dp = &u->a2dp;
     a2dp_sbc_t *config;
+#ifdef BLUETOOTH_APTX_SUPPORT
+    a2dp_aptx_t *aptx_config;
+#endif
 
     t = u->transport;
     pa_assert(t);
+
+#ifdef BLUETOOTH_APTX_SUPPORT
+    if (t->codec == A2DP_CODEC_NON_A2DP) {
+        aptx_config = (a2dp_aptx_t *) t->config;
+        if (aptx_config->vendor_id[0] == APTX_VENDOR_ID0 &&
+            aptx_config->vendor_id[1] == APTX_VENDOR_ID1 &&
+            aptx_config->vendor_id[2] == APTX_VENDOR_ID2 &&
+            aptx_config->vendor_id[3] == APTX_VENDOR_ID3 &&
+            aptx_config->codec_id[0] == APTX_CODEC_ID0  &&
+            aptx_config->codec_id[1] == APTX_CODEC_ID1  ){
+            pa_log("A2DP_CODEC_NON_A2DP and this is APTX Codec");
+
+            return bt_transport_config_a2dp_for_aptx(u);
+        } else {
+            pa_log("A2DP_CODEC_NON_A2DP but this is not APTX Codec");
+            return -1;
+        }
+    }
+#endif
 
     config = (a2dp_sbc_t *) t->config;
 
@@ -2419,6 +2646,9 @@ int pa__init(pa_module* m) {
     struct userdata *u;
     const char *address, *path;
     pa_bluetooth_device *device;
+#ifdef BLUETOOTH_APTX_SUPPORT
+    void *handle;
+#endif
 
     pa_assert(m);
 
@@ -2520,6 +2750,14 @@ int pa__init(pa_module* m) {
     u->msg->parent.process_msg = device_process_msg;
     u->msg->card = u->card;
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+    handle = pa_aptx_get_handle();
+
+    if (handle) {
+        pa_log_debug("Aptx Library loaded\n");
+        pa_load_aptx_sym(handle);
+    }
+#endif
     if (u->profile != PROFILE_OFF)
         if (init_profile(u) < 0)
             goto off;

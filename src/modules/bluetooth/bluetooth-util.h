@@ -175,4 +175,9 @@ char *pa_bluetooth_cleanup_name(const char *name);
 bool pa_bluetooth_uuid_has(pa_bluetooth_uuid *uuids, const char *uuid);
 const char *pa_bt_profile_to_string(enum profile profile);
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+int pa_load_aptx(const char *aptx_lib_name);
+int pa_unload_aptx(void);
+void* pa_aptx_get_handle(void);
+#endif
 #endif

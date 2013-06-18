@@ -41,13 +41,21 @@ PA_MODULE_AUTHOR("Joao Paulo Rechi Vita");
 PA_MODULE_DESCRIPTION("Detect available bluetooth audio devices and load bluetooth audio drivers");
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_USAGE("sco_sink=<name of sink> "
+#ifdef BLUETOOTH_APTX_SUPPORT
+                "sco_source=<name of source> "
+                "aptx_lib_name=<name of aptx library name>");
+#else
                 "sco_source=<name of source> ");
+#endif
 PA_MODULE_LOAD_ONCE(true);
 
 static const char* const valid_modargs[] = {
     "sco_sink",
     "sco_source",
     "async", /* deprecated */
+#ifdef BLUETOOTH_APTX_SUPPORT
+    "aptx_lib_name",
+#endif
     NULL
 };
 
@@ -127,6 +135,9 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const 
 int pa__init(pa_module* m) {
     struct userdata *u;
     pa_modargs *ma = NULL;
+#ifdef BLUETOOTH_APTX_SUPPORT
+    const char *aptx_lib_name = NULL;
+#endif
 
     pa_assert(m);
 
@@ -138,6 +149,13 @@ int pa__init(pa_module* m) {
     if (pa_modargs_get_value(ma, "async", NULL))
         pa_log_warn("The 'async' argument is deprecated and does nothing.");
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+    aptx_lib_name = pa_modargs_get_value(ma, "aptx_lib_name", NULL);
+    if (aptx_lib_name)
+        pa_load_aptx(aptx_lib_name);
+    else
+        pa_log("Failed to parse aptx_lib_name argument.");
+#endif
     m->userdata = u = pa_xnew0(struct userdata, 1);
     u->module = m;
     u->core = m->core;
@@ -175,6 +193,9 @@ void pa__done(pa_module* m) {
 
     if (u->discovery)
         pa_bluetooth_discovery_unref(u->discovery);
+#ifdef BLUETOOTH_APTX_SUPPORT
+	pa_unload_aptx();
+#endif
 
     if (u->hashmap) {
         struct module_info *mi;

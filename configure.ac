@@ -1054,6 +1054,26 @@ AC_SUBST(BLUEZ_LIBS)
 AC_SUBST(HAVE_BLUEZ)
 AM_CONDITIONAL([HAVE_BLUEZ], [test "x$HAVE_BLUEZ" = x1])
 
+#### Bluetooth A2DP aptx codec support(optional) ####
+AC_ARG_ENABLE([bt_a2dp_aptx],
+    AS_HELP_STRING([--enable-bt-a2dp-aptx],[Enable optional Bluetooth A2DP aptx codec support(arm only)]),
+        [
+            case "${enableval}" in
+                yes) bt_a2dp_aptx=yes ;;
+                no) bt_a2dp_aptx=no ;;
+                *) AC_MSG_ERROR(bad value ${enableval} for --enable-bt-a2dp-aptx) ;;
+            esac
+        ],
+        [bt_a2dp_aptx=false])
+if test "x${bt_a2dp_aptx}" == xyes ; then
+	HAVE_BT_A2DP_APTX=1
+else
+	HAVE_BT_A2DP_APTX=0
+fi
+
+AC_SUBST(HAVE_BT_A2DP_APTX)
+AM_CONDITIONAL([HAVE_BT_A2DP_APTX], [test "x$HAVE_BT_A2DP_APTX" = x1])
+
 #### UDEV support (optional) ####
 
 AC_ARG_ENABLE([udev],
