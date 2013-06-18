@@ -648,6 +648,24 @@ PKG_CHECK_MODULES(LIBJSON, [ json-c >= 0.11 ])
 
 PKG_CHECK_MODULES(LIBSNDFILE, [ sndfile >= 1.0.20 ])
 
+dnl use dlog --------------------------------------------------------------------------
+AC_ARG_ENABLE(dlog, AC_HELP_STRING([--enable-dlog], [using dlog]),
+[
+ case "${enableval}" in
+	 yes) USE_DLOG=yes ;;
+	 no)  USE_DLOG=no ;;
+	 *)   AC_MSG_ERROR(bad value ${enableval} for --enable-dlog) ;;
+ esac
+ ],[USE_DLOG=no])
+
+if test "x$USE_DLOG" = "xyes"; then
+	PKG_CHECK_MODULES(DLOG, dlog)
+	AC_SUBST(DLOG_CFLAGS)
+	AC_SUBST(DLOG_LIBS)
+fi
+AM_CONDITIONAL(USE_DLOG, test "x$USE_DLOG" = "xyes")
+dnl end --------------------------------------------------------------------
+
 #### atomic-ops ####
 
 AC_MSG_CHECKING([whether we need libatomic_ops])
@@ -1488,6 +1506,7 @@ AS_IF([test "x$HAVE_GCOV" = "x1"], ENABLE_GCOV=yes, ENABLE_GCOV=no)
 AS_IF([test "x$HAVE_LIBCHECK" = "x1"], ENABLE_TESTS=yes, ENABLE_TESTS=no)
 AS_IF([test "x$enable_legacy_database_entry_format" != "xno"], ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=yes, ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=no)
 AS_IF([test "x$USE_PM_LOCK" = "x1"], ENABLE_PM_LOCK=yes, ENABLE_PM_LOCK=no)
+AS_IF([test "x$USE_DLOG" = "x1"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
 
 echo "
  ---{ $PACKAGE_NAME $VERSION }---
@@ -1556,6 +1575,7 @@ echo "
 
     Tizen
       pmapi:                       ${ENABLE_PM_LOCK}
+      dlog:                        ${ENABLE_DLOG}
 "
 
 if test "${ENABLE_SPEEX}" = "no" && test "${ENABLE_WEBRTC}" = "no" && test "${ENABLE_ADRIAN_EC}" = "no" ; then
