@@ -182,6 +182,8 @@ pa_ext_node_manager_connect_nodes;
 pa_ext_node_manager_disconnect_nodes;
 pa_ext_node_manager_subscribe;
 pa_ext_node_manager_set_subscribe_cb;
+pa_ext_echo_cancel_set_volume;
+pa_ext_echo_cancel_set_device;
 pa_format_info_copy;
 pa_format_info_free;
 pa_format_info_from_string;
