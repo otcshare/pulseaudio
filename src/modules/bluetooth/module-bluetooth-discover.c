@@ -37,6 +37,17 @@ PA_MODULE_USAGE(
     "headset=ofono|native|auto (bluez 5 only)"
 );
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+PA_MODULE_USAGE("aptx_lib_name=<name of aptx library name>");
+#endif
+
+#ifdef BLUETOOTH_APTX_SUPPORT
+static const char* const valid_modargs[] = {
+    "aptx_lib_name",
+    NULL
+};
+#endif
+
 struct userdata {
     uint32_t bluez5_module_idx;
     uint32_t bluez4_module_idx;
@@ -46,7 +57,29 @@ int pa__init(pa_module* m) {
     struct userdata *u;
     pa_module *mm;
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+    pa_modargs *ma = NULL;
+    const char *aptx_lib_name = NULL;
+#endif
+
     pa_assert(m);
+
+#ifdef BLUETOOTH_APTX_SUPPORT
+    if (!(ma = pa_modargs_new(m->argument, valid_modargs))) {
+        pa_log("Failed to parse module arguments");
+        goto fail;
+    }
+
+    if (pa_modargs_get_value(ma, "async", NULL))
+        pa_log_warn("The 'async' argument is deprecated and does nothing.");
+
+
+    aptx_lib_name = pa_modargs_get_value(ma, "aptx_lib_name", NULL);
+    if (aptx_lib_name)
+        pa_load_aptx(aptx_lib_name);
+    else
+        pa_log("Failed to parse aptx_lib_name argument.");
+#endif
 
     m->userdata = u = pa_xnew0(struct userdata, 1);
     u->bluez5_module_idx = PA_INVALID_INDEX;
@@ -85,6 +118,10 @@ void pa__done(pa_module* m) {
 
     if (u->bluez4_module_idx != PA_INVALID_INDEX)
         pa_module_unload_by_index(m->core, u->bluez4_module_idx, true);
+
+#ifdef BLUETOOTH_APTX_SUPPORT
+    pa_unload_aptx();
+#endif
 
     pa_xfree(u);
 }
