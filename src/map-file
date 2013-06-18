@@ -173,6 +173,8 @@ pa_ext_stream_restore_set_subscribe_cb;
 pa_ext_stream_restore_subscribe;
 pa_ext_stream_restore_test;
 pa_ext_stream_restore_write;
+pa_ext_echo_cancel_set_volume;
+pa_ext_echo_cancel_set_device;
 pa_ext_node_manager_test;
 pa_ext_node_manager_read_nodes;
 pa_ext_node_manager_connect_nodes;
