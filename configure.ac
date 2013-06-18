@@ -673,6 +673,18 @@ AS_IF([test "x$enable_samplerate" = "xyes" && test "x$HAVE_LIBSAMPLERATE" = "x0"
 AM_CONDITIONAL([HAVE_LIBSAMPLERATE], [test "x$HAVE_LIBSAMPLERATE" = x1])
 AS_IF([test "x$HAVE_LIBSAMPLERATE" = "x1"], AC_DEFINE([HAVE_LIBSAMPLERATE], 1, [Have libsamplerate?]))
 
+#### samsung PM API support ####
+
+AC_ARG_ENABLE(pmlock, AC_HELP_STRING([--enable-pmlock], [using Samsung power management api]),
+[
+ case "${enableval}" in
+     yes) USE_PM_LOCK=yes ;;
+     no)  USE_PM_LOCK=no ;;
+     *)   AC_MSG_ERROR(bad value ${enableval} for --enable-pmlock) ;;
+ esac
+ ],[USE_PM_LOCK=no])
+AM_CONDITIONAL(USE_PM_LOCK, test "x$USE_PM_LOCK" = "xyes")
+
 #### Database support ####
 
 AC_ARG_WITH([database],
