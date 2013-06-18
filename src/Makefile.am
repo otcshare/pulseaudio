@@ -1906,6 +1906,9 @@ module_suspend_on_idle_la_SOURCES = modules/module-suspend-on-idle.c
 module_suspend_on_idle_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_suspend_on_idle_la_LIBADD = $(MODULE_LIBADD)
 module_suspend_on_idle_la_CFLAGS = $(AM_CFLAGS)
+if USE_PM_LOCK
+module_suspend_on_idle_la_CFLAGS += -DUSE_PM_LOCK
+endif
 
 # echo-cancel module
 module_echo_cancel_la_SOURCES = \
