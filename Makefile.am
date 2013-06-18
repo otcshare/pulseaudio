@@ -58,6 +58,11 @@ moduledevdir   = $(includedir)/pulsemodule/pulsecore
 moduledevinternal_DATA = src/pulse/internal.h src/pulse/client-conf.h src/pulse/fork-detect.h
 moduledevinternaldir   = $(includedir)/pulsemodule/pulse
 
+filterdir = /etc/pulse/filter
+filter_DATA = filter/filter_44100_48000.dat \
+	      filter/filter_44100_8000.dat \
+	      filter/filter_48000_44100.dat \
+	      filter/filter_8000_44100.dat
 if HAVE_GLIB20
 pkgconfig_DATA += \
 	 libpulse-mainloop-glib.pc
