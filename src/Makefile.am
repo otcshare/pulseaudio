@@ -804,6 +804,11 @@ pulseinclude_HEADERS = \
 		pulse/volume.h \
 		pulse/xmalloc.h
 
+if USE_SAMSUNG_POLICY
+pulseinclude_HEADERS += \
+		pulse/ext-policy.h
+endif
+
 lib_LTLIBRARIES = \
 		libpulse.la \
 		libpulse-simple.la
@@ -849,6 +854,11 @@ libpulse_la_SOURCES = \
 		pulse/util.c pulse/util.h \
 		pulse/volume.c pulse/volume.h \
 		pulse/xmalloc.c pulse/xmalloc.h
+
+if USE_SAMSUNG_POLICY
+libpulse_la_SOURCES += \
+        pulse/ext-policy.c pulse/ext-policy.h
+endif
 
 libpulse_la_CFLAGS = $(AM_CFLAGS) $(LIBJSON_CFLAGS)
 libpulse_la_LIBADD = $(AM_LIBADD) $(WINSOCK_LIBS) $(LTLIBICONV) $(LIBJSON_LIBS) libpulsecommon-@PA_MAJORMINOR@.la
@@ -1120,6 +1130,10 @@ if HAVE_DBUS
 # Serveral module (e.g. libalsa-util.la)
 modlibexec_LTLIBRARIES += \
 		module-console-kit.la
+if USE_SAMSUNG_POLICY
+modlibexec_LTLIBRARIES += \
+		module-policy.la
+endif
 endif
 
 modlibexec_LTLIBRARIES += \
@@ -1509,7 +1523,10 @@ SYMDEF_FILES = \
 		module-switch-on-port-available-symdef.h \
 		module-filter-apply-symdef.h \
 		module-filter-heuristics-symdef.h
-
+if USE_SAMSUNG_POLICY
+SYMDEF_FILES += \
+		module-policy-symdef.h
+endif
 if HAVE_ESOUND
 SYMDEF_FILES += \
 		module-esound-protocol-tcp-symdef.h \
@@ -2157,6 +2174,13 @@ module_rygel_media_server_la_SOURCES = modules/module-rygel-media-server.c
 module_rygel_media_server_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_rygel_media_server_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) libprotocol-http.la
 module_rygel_media_server_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
+
+if USE_SAMSUNG_POLICY
+module_policy_la_SOURCES = modules/module-policy.c
+module_policy_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_policy_la_LIBADD = $(AM_LIBADD) $(DBUS_LIBS) $(VCONF_LIBS) libprotocol-native.la libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
+module_policy_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) $(VCONF_CFLAGS)
+endif
 
 ###################################
 #        Some minor stuff         #
