@@ -630,6 +630,10 @@ PKG_CHECK_MODULES(LIBJSON, [ json-c >= 0.11 ], [],
 
 PKG_CHECK_MODULES(LIBSNDFILE, [ sndfile >= 1.0.20 ])
 
+PKG_CHECK_MODULES(VCONF, vconf)
+AC_SUBST(VCONF_CFLAGS)
+AC_SUBST(VCONF_LIBS)
+
 dnl use dlog --------------------------------------------------------------------------
 AC_ARG_ENABLE(dlog, AC_HELP_STRING([--enable-dlog], [using dlog]),
 [

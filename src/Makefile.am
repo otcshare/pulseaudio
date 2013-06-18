@@ -149,7 +149,7 @@ pulseaudio_SOURCES = \
 		daemon/ltdl-bind-now.c daemon/ltdl-bind-now.h \
 		daemon/main.c
 
-pulseaudio_CFLAGS = $(AM_CFLAGS) $(CAP_CFLAGS)
+pulseaudio_CFLAGS = $(AM_CFLAGS) $(LIBSNDFILE_CFLAGS) $(CAP_CFLAGS) $(DBUS_CFLAGS)
 pulseaudio_LDADD = $(AM_LDADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la $(LIBLTDL) $(CAP_LIBS)
 # This is needed because automake doesn't properly expand the foreach below
 pulseaudio_DEPENDENCIES = libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la $(PREOPEN_LIBS)
@@ -757,6 +757,7 @@ pulseinclude_HEADERS = \
 		pulse/ext-stream-restore.h \
 		pulse/ext-node-manager.h \
 		pulse/ext-echo-cancel.h \
+		pulse/ext-policy.h \
 		pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/introspect.h \
@@ -804,6 +805,7 @@ libpulse_la_SOURCES = \
 		pulse/ext-stream-restore.c pulse/ext-stream-restore.h \
 		pulse/ext-node-manager.c pulse/ext-node-manager.h \
 		pulse/ext-echo-cancel.c pulse/ext-echo-cancel.h \
+		pulse/ext-policy.c pulse/ext-policy.h \
 		pulse/format.c pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/internal.h \
@@ -1079,7 +1081,8 @@ libavahi_wrap_la_LIBADD = $(AM_LIBADD) $(AVAHI_CFLAGS) libpulsecore-@PA_MAJORMIN
 if HAVE_DBUS
 # Serveral module (e.g. libalsa-util.la)
 modlibexec_LTLIBRARIES += \
-		module-console-kit.la
+		module-console-kit.la \
+		module-policy.la
 endif
 
 modlibexec_LTLIBRARIES += \
@@ -1459,7 +1462,8 @@ SYMDEF_FILES = \
 		module-switch-on-connect-symdef.h \
 		module-switch-on-port-available-symdef.h \
 		module-filter-apply-symdef.h \
-		module-filter-heuristics-symdef.h
+		module-filter-heuristics-symdef.h \
+		module-policy-symdef.h
 
 if HAVE_ESOUND
 SYMDEF_FILES += \
@@ -2105,6 +2109,11 @@ module_rygel_media_server_la_SOURCES = modules/module-rygel-media-server.c
 module_rygel_media_server_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_rygel_media_server_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) libprotocol-http.la
 module_rygel_media_server_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
+
+module_policy_la_SOURCES = modules/module-policy.c
+module_policy_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_policy_la_LIBADD = $(AM_LIBADD) $(DBUS_LIBS) $(VCONF_LIBS) libprotocol-native.la libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
+module_policy_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) $(VCONF_CFLAGS)
 
 ###################################
 #        Some minor stuff         #
