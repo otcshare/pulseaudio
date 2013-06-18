@@ -643,6 +643,24 @@ PKG_CHECK_MODULES(LIBJSON, [ json-c >= 0.11 ], [],
 
 PKG_CHECK_MODULES(LIBSNDFILE, [ sndfile >= 1.0.20 ])
 
+dnl use samsung policy module --------------------------------------------------------
+AC_ARG_ENABLE(samsung-policy, AC_HELP_STRING([--enable-samsung-policy], [using samsung-policy]),
+[
+ case "${enableval}" in
+	 yes) USE_SAMSUNG_POLICY=yes ;;
+	 no)  USE_SAMSUNG_POLICY=no ;;
+	 *)   AC_MSG_ERROR(bad value ${enableval} for --enable-samsung_policy) ;;
+ esac
+ ],[USE_SAMSUNG_POLICY=no])
+
+if test "x$USE_SAMSUNG_POLICY" = "xyes"; then
+	PKG_CHECK_MODULES(VCONF, vconf)
+	AC_SUBST(VCONF_CFLAGS)
+	AC_SUBST(VCONF_LIBS)
+fi
+AM_CONDITIONAL(USE_SAMSUNG_POLICY, test "x$USE_SAMSUNG_POLICY" = "xyes")
+dnl end --------------------------------------------------------------------
+
 dnl use dlog --------------------------------------------------------------------------
 AC_ARG_ENABLE(dlog, AC_HELP_STRING([--enable-dlog], [using dlog]),
 [
