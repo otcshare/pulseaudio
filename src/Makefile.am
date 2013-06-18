@@ -2076,7 +2076,11 @@ module_bluetooth_policy_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
 module_bluetooth_discover_la_SOURCES = modules/bluetooth/module-bluetooth-discover.c
 module_bluetooth_discover_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_bluetooth_discover_la_LIBADD = $(MODULE_LIBADD)
+if HAVE_BT_A2DP_APTX
+module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) -DBLUETOOTH_APTX_SUPPORT
+else
 module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS)
+endif
 
 # Bluetooth BlueZ 4 sink / source
 module_bluez4_discover_la_SOURCES = modules/bluetooth/module-bluez4-discover.c
@@ -2090,12 +2094,23 @@ libbluez4_util_la_SOURCES = \
 		modules/bluetooth/bluez4-util.h
 libbluez4_util_la_LDFLAGS = -avoid-version
 libbluez4_util_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS)
+
+if HAVE_BT_A2DP_APTX
+libbluez4_util_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) -DBLUETOOTH_APTX_SUPPORT
+else
 libbluez4_util_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
+endif
 
 module_bluez4_device_la_SOURCES = modules/bluetooth/module-bluez4-device.c modules/bluetooth/rtp.h
 module_bluez4_device_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_bluez4_device_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) $(SBC_LIBS) libbluez4-util.la
+
+if HAVE_BT_A2DP_APTX
+module_bluez4_device_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) $(SBC_CFLAGS) \
+                                    -DBLUETOOTH_APTX_SUPPORT
+else
 module_bluez4_device_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) $(SBC_CFLAGS)
+endif
 
 # Bluetooth BlueZ 5 sink / source
 libbluez5_util_la_SOURCES = \
@@ -2106,7 +2121,12 @@ libbluez5_util_la_SOURCES = \
 		modules/bluetooth/hfaudioagent-@BLUETOOTH_HEADSET_BACKEND@.c
 libbluez5_util_la_LDFLAGS = -avoid-version
 libbluez5_util_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS)
+
+if HAVE_BT_A2DP_APTX
+libbluez5_util_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) -DBLUETOOTH_APTX_SUPPORT
+else
 libbluez5_util_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
+endif
 
 module_bluez5_discover_la_SOURCES = modules/bluetooth/module-bluez5-discover.c
 module_bluez5_discover_la_LDFLAGS = $(MODULE_LDFLAGS)
@@ -2117,6 +2137,13 @@ module_bluez5_device_la_SOURCES = modules/bluetooth/module-bluez5-device.c
 module_bluez5_device_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_bluez5_device_la_LIBADD = $(MODULE_LIBADD) $(SBC_LIBS) libbluez5-util.la
 module_bluez5_device_la_CFLAGS = $(AM_CFLAGS) $(SBC_CFLAGS)
+
+if HAVE_BT_A2DP_APTX
+module_bluez5_device_la_CFLAGS = $(AM_CFLAGS) $(SBC_CFLAGS) \
+                                    -DBLUETOOTH_APTX_SUPPORT
+else
+module_bluez5_device_la_CFLAGS = $(AM_CFLAGS) $(SBC_CFLAGS)
+endif
 
 # Apple Airtunes/RAOP
 module_raop_sink_la_SOURCES = modules/raop/module-raop-sink.c
