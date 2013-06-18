@@ -56,6 +56,27 @@
 
 #include "log.h"
 
+#ifdef USE_DLOG
+#include <dlog.h>
+#define	DLOG_TAG	"PULSEAUDIO"
+
+#define COLOR_BLACK		30
+#define COLOR_RED		31
+#define COLOR_GREEN		32
+#define COLOR_BLUE		34
+#define COLOR_MAGENTA		35
+#define COLOR_CYAN		36
+#define COLOR_WHITE		97
+#define COLOR_B_GRAY		100
+#define COLOR_B_RED		101
+#define COLOR_B_GREEN		102
+#define COLOR_B_YELLOW		103
+#define COLOR_B_BLUE		104
+#define COLOR_B_MAGENTA	105
+#define COLOR_B_CYAN		106
+#define COLOR_REVERSE		7
+
+#endif
 #define ENV_LOG_SYSLOG "PULSE_LOG_SYSLOG"
 #define ENV_LOG_LEVEL "PULSE_LOG"
 #define ENV_LOG_COLORS "PULSE_LOG_COLORS"
@@ -495,6 +516,74 @@ void pa_log_levelv_meta(
 
                 break;
             }
+
+#ifdef USE_DLOG
+            case PA_LOG_DLOG: {
+                char *local_t;
+
+                openlog(ident, LOG_PID, LOG_USER);
+
+                if ((local_t = pa_utf8_to_locale(t)))
+                    t = local_t;
+
+                switch (level)
+                {
+					case PA_LOG_DEBUG:
+						SLOG (LOG_DEBUG, DLOG_TAG, "%s%s%s%s",  timestamp, location, t, pa_strempty(bt));
+						break;
+					case PA_LOG_INFO:
+					case PA_LOG_NOTICE:	// no notice category in dlog, use info instead.
+						SLOG (LOG_INFO, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
+						break;
+					case PA_LOG_WARN:
+						SLOG (LOG_WARN, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
+						break;
+					case PA_LOG_ERROR:
+						SLOG (LOG_ERROR, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
+						break;
+					default:
+						SLOG (LOG_DEBUG, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
+						break;
+                }
+
+                pa_xfree(local_t);
+
+                break;
+            }
+            case PA_LOG_DLOG_COLOR: {
+				char *local_t;
+
+				openlog(ident, LOG_PID, LOG_USER);
+
+				if ((local_t = pa_utf8_to_locale(t)))
+					t = local_t;
+
+				switch (level)
+				{
+					case PA_LOG_DEBUG:
+						SLOG (LOG_DEBUG, DLOG_TAG, "\033[%dm%s%s%s%s\033[0m", COLOR_GREEN, timestamp, location, t, pa_strempty(bt));
+						break;
+					case PA_LOG_INFO:
+					case PA_LOG_NOTICE:	// no notice category in dlog, use info instead.
+						SLOG (LOG_INFO, DLOG_TAG, "\033[%dm%s%s%s%s\033[0m", COLOR_BLUE, timestamp, location, t, pa_strempty(bt));
+						break;
+					case PA_LOG_WARN:
+						SLOG (LOG_WARN, DLOG_TAG, "\033[%dm%s%s%s%s\033[0m", COLOR_MAGENTA, timestamp, location, t, pa_strempty(bt));
+						break;
+					case PA_LOG_ERROR:
+						SLOG (LOG_ERROR, DLOG_TAG, "\033[%dm%s%s%s%s\033[0m", COLOR_RED, timestamp, location, t, pa_strempty(bt));
+						break;
+					default:
+						SLOG (LOG_DEBUG, DLOG_TAG, "%s%s%s%s", timestamp, location, t, pa_strempty(bt));
+						break;
+				}
+
+				pa_xfree(local_t);
+
+				break;
+			}
+
+#endif
             case PA_LOG_NULL:
             default:
                 break;
