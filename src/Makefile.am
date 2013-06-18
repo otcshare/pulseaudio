@@ -753,6 +753,7 @@ pulseinclude_HEADERS = \
 		pulse/ext-device-manager.h \
 		pulse/ext-device-restore.h \
 		pulse/ext-stream-restore.h \
+		pulse/ext-echo-cancel.h \
 		pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/introspect.h \
@@ -798,6 +799,7 @@ libpulse_la_SOURCES = \
 		pulse/ext-device-manager.c pulse/ext-device-manager.h \
 		pulse/ext-device-restore.c pulse/ext-device-restore.h \
 		pulse/ext-stream-restore.c pulse/ext-stream-restore.h \
+		pulse/ext-echo-cancel.c pulse/ext-echo-cancel.h \
 		pulse/format.c pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/internal.h \
@@ -1946,7 +1948,7 @@ module_echo_cancel_la_SOURCES = \
 		modules/echo-cancel/null.c \
 		modules/echo-cancel/echo-cancel.h
 module_echo_cancel_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_echo_cancel_la_LIBADD = $(MODULE_LIBADD) $(LIBSPEEX_LIBS)
+module_echo_cancel_la_LIBADD = libprotocol-native.la $(MODULE_LIBADD) $(LIBSPEEX_LIBS)
 module_echo_cancel_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) $(LIBSPEEX_CFLAGS)
 if HAVE_ADRIAN_EC
 module_echo_cancel_la_SOURCES += \
