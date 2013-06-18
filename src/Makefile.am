@@ -176,6 +176,10 @@ pulseaudio_CFLAGS += $(SYSTEMD_FLAGS) $(SYSTEMDDAEMON_FLAGS)
 pulseaudio_LDFLAGS += $(SYSTEMD_LIBS) $(SYSTEMDDAEMON_LIBS)
 endif
 
+if USE_DLOG
+pulseaudio_CFLAGS += -DUSE_DLOG
+endif
+
 ###################################
 #       Utility programs          #
 ###################################
@@ -774,6 +778,11 @@ libpulsecommon_@PA_MAJORMINOR@_la_SOURCES += \
 		pulsecore/rtkit.c pulsecore/rtkit.h
 libpulsecommon_@PA_MAJORMINOR@_la_CFLAGS += $(DBUS_CFLAGS)
 libpulsecommon_@PA_MAJORMINOR@_la_LIBADD += $(DBUS_LIBS)
+endif
+
+if USE_DLOG
+libpulsecommon_@PA_MAJORMINOR@_la_CFLAGS += $(DLOG_CFLAGS) -DUSE_DLOG
+libpulsecommon_@PA_MAJORMINOR@_la_LIBADD += $(DLOG_LIBS)
 endif
 
 ###################################

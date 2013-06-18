@@ -140,8 +140,12 @@ void pa_cmdline_help(const char *argv0) {
            "      --scache-idle-time=SECS           Unload autoloaded samples when idle and\n"
            "                                        this time passed\n"
            "      --log-level[=LEVEL]               Increase or set verbosity level\n"
-           "  -v  --verbose                         Increase the verbosity level\n"
+           "  -v                                    Increase the verbosity level\n"
+#ifdef USE_DLOG
+           "      --log-target={auto,syslog,stderr,file:PATH,newfile:PATH,dlog,dlog-color}\n"
+#else
            "      --log-target={auto,syslog,stderr,file:PATH,newfile:PATH}\n"
+#endif
            "                                        Specify the log target\n"
            "      --log-meta[=BOOL]                 Include code location in log messages\n"
            "      --log-time[=BOOL]                 Include timestamps in log messages\n"
@@ -325,6 +329,8 @@ int pa_cmdline_parse(pa_daemon_conf *conf, int argc, char *const argv [], int *d
                 if (pa_daemon_conf_set_log_target(conf, optarg) < 0) {
 #ifdef HAVE_SYSTEMD_JOURNAL
                     pa_log(_("Invalid log target: use either 'syslog', 'journal','stderr' or 'auto' or a valid file name 'file:<path>', 'newfile:<path>'."));
+#elif defined(USE_DLOG)
+                    pa_log(_("Invalid log target: use either 'syslog', 'stderr' or 'auto' or a valid file name 'file:<path>', 'newfile:<path>' or 'dlog' or 'dlog-color'."));
 #else
                     pa_log(_("Invalid log target: use either 'syslog', 'stderr' or 'auto' or a valid file name 'file:<path>', 'newfile:<path>'."));
 #endif
