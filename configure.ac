@@ -648,6 +648,24 @@ PKG_CHECK_MODULES(LIBJSON, [ json-c >= 0.11 ])
 
 PKG_CHECK_MODULES(LIBSNDFILE, [ sndfile >= 1.0.20 ])
 
+dnl use samsung policy module --------------------------------------------------------
+AC_ARG_ENABLE(samsung-policy, AC_HELP_STRING([--enable-samsung-policy], [using samsung-policy]),
+[
+ case "${enableval}" in
+	 yes) USE_SAMSUNG_POLICY=yes ;;
+	 no)  USE_SAMSUNG_POLICY=no ;;
+	 *)   AC_MSG_ERROR(bad value ${enableval} for --enable-samsung_policy) ;;
+ esac
+ ],[USE_SAMSUNG_POLICY=no])
+
+if test "x$USE_SAMSUNG_POLICY" = "xyes"; then
+	PKG_CHECK_MODULES(VCONF, vconf)
+	AC_SUBST(VCONF_CFLAGS)
+	AC_SUBST(VCONF_LIBS)
+fi
+AM_CONDITIONAL(USE_SAMSUNG_POLICY, test "x$USE_SAMSUNG_POLICY" = "xyes")
+dnl end --------------------------------------------------------------------
+
 dnl use dlog --------------------------------------------------------------------------
 AC_ARG_ENABLE(dlog, AC_HELP_STRING([--enable-dlog], [using dlog]),
 [
@@ -1507,6 +1525,7 @@ AS_IF([test "x$HAVE_LIBCHECK" = "x1"], ENABLE_TESTS=yes, ENABLE_TESTS=no)
 AS_IF([test "x$enable_legacy_database_entry_format" != "xno"], ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=yes, ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=no)
 AS_IF([test "x$USE_PM_LOCK" = "x1"], ENABLE_PM_LOCK=yes, ENABLE_PM_LOCK=no)
 AS_IF([test "x$USE_DLOG" = "x1"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
+AS_IF([test "x$USE_SAMSUNG_POLICY" = "x1"], ENABLE_SAMSUNG_POLICY=yes, ENABLE_SAMSUNG_POLICY=no)
 
 echo "
  ---{ $PACKAGE_NAME $VERSION }---
@@ -1576,6 +1595,7 @@ echo "
     Tizen
       pmapi:                       ${ENABLE_PM_LOCK}
       dlog:                        ${ENABLE_DLOG}
+      samsung policy:              ${ENABLE_SAMSUNG_POLICY}
 "
 
 if test "${ENABLE_SPEEX}" = "no" && test "${ENABLE_WEBRTC}" = "no" && test "${ENABLE_ADRIAN_EC}" = "no" ; then
