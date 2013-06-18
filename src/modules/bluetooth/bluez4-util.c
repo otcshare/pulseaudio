@@ -22,6 +22,9 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
+#ifdef BLUETOOTH_APTX_SUPPORT
+#include <dlfcn.h>
+#endif
 
 #include <pulse/xmalloc.h>
 
@@ -36,6 +39,9 @@
 #define ENDPOINT_PATH_HFP_HS "/MediaEndpoint/BlueZ4/HFPHS"
 #define ENDPOINT_PATH_A2DP_SOURCE "/MediaEndpoint/BlueZ4/A2DPSource"
 #define ENDPOINT_PATH_A2DP_SINK "/MediaEndpoint/BlueZ4/A2DPSink"
+#ifdef BLUETOOTH_APTX_SUPPORT
+#define ENDPOINT_PATH_A2DP_APTX_SOURCE "/MediaEndpoint/Bluez4/A2DPSource_aptx"
+#endif
 
 #define ENDPOINT_INTROSPECT_XML                                         \
     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE                           \
@@ -79,6 +85,56 @@ static pa_dbus_pending* send_and_add_to_pending(pa_bluez4_discovery *y, DBusMess
                                                 void *call_data);
 static void found_adapter(pa_bluez4_discovery *y, const char *path);
 static pa_bluez4_device *found_device(pa_bluez4_discovery *y, const char* path);
+
+#ifdef BLUETOOTH_APTX_SUPPORT
+static void *aptx_handle = NULL;
+
+int pa_unload_aptx(void)
+{
+	if (aptx_handle == NULL) {
+		pa_log_warn("Unable to unload apt-X library");
+		return -1;
+	}
+
+	dlclose(aptx_handle);
+	aptx_handle = NULL;
+
+	pa_log_debug("unloaded apt-X library successfully");
+	return 0;
+}
+
+int pa_load_aptx(const char *aptx_lib_name)
+{
+	char* lib_path = NULL ;
+
+        if(aptx_lib_name == NULL)
+		return -1;
+
+        lib_path = pa_sprintf_malloc("%s/%s", PA_DLSEARCHPATH, aptx_lib_name);
+
+	if (!lib_path)
+		return -1;
+
+	pa_log_info("aptx_lib_path = [%s]", lib_path);
+
+	aptx_handle = dlopen(lib_path, RTLD_LAZY);
+	if (aptx_handle == NULL) {
+		pa_log_warn("Unable to load apt-X library [%s]", dlerror());
+		pa_xfree(lib_path);
+		return -1;
+	}
+
+	pa_log_debug("loaded apt-X library successfully");
+	pa_xfree(lib_path);
+
+	return 0;
+}
+
+void* pa_aptx_get_handle(void)
+{
+	return aptx_handle;
+}
+#endif
 
 static pa_bluez4_audio_state_t audio_state_from_string(const char* value) {
     pa_assert(value);
@@ -835,6 +891,8 @@ static void register_endpoint(pa_bluez4_discovery *y, const char *path, const ch
         uint8_t capability = 0;
         pa_dbus_append_basic_array_variant_dict_entry(&d, "Capabilities", DBUS_TYPE_BYTE, &capability, 1);
     } else {
+        pa_log_debug("register_endpoint: codec=%d[%s]", codec, codec==A2DP_CODEC_SBC ? "A2DP_CODEC_SBC" : codec==A2DP_CODEC_NON_A2DP ? "A2DP_CODEC_NON_A2DP" : "unknown");
+        if (codec == A2DP_CODEC_SBC) {
         a2dp_sbc_t capabilities;
 
         capabilities.channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_DUAL_CHANNEL |
@@ -849,6 +907,23 @@ static void register_endpoint(pa_bluez4_discovery *y, const char *path, const ch
         capabilities.max_bitpool = MAX_BITPOOL;
 
         pa_dbus_append_basic_array_variant_dict_entry(&d, "Capabilities", DBUS_TYPE_BYTE, &capabilities, sizeof(capabilities));
+        } else if (codec == A2DP_CODEC_NON_A2DP ) {
+          /* aptx */
+            a2dp_aptx_t capabilities;
+
+            capabilities.vendor_id[0] = APTX_VENDOR_ID0;
+            capabilities.vendor_id[1] = APTX_VENDOR_ID1;
+            capabilities.vendor_id[2] = APTX_VENDOR_ID2;
+            capabilities.vendor_id[3] = APTX_VENDOR_ID3;
+
+            capabilities.codec_id[0] = APTX_CODEC_ID0;
+            capabilities.codec_id[1] = APTX_CODEC_ID1;
+
+            capabilities.channel_mode= APTX_CHANNEL_MODE_STEREO;
+            capabilities.frequency= APTX_SAMPLING_FREQ_44100;
+
+            pa_dbus_append_basic_array_variant_dict_entry(&d, "Capabilities", DBUS_TYPE_BYTE, &capabilities, sizeof(capabilities));
+        }
     }
 
     dbus_message_iter_close_container(&i, &d);
@@ -857,6 +932,7 @@ static void register_endpoint(pa_bluez4_discovery *y, const char *path, const ch
 }
 
 static void found_adapter(pa_bluez4_discovery *y, const char *path) {
+
     DBusMessage *m;
 
     pa_assert_se(m = dbus_message_new_method_call("org.bluez", path, "org.bluez.Adapter", "GetProperties"));
@@ -866,6 +942,10 @@ static void found_adapter(pa_bluez4_discovery *y, const char *path) {
     register_endpoint(y, path, ENDPOINT_PATH_HFP_HS, HFP_HS_UUID);
     register_endpoint(y, path, ENDPOINT_PATH_A2DP_SOURCE, A2DP_SOURCE_UUID);
     register_endpoint(y, path, ENDPOINT_PATH_A2DP_SINK, A2DP_SINK_UUID);
+#ifdef BLUETOOTH_APTX_SUPPORT
+    if (aptx_handle)
+        register_endpoint(y, path, ENDPOINT_PATH_A2DP_APTX_SOURCE, A2DP_SOURCE_UUID);
+#endif
 }
 
 static void list_adapters(pa_bluez4_discovery *y) {
@@ -1349,7 +1429,11 @@ static DBusMessage *endpoint_set_configuration(DBusConnection *conn, DBusMessage
         p = PA_BLUEZ4_PROFILE_HSP;
     else if (dbus_message_has_path(m, ENDPOINT_PATH_HFP_HS))
         p = PA_BLUEZ4_PROFILE_HFGW;
+#ifdef BLUETOOTH_APTX_SUPPORT
+    else if (dbus_message_has_path(m, ENDPOINT_PATH_A2DP_SOURCE) || dbus_message_has_path(m, ENDPOINT_PATH_A2DP_APTX_SOURCE))
+#else
     else if (dbus_message_has_path(m, ENDPOINT_PATH_A2DP_SOURCE))
+#endif
         p = PA_BLUEZ4_PROFILE_A2DP;
     else
         p = PA_BLUEZ4_PROFILE_A2DP_SOURCE;
@@ -1475,6 +1559,84 @@ static uint8_t a2dp_default_bitpool(uint8_t freq, uint8_t mode) {
     }
 }
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+static DBusMessage *endpoint_select_configuration_for_aptx(DBusConnection *c, DBusMessage *m, void *userdata) {
+    a2dp_aptx_t *cap;
+    a2dp_aptx_t config;
+    uint8_t *pconf = (uint8_t *) &config;
+    int size;
+    DBusMessage *r;
+    DBusError e;
+
+    dbus_error_init(&e);
+
+    if (!dbus_message_get_args(m, &e, DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, &cap, &size, DBUS_TYPE_INVALID)) {
+        pa_log("org.bluez.MediaEndpoint.SelectConfiguration: %s", e.message);
+        dbus_error_free(&e);
+        goto fail;
+    }
+
+    pa_assert(size == sizeof(config));
+
+    memset(&config, 0, sizeof(config));
+
+    if (cap->vendor_id[0] == APTX_VENDOR_ID0 &&
+        cap->vendor_id[1] == APTX_VENDOR_ID1 &&
+        cap->vendor_id[2] == APTX_VENDOR_ID2 &&
+        cap->vendor_id[3] == APTX_VENDOR_ID3 &&
+         cap->codec_id[0] == APTX_CODEC_ID0  &&
+         cap->codec_id[1] == APTX_CODEC_ID1  )
+        pa_log_debug("A2DP_CODEC_NON_A2DP and this is APTX Codec");
+    else {
+        pa_log_debug("A2DP_CODEC_NON_A2DP but this is not APTX Codec");
+        goto fail;
+    }
+
+    memcpy(&config,cap, sizeof(config));
+
+/* The below code shuld be re-written by aptx */
+/* And we should configure pulseaudio freq */
+
+    if (cap->frequency & APTX_SAMPLING_FREQ_44100)
+        config.frequency = APTX_SAMPLING_FREQ_44100;
+    else if (cap->frequency & APTX_SAMPLING_FREQ_48000)
+        config.frequency = APTX_SAMPLING_FREQ_48000;
+    else if (cap->frequency & APTX_SAMPLING_FREQ_32000)
+        config.frequency = APTX_SAMPLING_FREQ_32000;
+    else if (cap->frequency & APTX_SAMPLING_FREQ_16000)
+        config.frequency = APTX_SAMPLING_FREQ_16000;
+    else {
+        pa_log_error("No aptx supported frequencies");
+        goto fail;
+    }
+
+    if (cap->channel_mode & APTX_CHANNEL_MODE_JOINT_STEREO)
+        config.channel_mode = APTX_CHANNEL_MODE_STEREO;
+    else if (cap->channel_mode & APTX_CHANNEL_MODE_STEREO)
+        config.channel_mode = APTX_CHANNEL_MODE_STEREO;
+    else if (cap->channel_mode & APTX_CHANNEL_MODE_DUAL_CHANNEL)
+        config.channel_mode = APTX_CHANNEL_MODE_STEREO;
+    else {
+        pa_log_error("No aptx supported channel modes");
+        goto fail;
+    }
+
+    pa_assert_se(r = dbus_message_new_method_return(m));
+
+    pa_assert_se(dbus_message_append_args(
+                                     r,
+                                     DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, &pconf, size,
+                                     DBUS_TYPE_INVALID));
+
+    return r;
+
+fail:
+    pa_assert_se(r = (dbus_message_new_error(m, "org.bluez.MediaEndpoint.Error.InvalidArguments",
+                                                        "Unable to select configuration")));
+    return r;
+}
+#endif
+
 static DBusMessage *endpoint_select_configuration(DBusConnection *c, DBusMessage *m, void *userdata) {
     pa_bluez4_discovery *y = userdata;
     a2dp_sbc_t *cap, config;
@@ -1493,6 +1655,10 @@ static DBusMessage *endpoint_select_configuration(DBusConnection *c, DBusMessage
         { 48000U, SBC_SAMPLING_FREQ_48000 }
     };
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+    if (dbus_message_has_path(m, A2DP_APTX_SOURCE_ENDPOINT))
+        return endpoint_select_configuration_for_aptx(c ,m ,userdata);
+#endif
     dbus_error_init(&e);
 
     if (!dbus_message_get_args(m, &e, DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, &cap, &size, DBUS_TYPE_INVALID)) {
@@ -1614,8 +1780,13 @@ static DBusHandlerResult endpoint_handler(DBusConnection *c, DBusMessage *m, voi
 
     dbus_error_init(&e);
 
-    if (!pa_streq(path, ENDPOINT_PATH_A2DP_SOURCE) && !pa_streq(path, ENDPOINT_PATH_A2DP_SINK)
-            && !pa_streq(path, ENDPOINT_PATH_HFP_AG) && !pa_streq(path, ENDPOINT_PATH_HFP_HS))
+    if (!pa_streq(path, ENDPOINT_PATH_A2DP_SOURCE) &&
+        !pa_streq(path, ENDPOINT_PATH_A2DP_SINK) &&
+        !pa_streq(path, ENDPOINT_PATH_HFP_AG) &&
+#ifdef BLUETOOTH_APTX_SUPPORT
+        !pa_streq(path, ENDPOINT_PATH_A2DP_APTX_SOURCE) &&
+#endif
+        !pa_streq(path, ENDPOINT_PATH_HFP_HS))
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
     if (dbus_message_is_method_call(m, "org.freedesktop.DBus.Introspectable", "Introspect")) {
@@ -1706,6 +1877,11 @@ pa_bluez4_discovery* pa_bluez4_discovery_get(pa_core *c) {
     pa_assert_se(dbus_connection_register_object_path(conn, ENDPOINT_PATH_A2DP_SOURCE, &vtable_endpoint, y));
     pa_assert_se(dbus_connection_register_object_path(conn, ENDPOINT_PATH_A2DP_SINK, &vtable_endpoint, y));
 
+#ifdef BLUETOOTH_APTX_SUPPORT
+    if (aptx_handle)
+        pa_assert_se(dbus_connection_register_object_path(conn, ENDPOINT_PATH_A2DP_APTX_SOURCE, &vtable_endpoint, y));
+#endif
+
     list_adapters(y);
 
     return y;
@@ -1754,6 +1930,10 @@ void pa_bluez4_discovery_unref(pa_bluez4_discovery *y) {
         dbus_connection_unregister_object_path(pa_dbus_connection_get(y->connection), ENDPOINT_PATH_HFP_HS);
         dbus_connection_unregister_object_path(pa_dbus_connection_get(y->connection), ENDPOINT_PATH_A2DP_SOURCE);
         dbus_connection_unregister_object_path(pa_dbus_connection_get(y->connection), ENDPOINT_PATH_A2DP_SINK);
+#ifdef BLUETOOTH_APTX_SUPPORT
+        if (aptx_handle)
+            dbus_connection_unregister_object_path(pa_dbus_connection_get(y->connection), ENDPOINT_PATH_A2DP_APTX_SOURCE);
+#endif
         pa_dbus_remove_matches(
             pa_dbus_connection_get(y->connection),
             "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'"
