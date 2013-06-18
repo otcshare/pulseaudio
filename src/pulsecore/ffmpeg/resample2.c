@@ -28,6 +28,7 @@
 #include "avcodec.h"
 #include "dsputil.h"
 
+#include <stdio.h>
 #ifndef CONFIG_RESAMPLE_HP
 #define FILTER_SHIFT 15
 
@@ -55,6 +56,7 @@
 #define WINDOW_TYPE 24
 #endif
 
+#define PRE_FILTER_TABLE_PATH	"/etc/pulse/filter"
 
 typedef struct AVResampleContext{
     FELEM *filter_bank;
@@ -175,7 +177,22 @@ void av_build_filter(FELEM *filter, double factor, int tap_count, int phase_coun
 #endif
 }
 
-AVResampleContext *av_resample_init(int out_rate, int in_rate, int filter_size, int phase_shift, int linear, double cutoff){
+int64_t __gettime(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv,NULL);
+	return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec;
+}
+
+#define PRELOAD_FILTER
+
+AVResampleContext *av_resample_init(int out_rate, int in_rate, int filter_size, int phase_shift, int linear, double cutoff)
+{
+#ifdef DEBUG_MODE
+	int64_t start = __gettime ();
+	printf("[%s][%d] out=%d, in=%d, filter_size=%d, phase_shift=%d, linear=%d, cutoff=%f\n", __func__, __LINE__,
+			out_rate, in_rate, filter_size, phase_shift, linear, cutoff);
+#endif
     AVResampleContext *c= av_mallocz(sizeof(AVResampleContext));
     double factor= FFMIN(out_rate * cutoff / in_rate, 1.0);
     int phase_count= 1<<phase_shift;
@@ -186,13 +203,60 @@ AVResampleContext *av_resample_init(int out_rate, int in_rate, int filter_size, 
 
     c->filter_length= FFMAX((int)ceil(filter_size/factor), 1);
     c->filter_bank= av_mallocz(c->filter_length*(phase_count+1)*sizeof(FELEM));
+#ifdef DEBUG_MODE
+    printf("factor=%f, filter length=%d, filter_bank size=%d\n", factor, c->filter_length, c->filter_length*(phase_count+1)*sizeof(FELEM));
+#endif
+
+    int filter_bank_size = c->filter_length*(phase_count+1)*sizeof(FELEM);
+
+#ifndef PRELOAD_FILTER
     av_build_filter(c->filter_bank, factor, c->filter_length, phase_count, 1<<FILTER_SHIFT, WINDOW_TYPE);
+#else // PRELOAD_FILTER
+    char filter_data_name[256];
+    sprintf (filter_data_name, "%s/filter_%d_%d.dat", PRE_FILTER_TABLE_PATH, in_rate, out_rate);
+
+#ifdef DEBUG_MODE
+    printf ("filter_data_name = %s\n", filter_data_name);
+#endif
+
+    /* Check whether pre-created file is exists */
+    FILE* f1 = fopen(filter_data_name, "r");
+    if (f1) {
+    	/* Read pre-created filter data */
+    	if (fread (c->filter_bank, 1, filter_bank_size, f1) != filter_bank_size) {
+    		printf ("Error!!! Loading Filter [%s]!!!!!\n", filter_data_name);
+    	} else {
+    		printf ("Filter [%s] Loaded!!!!\n", filter_data_name);
+    	}
+    	fclose (f1);
+    } else {
+    	/* If not exist, Create filter data */
+		av_build_filter(c->filter_bank, factor, c->filter_length, phase_count, 1<<FILTER_SHIFT, WINDOW_TYPE);
+
+		/* Save filter data */
+		FILE* f2 = fopen(filter_data_name, "w");
+		if (f2) {
+			if (fwrite(c->filter_bank, 1, filter_bank_size, f2) == filter_bank_size) {
+				printf ("Filter data [%s] saved\n", filter_data_name);
+			} else {
+				printf ("Error!!! Writing Filter data [%s]\n", filter_data_name);
+			}
+			fclose (f2);
+		} else {
+			printf ("Error!!! Failed to open filter data file [%s]\n", filter_data_name);
+		}
+
+    }
+#endif // PRELOAD_FILTER
     memcpy(&c->filter_bank[c->filter_length*phase_count+1], c->filter_bank, (c->filter_length-1)*sizeof(FELEM));
     c->filter_bank[c->filter_length*phase_count]= c->filter_bank[c->filter_length - 1];
 
     c->src_incr= out_rate;
     c->ideal_dst_incr= c->dst_incr= in_rate * phase_count;
     c->index= -phase_count*((c->filter_length-1)/2);
+#ifdef DEBUG_MODE
+    printf("[%s][%d] elapsed = %lld\n", __func__, __LINE__, __gettime() - start);
+#endif
 
     return c;
 }
