@@ -41,6 +41,10 @@ typedef enum pa_log_target_type {
     PA_LOG_NULL,        /* to /dev/null */
     PA_LOG_FILE,        /* to a user specified file */
     PA_LOG_NEWFILE,     /* with an automatic suffix to avoid overwriting anything */
+#ifdef USE_DLOG
+    PA_LOG_DLOG,
+    PA_LOG_DLOG_COLOR,
+#endif
 } pa_log_target_type_t;
 
 typedef enum pa_log_level {
