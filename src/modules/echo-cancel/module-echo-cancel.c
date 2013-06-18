@@ -53,6 +53,9 @@
 #include <pulsecore/sample-util.h>
 #include <pulsecore/ltdl-helper.h>
 
+#include <pulsecore/protocol-native.h>
+#include <pulsecore/pstream-util.h>
+
 #include "module-echo-cancel-symdef.h"
 
 PA_MODULE_AUTHOR("Wim Taymans");
@@ -93,6 +96,11 @@ typedef enum {
     PA_ECHO_CANCELLER_WEBRTC,
 #endif
 } pa_echo_canceller_method_t;
+
+enum {
+	AEC_SET_VOLUME,
+	AEC_SET_DEVICE,
+};
 
 #ifdef HAVE_WEBRTC
 #define DEFAULT_ECHO_CANCELLER "webrtc"
@@ -255,6 +263,8 @@ struct userdata {
     struct {
         pa_cvolume current_volume;
     } thread_info;
+
+    pa_native_protocol *protocol;
 };
 
 static void source_output_snapshot_within_thread(struct userdata *u, struct snapshot *snapshot);
@@ -1588,6 +1598,43 @@ static pa_echo_canceller_method_t get_ec_method_from_string(const char *method) 
     return PA_ECHO_CANCELLER_INVALID;
 }
 
+static int extension_cb(pa_native_protocol *p, pa_module *m, pa_native_connection *c, uint32_t tag, pa_tagstruct *t) {
+	uint32_t command;
+	uint32_t value;
+	pa_tagstruct *reply = NULL;
+	pa_assert(p);
+	pa_assert(m);
+	pa_assert(c);
+	pa_assert(t);
+
+	if (pa_tagstruct_getu32(t, &command) < 0)
+	goto fail;
+
+	reply = pa_tagstruct_new(NULL, 0);
+	pa_tagstruct_putu32(reply, PA_COMMAND_REPLY);
+	pa_tagstruct_putu32(reply, tag);
+
+	switch (command) {
+		case AEC_SET_VOLUME: {
+			pa_tagstruct_getu32(t,&value);
+			pa_log_debug("AEC_SET_VOLUME in echo cancel = %d",value);
+		break;
+	}
+		case AEC_SET_DEVICE: {
+			pa_tagstruct_getu32(t,&value);
+			pa_log_debug("AEC_SET_DEVICE in echo cancel = %d",value);
+		break;
+	}
+	default:
+		goto fail;
+	}
+	pa_pstream_send_tagstruct(pa_native_connection_get_pstream(c), reply);
+	return 0;
+
+fail:
+	return -1;
+}
+
 /* Common initialisation bits between module-echo-cancel and the standalone
  * test program.
  *
@@ -1977,6 +2024,9 @@ int pa__init(pa_module*m) {
 
     u->thread_info.current_volume = u->source->reference_volume;
 
+    u->protocol = pa_native_protocol_get(m->core);
+    pa_native_protocol_install_ext(u->protocol, m, extension_cb);
+
     pa_sink_put(u->sink);
     pa_source_put(u->source);
 
@@ -2052,6 +2102,11 @@ void pa__done(pa_module*m) {
             u->ec->done(u->ec);
 
         pa_xfree(u->ec);
+    }
+
+    if (u->protocol) {
+        pa_native_protocol_remove_ext(u->protocol, m);
+        pa_native_protocol_unref(u->protocol);
     }
 
     if (u->asyncmsgq)
