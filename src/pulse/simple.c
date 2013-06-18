@@ -32,10 +32,12 @@
 #include <pulse/thread-mainloop.h>
 #include <pulse/xmalloc.h>
 
+#include <pulsecore/native-common.h>
 #include <pulsecore/log.h>
 #include <pulsecore/macro.h>
 
 #include "simple.h"
+#include "internal.h"
 
 struct pa_simple {
     pa_threaded_mainloop *mainloop;
@@ -100,6 +102,24 @@ static void context_state_cb(pa_context *c, void *userdata) {
         case PA_CONTEXT_SETTING_NAME:
             break;
     }
+}
+
+static void stream_success_context_cb(pa_stream *s, int success, void *userdata) {
+	pa_simple *p = userdata;
+	pa_assert(s);
+	pa_assert(p);
+
+    p->operation_success = success;
+    pa_threaded_mainloop_signal(p->mainloop, 0);
+}
+
+static void success_context_cb(pa_context *c, int success, void *userdata) {
+	pa_simple *p = userdata;
+	pa_assert(c);
+	pa_assert(p);
+
+    p->operation_success = success;
+    pa_threaded_mainloop_signal(p->mainloop, 0);
 }
 
 static void stream_state_cb(pa_stream *s, void * userdata) {
@@ -251,6 +271,122 @@ fail:
     return NULL;
 }
 
+pa_simple* pa_simple_new_proplist(
+        const char *server,
+        const char *name,
+        pa_stream_direction_t dir,
+        const char *dev,
+        const char *stream_name,
+        const pa_sample_spec *ss,
+        const pa_channel_map *map,
+        const pa_buffer_attr *attr,
+        pa_proplist *proplist,
+        int *rerror) {
+
+    pa_simple *p;
+    int error = PA_ERR_INTERNAL, r;
+
+    CHECK_VALIDITY_RETURN_ANY(rerror, !server || *server, PA_ERR_INVALID, NULL);
+    CHECK_VALIDITY_RETURN_ANY(rerror, dir == PA_STREAM_PLAYBACK || dir == PA_STREAM_RECORD, PA_ERR_INVALID, NULL);
+    CHECK_VALIDITY_RETURN_ANY(rerror, !dev || *dev, PA_ERR_INVALID, NULL);
+    CHECK_VALIDITY_RETURN_ANY(rerror, ss && pa_sample_spec_valid(ss), PA_ERR_INVALID, NULL);
+    CHECK_VALIDITY_RETURN_ANY(rerror, !map || (pa_channel_map_valid(map) && map->channels == ss->channels), PA_ERR_INVALID, NULL)
+
+    p = pa_xnew0(pa_simple, 1);
+    p->direction = dir;
+
+    if (!(p->mainloop = pa_threaded_mainloop_new()))
+        goto fail;
+
+    if (!(p->context = pa_context_new(pa_threaded_mainloop_get_api(p->mainloop), name)))
+        goto fail;
+
+    pa_context_set_state_callback(p->context, context_state_cb, p);
+
+    if (pa_context_connect(p->context, server, 0, NULL) < 0) {
+        error = pa_context_errno(p->context);
+        goto fail;
+    }
+
+    pa_threaded_mainloop_lock(p->mainloop);
+
+    if (pa_threaded_mainloop_start(p->mainloop) < 0)
+        goto unlock_and_fail;
+
+    for (;;) {
+        pa_context_state_t state;
+
+        state = pa_context_get_state(p->context);
+
+        if (state == PA_CONTEXT_READY)
+            break;
+
+        if (!PA_CONTEXT_IS_GOOD(state)) {
+            error = pa_context_errno(p->context);
+            goto unlock_and_fail;
+        }
+
+        /* Wait until the context is ready */
+        pa_threaded_mainloop_wait(p->mainloop);
+    }
+
+    if (!(p->stream = pa_stream_new_with_proplist(p->context, stream_name, ss, map, proplist))) {
+        error = pa_context_errno(p->context);
+        goto unlock_and_fail;
+    }
+
+    pa_stream_set_state_callback(p->stream, stream_state_cb, p);
+    pa_stream_set_read_callback(p->stream, stream_request_cb, p);
+    pa_stream_set_write_callback(p->stream, stream_request_cb, p);
+    pa_stream_set_latency_update_callback(p->stream, stream_latency_update_cb, p);
+
+    if (dir == PA_STREAM_PLAYBACK)
+        r = pa_stream_connect_playback(p->stream, dev, attr,
+                                       PA_STREAM_INTERPOLATE_TIMING
+                                       |PA_STREAM_ADJUST_LATENCY
+                                       |PA_STREAM_AUTO_TIMING_UPDATE, NULL, NULL);
+    else
+        r = pa_stream_connect_record(p->stream, dev, attr,
+                                     PA_STREAM_INTERPOLATE_TIMING
+                                     |PA_STREAM_ADJUST_LATENCY
+                                     |PA_STREAM_AUTO_TIMING_UPDATE
+                                     |PA_STREAM_START_CORKED);
+
+    if (r < 0) {
+        error = pa_context_errno(p->context);
+        goto unlock_and_fail;
+    }
+
+    for (;;) {
+        pa_stream_state_t state;
+
+        state = pa_stream_get_state(p->stream);
+
+        if (state == PA_STREAM_READY)
+            break;
+
+        if (!PA_STREAM_IS_GOOD(state)) {
+            error = pa_context_errno(p->context);
+            goto unlock_and_fail;
+        }
+
+        /* Wait until the stream is ready */
+        pa_threaded_mainloop_wait(p->mainloop);
+    }
+
+    pa_threaded_mainloop_unlock(p->mainloop);
+
+    return p;
+
+unlock_and_fail:
+    pa_threaded_mainloop_unlock(p->mainloop);
+
+fail:
+    if (rerror)
+        *rerror = error;
+    pa_simple_free(p);
+    return NULL;
+}
 void pa_simple_free(pa_simple *s) {
     pa_assert(s);
 
@@ -454,6 +590,111 @@ unlock_and_fail:
     return -1;
 }
 
+int pa_simple_mute(pa_simple *p, int mute, int *rerror) {
+    pa_operation *o = NULL;
+    uint32_t idx;
+
+    pa_assert(p);
+
+    CHECK_VALIDITY_RETURN_ANY(rerror, p->direction == PA_STREAM_PLAYBACK, PA_ERR_BADSTATE, -1);
+
+    pa_threaded_mainloop_lock(p->mainloop);
+    CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+
+    CHECK_SUCCESS_GOTO(p, rerror, ((idx = pa_stream_get_index (p->stream)) != PA_INVALID_INDEX), unlock_and_fail);
+
+
+    o = pa_context_set_sink_input_mute (p->context, idx, mute, success_context_cb, p);
+    CHECK_SUCCESS_GOTO(p, rerror, o, unlock_and_fail);
+
+    p->operation_success = 0;
+    while (pa_operation_get_state(o) == PA_OPERATION_RUNNING) {
+        pa_threaded_mainloop_wait(p->mainloop);
+        CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+    }
+    CHECK_SUCCESS_GOTO(p, rerror, p->operation_success, unlock_and_fail);
+
+    pa_operation_unref(o);
+    pa_threaded_mainloop_unlock(p->mainloop);
+
+    return 0;
+
+unlock_and_fail:
+
+    if (o) {
+        pa_operation_cancel(o);
+        pa_operation_unref(o);
+    }
+
+    pa_threaded_mainloop_unlock(p->mainloop);
+    return -1;
+}
+
+int pa_simple_get_stream_index(pa_simple *p, unsigned int *idx, int *rerror) {
+    pa_assert(p);
+    CHECK_VALIDITY_RETURN_ANY(rerror, idx != NULL, PA_ERR_INVALID, -1);
+
+    pa_threaded_mainloop_lock(p->mainloop);
+
+    CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+
+	*idx = pa_stream_get_index(p->stream);
+
+    pa_threaded_mainloop_unlock(p->mainloop);
+    return 0;
+
+unlock_and_fail:
+    pa_threaded_mainloop_unlock(p->mainloop);
+    return -1;
+}
+
+int pa_simple_set_volume(pa_simple *p, int volume, int *rerror) {
+    pa_operation *o = NULL;
+    pa_stream *s = NULL;
+    uint32_t idx;
+    pa_cvolume cv;
+
+
+    pa_assert(p);
+
+    CHECK_VALIDITY_RETURN_ANY(rerror, p->direction == PA_STREAM_PLAYBACK, PA_ERR_BADSTATE, -1);
+    CHECK_VALIDITY_RETURN_ANY(rerror, volume >= 0, PA_ERR_INVALID, -1);
+    CHECK_VALIDITY_RETURN_ANY(rerror, volume <= 65535, PA_ERR_INVALID, -1);
+
+    pa_threaded_mainloop_lock(p->mainloop);
+    CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+
+    CHECK_SUCCESS_GOTO(p, rerror, ((idx = pa_stream_get_index (p->stream)) != PA_INVALID_INDEX), unlock_and_fail);
+
+    s = p->stream;
+    pa_assert(s);
+    pa_cvolume_set(&cv, s->sample_spec.channels, volume);
+
+    o = pa_context_set_sink_input_volume (p->context, idx, &cv, success_context_cb, p);
+    CHECK_SUCCESS_GOTO(p, rerror, o, unlock_and_fail);
+
+    p->operation_success = 0;
+    while (pa_operation_get_state(o) == PA_OPERATION_RUNNING) {
+        pa_threaded_mainloop_wait(p->mainloop);
+        CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+    }
+    CHECK_SUCCESS_GOTO(p, rerror, p->operation_success, unlock_and_fail);
+
+    pa_operation_unref(o);
+    pa_threaded_mainloop_unlock(p->mainloop);
+
+    return 0;
+
+unlock_and_fail:
+
+    if (o) {
+        pa_operation_cancel(o);
+        pa_operation_unref(o);
+    }
+
+    pa_threaded_mainloop_unlock(p->mainloop);
+    return -1;
+}
 pa_usec_t pa_simple_get_latency(pa_simple *p, int *rerror) {
     pa_usec_t t;
     int negative;
@@ -482,4 +723,51 @@ unlock_and_fail:
 
     pa_threaded_mainloop_unlock(p->mainloop);
     return (pa_usec_t) -1;
+}
+
+int pa_simple_cork(pa_simple *p, int cork, int *rerror) {
+    pa_operation *o = NULL;
+
+    pa_assert(p);
+
+    pa_threaded_mainloop_lock(p->mainloop);
+    CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+
+    o = pa_stream_cork(p->stream, cork, stream_success_context_cb, p);
+    CHECK_SUCCESS_GOTO(p, rerror, o, unlock_and_fail);
+
+    p->operation_success = 0;
+    while (pa_operation_get_state(o) == PA_OPERATION_RUNNING) {
+        pa_threaded_mainloop_wait(p->mainloop);
+        CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
+    }
+    CHECK_SUCCESS_GOTO(p, rerror, p->operation_success, unlock_and_fail);
+
+    pa_operation_unref(o);
+    pa_threaded_mainloop_unlock(p->mainloop);
+
+    return 0;
+
+unlock_and_fail:
+
+    if (o) {
+        pa_operation_cancel(o);
+        pa_operation_unref(o);
+    }
+
+    pa_threaded_mainloop_unlock(p->mainloop);
+    return -1;
+}
+
+int pa_simple_is_corked(pa_simple *p) {
+	int is_cork;
+    pa_assert(p);
+
+    pa_threaded_mainloop_lock(p->mainloop);
+
+    is_cork = pa_stream_is_corked(p->stream);
+
+    pa_threaded_mainloop_unlock(p->mainloop);
+
+    return is_cork;
 }
