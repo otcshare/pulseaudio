@@ -44,17 +44,6 @@ pa_memblock* pa_silence_memblock(pa_memblock *b, const pa_sample_spec *spec);
 
 pa_memchunk* pa_silence_memchunk_get(pa_silence_cache *cache, pa_mempool *pool, pa_memchunk* ret, const pa_sample_spec *spec, size_t length);
 
-/** A structure encapsulating a volume ramp */
-typedef struct pa_volume_ramp {
-    pa_volume_ramp_type_t type;
-    long length;
-    long left;
-    float start;
-    float end;
-    float curr;
-    pa_cvolume end_mapped;
-} pa_volume_ramp;
-
 typedef struct pa_mix_info {
     pa_memchunk chunk;
     pa_cvolume volume;
@@ -82,12 +71,6 @@ void pa_volume_memchunk(
     pa_memchunk*c,
     const pa_sample_spec *spec,
     const pa_cvolume *volume);
-
-void pa_volume_ramp_memchunk(
-        pa_memchunk*c,
-        const pa_sample_spec *spec,
-	pa_volume_ramp *ramp,
-	const pa_cvolume *volume);
 
 size_t pa_frame_align(size_t l, const pa_sample_spec *ss) PA_GCC_PURE;
 

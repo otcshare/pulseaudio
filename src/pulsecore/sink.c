@@ -318,15 +318,6 @@ pa_sink* pa_sink_new(
             &s->sample_spec,
             0);
 
-    s->ramp.type = PA_VOLUME_RAMP_TYPE_LINEAR;
-    s->ramp.length = 0;
-    s->ramp.left = 0;
-    s->ramp.start = 1.0;
-    s->ramp.end = 1.0;
-    s->ramp.curr = 1.0;
-    pa_cvolume_reset(&s->ramp.end_mapped, data->sample_spec.channels);
-    pa_cvolume_set(&s->ramp.end_mapped, data->sample_spec.channels, PA_VOLUME_NORM);
-
     s->thread_info.rtpoll = NULL;
     s->thread_info.inputs = pa_hashmap_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
     s->thread_info.soft_volume =  s->soft_volume;
@@ -347,8 +338,6 @@ pa_sink* pa_sink_new(
     pa_sw_cvolume_multiply(&s->thread_info.current_hw_volume, &s->soft_volume, &s->real_volume);
     s->thread_info.volume_change_safety_margin = core->deferred_volume_safety_margin_usec;
     s->thread_info.volume_change_extra_delay = core->deferred_volume_extra_delay_usec;
-
-    s->thread_info.ramp = s->ramp;
 
     /* FIXME: This should probably be moved to pa_sink_put() */
     pa_assert_se(pa_idxset_put(core->sinks, s, &s->index) >= 0);
@@ -1157,17 +1146,10 @@ void pa_sink_render(pa_sink*s, size_t length, pa_memchunk *result) {
                                     result,
                                     &s->sample_spec,
                                     result->length);
-        } else if (!pa_cvolume_is_norm(&volume) || !pa_cvolume_is_norm(&(s->thread_info.ramp.end_mapped)) || s->thread_info.ramp.left > 0) {
-	    pa_memchunk_make_writable(result, 0);
-	    if (s->thread_info.ramp.left > 0)
-		pa_volume_ramp_memchunk(result, &s->sample_spec, &(s->thread_info.ramp), &volume);
-	    else {
-		if (!pa_cvolume_is_norm(&(s->thread_info.ramp.end_mapped)))
-		    pa_sw_cvolume_multiply(&volume, &volume, &(s->thread_info.ramp.end_mapped));
-
-		pa_volume_memchunk(result, &s->sample_spec, &volume);
-	    }
-	}
+        } else if (!pa_cvolume_is_norm(&volume)) {
+            pa_memchunk_make_writable(result, 0);
+            pa_volume_memchunk(result, &s->sample_spec, &volume);
+        }
     } else {
         void *ptr;
         result->memblock = pa_memblock_new(s->core->mempool, length);
@@ -1178,16 +1160,6 @@ void pa_sink_render(pa_sink*s, size_t length, pa_memchunk *result) {
                                 &s->sample_spec,
                                 &s->thread_info.soft_volume,
                                 s->thread_info.soft_muted);
-
-	if (!pa_cvolume_is_norm(&(s->thread_info.ramp.end_mapped)) || s->thread_info.ramp.left > 0) {
-	    pa_cvolume volume;
-	    pa_cvolume_set(&volume, s->sample_spec.channels, PA_VOLUME_NORM);
-	    if (s->thread_info.ramp.left > 0)
-		pa_volume_ramp_memchunk(result, &s->sample_spec, &(s->thread_info.ramp), &volume);
-	    else
-		pa_volume_memchunk(result, &s->sample_spec, &(s->thread_info.ramp.end_mapped));
-	}
-
         pa_memblock_release(result->memblock);
 
         result->index = 0;
@@ -1255,17 +1227,10 @@ void pa_sink_render_into(pa_sink*s, pa_memchunk *target) {
             if (vchunk.length > length)
                 vchunk.length = length;
 
-	    if (!pa_cvolume_is_norm(&volume) || !pa_cvolume_is_norm(&(s->thread_info.ramp.end_mapped)) || s->thread_info.ramp.left > 0) {
-		pa_memchunk_make_writable(&vchunk, 0);
-		if (s->thread_info.ramp.left > 0)
-		    pa_volume_ramp_memchunk(&vchunk, &s->sample_spec, &(s->thread_info.ramp), &volume);
-		else {
-		    if (!pa_cvolume_is_norm(&(s->thread_info.ramp.end_mapped)))
-			pa_sw_cvolume_multiply(&volume, &volume, &(s->thread_info.ramp.end_mapped));
-
-		    pa_volume_memchunk(&vchunk, &s->sample_spec, &volume);
-		}
-	    }
+            if (!pa_cvolume_is_norm(&volume)) {
+                pa_memchunk_make_writable(&vchunk, 0);
+                pa_volume_memchunk(&vchunk, &s->sample_spec, &volume);
+            }
 
             pa_memchunk_memcpy(target, &vchunk);
             pa_memblock_unref(vchunk.memblock);
@@ -1281,15 +1246,6 @@ void pa_sink_render_into(pa_sink*s, pa_memchunk *target) {
                                 &s->sample_spec,
                                 &s->thread_info.soft_volume,
                                 s->thread_info.soft_muted);
-
-	if (!pa_cvolume_is_norm(&(s->thread_info.ramp.end_mapped)) || s->thread_info.ramp.left > 0) {
-	    pa_cvolume volume;
-	    pa_cvolume_set(&volume, s->sample_spec.channels, PA_VOLUME_NORM);
-	    if (s->thread_info.ramp.left > 0)
-		pa_volume_ramp_memchunk(target, &s->sample_spec, &(s->thread_info.ramp), &volume);
-	    else
-		pa_volume_memchunk(target, &s->sample_spec, &(s->thread_info.ramp.end_mapped));
-	}
 
         pa_memblock_release(target->memblock);
     }
@@ -2043,47 +1999,6 @@ void pa_sink_set_volume(
         pa_assert_se(pa_asyncmsgq_send(root_sink->asyncmsgq, PA_MSGOBJECT(root_sink), PA_SINK_MESSAGE_SET_SHARED_VOLUME, NULL, 0, NULL) == 0);
 }
 
-/* Called from main thread */
-void pa_sink_set_volume_ramp(
-        pa_sink *s,
-        const pa_cvolume *volume,
-	uint32_t time,
-	uint8_t type,
-        pa_bool_t send_msg,
-        pa_bool_t save) {
-
-    float temp;
-
-    pa_sink_assert_ref(s);
-    pa_assert_ctl_context();
-    pa_assert(PA_SINK_IS_LINKED(s->state));
-    pa_assert(!volume || pa_cvolume_valid(volume));
-    pa_assert(!volume || volume->channels == 1 || pa_cvolume_compatible(volume, &s->sample_spec));
-
-    /* make sure we don't change the volume when a PASSTHROUGH input is connected ...
-     * ... *except* if we're being invoked to reset the volume to ensure 0 dB gain */
-    if (pa_sink_is_passthrough(s)) {
-        pa_log_warn("Cannot do volume ramp, Sink is connected to PASSTHROUGH input");
-        return;
-    }
-
-    s->ramp.type = type;
-    /* ms to samples */
-    s->ramp.length = time * s->default_sample_rate / 1000;
-    s->ramp.left = s->ramp.length;
-    s->ramp.start = s->ramp.end;
-    s->ramp.end_mapped = *volume;
-    /* scale to pulse internal mapping so that when ramp is over there's no glitch in volume */
-    temp = volume->values[0] / (float)0x10000U;
-    s->ramp.end = temp * temp * temp;
-
-    pa_log_debug("ramp length is %d ms, in samples %ld", time, s->ramp.length);
-
-    /* This tells the sink that volume ramp changed */
-    if (send_msg)
-        pa_assert_se(pa_asyncmsgq_send(s->asyncmsgq, PA_MSGOBJECT(s), PA_SINK_MESSAGE_SET_VOLUME_RAMP, NULL, 0, NULL) == 0);
-}
-
 /* Called from the io thread if sync volume is used, otherwise from the main thread.
  * Only to be called by sink implementor */
 void pa_sink_set_soft_volume(pa_sink *s, const pa_cvolume *volume) {
@@ -2736,18 +2651,12 @@ int pa_sink_process_msg(pa_msgobject *o, int code, void *userdata, int64_t offse
                 s->thread_info.soft_volume = s->soft_volume;
                 pa_sink_request_rewind(s, (size_t) -1);
             }
+
             /* Fall through ... */
 
         case PA_SINK_MESSAGE_SYNC_VOLUMES:
             sync_input_volumes_within_thread(s);
             return 0;
-
-        case PA_SINK_MESSAGE_SET_VOLUME_RAMP:
-	    /* we have ongoing ramp where we take current start values */
-	    if (s->thread_info.ramp.left > 0)
-		    s->ramp.start = s->thread_info.ramp.curr;
-	    s->thread_info.ramp = s->ramp;
-	    return 0;
 
         case PA_SINK_MESSAGE_GET_VOLUME:
 
