@@ -1,3 +1,6 @@
+* Tue Jun 25 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- updated volume ramp patches to be able to compile pulseaudio-module-murphy-ivi
+
 * Mon Jun 10 2013 Philippe Coval <philippe.coval@eurogiciel.fr> accepted/tizen/20130520.100459@54c01bc
 - spec: change database format from gdbm to tdb
   Bug-Tizen: #TZPC-945
