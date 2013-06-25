@@ -44,13 +44,7 @@ vapi_DATA = \
 		vala/libpulse-mainloop-glib.deps vala/libpulse-mainloop-glib.vapi
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = libpulse.pc libpulse-simple.pc pulseaudio-module-devel.pc
-
-moduledev_DATA = pulsecore-config.h src/pulsecore/*.h
-moduledevdir   = $(includedir)/pulsecore
-
-moduledevinternal_DATA = src/pulse/internal.h src/pulse/client-conf.h src/pulse/fork-detect.h
-moduledevinternaldir   = $(includedir)/pulsemodule/pulse
+pkgconfig_DATA = libpulse.pc libpulse-simple.pc
 
 if HAVE_GLIB20
 pkgconfig_DATA += \
@@ -87,9 +81,6 @@ dist-hook:
 	fi
 	echo $(VERSION) > $(distdir)/.tarball-version
 	echo $(VERSION) > $(distdir)/.version
-
-pulsecore-config.h: config.h
-	cp $< $@
 
 .PHONY: homepage distcleancheck doxygen
 
