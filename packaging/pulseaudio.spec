@@ -208,6 +208,20 @@ improved drop-in replacement for the Enlightened Sound Daemon (ESOUND).
 
 This package contains GDM integration hooks for the PulseAudio sound server.
 
+%package module-combine-sink
+Summary: PA module-combine-sink
+Group:   Multimedia/PulseAudio
+
+%description module-combine-sink
+PA module-combine-sink.
+
+%package module-augment-properties
+Summary: PA module-augment-properties
+Group:   Multimedia/PulseAudio
+
+%description module-augment-properties
+PA module-augment-properties.
+
 %prep
 %setup -q -T -b0
 
@@ -305,13 +319,11 @@ setup-pulseaudio --auto > /dev/null
 %{_libdir}/pulse-%{drvver}/modules/module-alsa-sink.so
 %{_libdir}/pulse-%{drvver}/modules/module-alsa-source.so
 %{_libdir}/pulse-%{drvver}/modules/module-always-sink.so
-%{_libdir}/pulse-%{drvver}/modules/module-augment-properties.so
 %{_libdir}/pulse-%{drvver}/modules/module-card-restore.so
 %{_libdir}/pulse-%{drvver}/modules/module-cli.so
 %{_libdir}/pulse-%{drvver}/modules/module-cli-protocol-tcp.so
 %{_libdir}/pulse-%{drvver}/modules/module-cli-protocol-unix.so
 %{_libdir}/pulse-%{drvver}/modules/module-combine.so
-%{_libdir}/pulse-%{drvver}/modules/module-combine-sink.so
 %{_libdir}/pulse-%{drvver}/modules/module-console-kit.so
 %{_libdir}/pulse-%{drvver}/modules/module-dbus-protocol.so
 %{_libdir}/pulse-%{drvver}/modules/module-default-device-restore.so
@@ -466,6 +478,14 @@ setup-pulseaudio --auto > /dev/null
 %{_bindir}/pax11publish
 %{_bindir}/padsp
 %{_bindir}/pasuspender
+
+%files module-combine-sink
+%defattr(-,root,root,-)
+%{_libdir}/pulse-%{version}/modules/module-combine-sink.so
+
+%files module-augment-properties
+%defattr(-,root,root,-)
+%{_libdir}/pulse-%{version}/modules/module-augment-properties.so
 
 
 %docs_package
