@@ -250,6 +250,12 @@ ln -s esdcompat %{buildroot}%{_bindir}/esd
 rm -rf %{buildroot}%{_sysconfdir}/xdg/autostart/pulseaudio-kde.desktop
 
 install -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/sound
+
+mkdir -p %{buildroot}%{_includedir}/pulsemodule/pulse
+mkdir -p %{buildroot}%{_includedir}/pulsemodule/pulsecore
+
+cp %{buildroot}%{_includedir}/pulse/*.h %{buildroot}%{_includedir}/pulsemodule/pulse
+
 %pre
 groupadd -r pulse &>/dev/null || :
 useradd -r -c 'PulseAudio daemon' \
@@ -399,7 +405,7 @@ setup-pulseaudio --auto > /dev/null
 
 %files module-devel
 %defattr(-,root,root)
-%{_includedir}/pulsecore/*.h
+%{_includedir}/pulsemodule/pulsecore/*.h
 %{_includedir}/pulsemodule/pulse/*.h
 %{_libdir}/pkgconfig/pulseaudio-module-devel.pc
 
