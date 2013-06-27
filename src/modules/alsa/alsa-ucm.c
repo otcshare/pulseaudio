@@ -653,7 +653,8 @@ static void ucm_add_port_combination(
     pa_device_port *port;
     int i;
     unsigned priority;
-    char *name, *desc;
+    char *name = NULL;
+    char *desc = NULL;
     const char *dev_name;
     const char *direction;
     pa_alsa_ucm_device *dev;
@@ -696,7 +697,11 @@ static void ucm_add_port_combination(
 
         port = pa_device_port_new(core, &port_data, 0);
         pa_device_port_new_data_done(&port_data);
-        pa_assert(port);
+
+        if (!port) {
+            pa_log("Failed to create port %s.", name);
+            goto fail;
+        }
 
         pa_hashmap_put(ports, port->name, port);
         pa_log_debug("Add port %s: %s", port->name, port->description);
@@ -706,7 +711,9 @@ static void ucm_add_port_combination(
     port->priority = priority;
 
     pa_xfree(name);
+    name = NULL;
     pa_xfree(desc);
+    desc = NULL;
 
     direction = is_sink ? "output" : "input";
     pa_log_debug("Port %s direction %s, priority %d", port->name, direction, priority);
@@ -720,6 +727,12 @@ static void ucm_add_port_combination(
         pa_hashmap_put(hash, port->name, port);
         pa_device_port_ref(port);
     }
+
+    return;
+
+fail:
+    pa_xfree(name);
+    pa_xfree(desc);
 }
 
 static int ucm_port_contains(const char *port_name, const char *dev_name, bool is_sink) {
