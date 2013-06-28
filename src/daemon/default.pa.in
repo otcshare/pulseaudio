@@ -194,9 +194,9 @@ load-module module-card-restore
 
 ### Automatically augment property information from .desktop files
 ### stored in /usr/share/application
-.ifexist module-augment-properties@PA_SOEXT@
+.nofail
 load-module module-augment-properties
-.endif
+.fail
 
 ### Honour intended role device property
 load-module module-intended-roles
