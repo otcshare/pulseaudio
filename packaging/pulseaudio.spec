@@ -14,6 +14,7 @@ Source1:        default.pa-for-gdm
 Source2:        setup-pulseaudio
 Source3:        sysconfig.sound-pulseaudio
 Source99:       baselibs.conf
+Source1001: 	pulseaudio.manifest
 BuildRequires:  fdupes
 BuildRequires:  intltool
 BuildRequires:  libcap-devel
@@ -224,6 +225,7 @@ PA module-augment-properties.
 
 %prep
 %setup -q -T -b0
+cp %{SOURCE1001} .
 
 %build
 export CFLAGS="%{optflags} -fno-strict-aliasing"
@@ -294,6 +296,7 @@ setup-pulseaudio --auto > /dev/null
 %lang_package
 
 %files
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %license LICENSE GPL LGPL
 %config(noreplace) %{_sysconfdir}/sysconfig/sound
@@ -394,17 +397,20 @@ setup-pulseaudio --auto > /dev/null
 %ghost %{_sysconfdir}/profile.d/pulseaudio.csh
 
 %files esound-compat
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_bindir}/esdcompat
 %{_bindir}/esd
 
 %files gdm-hooks
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %attr(0750, gdm, gdm) %dir %{_localstatedir}/lib/gdm
 %attr(0700, gdm, gdm) %dir %{_localstatedir}/lib/gdm/.pulse
 %attr(0600, gdm, gdm) %{_localstatedir}/lib/gdm/.pulse/default.pa
 
 %files -n libpulse
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %doc README LICENSE GPL LGPL
 %dir %{_sysconfdir}/pulse/
@@ -416,12 +422,14 @@ setup-pulseaudio --auto > /dev/null
 %{_libdir}/pulseaudio/libpulsecommon-%{drvver}.so
 
 %files module-devel
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_includedir}/pulsemodule/pulsecore/*.h
 %{_includedir}/pulsemodule/pulse/*.h
 %{_libdir}/pkgconfig/pulseaudio-module-devel.pc
 
 %files -n libpulse-devel
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_includedir}/pulse/
 %{_libdir}/libpulse.so
@@ -434,10 +442,12 @@ setup-pulseaudio --auto > /dev/null
 %{_datadir}/vala
 
 %files -n libpulse-mainloop-glib
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_libdir}/libpulse-mainloop-glib.so.*
 
 %files module-bluetooth
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_libdir}/pulse-%{drvver}/modules/libbluetooth-ipc.so
 %{_libdir}/pulse-%{drvver}/modules/libbluetooth-sbc.so
@@ -448,6 +458,7 @@ setup-pulseaudio --auto > /dev/null
 %attr(0755,root,root) %{_libexecdir}/pulse/proximity-helper
 
 %files module-x11
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_sysconfdir}/xdg/autostart/pulseaudio.desktop
 %{_bindir}/start-pulseaudio-x11
@@ -458,6 +469,7 @@ setup-pulseaudio --auto > /dev/null
 %{_libdir}/pulse-%{drvver}/modules/module-x11-xsmp.so
 
 %files module-zeroconf
+%manifest %{name}.manifest
 %defattr(-,root,root)
 #%{_libdir}/pulse-%{drvver}/modules/libavahi-wrap.so
 %{_libdir}/pulse-%{drvver}/modules/libraop.so
@@ -467,6 +479,7 @@ setup-pulseaudio --auto > /dev/null
 #%{_libdir}/pulse-%{drvver}/modules/module-zeroconf-publish.so
 
 %files utils
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_bindir}/pacat
 %{_bindir}/pacmd
@@ -480,10 +493,12 @@ setup-pulseaudio --auto > /dev/null
 %{_bindir}/pasuspender
 
 %files module-combine-sink
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-combine-sink.so
 
 %files module-augment-properties
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-augment-properties.so
 
