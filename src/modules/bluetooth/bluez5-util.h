@@ -82,6 +82,7 @@ struct pa_bluetooth_device {
     char *remote;
     char *local;
     int class_of_device;
+    pa_hashmap *uuids;
 
     pa_bluetooth_transport *transports[PA_BLUETOOTH_PROFILE_COUNT];
 };
