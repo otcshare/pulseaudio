@@ -2393,6 +2393,7 @@ pa_alsa_path* pa_alsa_path_new(const char *paths_dir, const char *fname, pa_alsa
         { "priority",            pa_config_parse_unsigned,          NULL, "General" },
         { "description-key",     pa_config_parse_string,            NULL, "General" },
         { "description",         pa_config_parse_string,            NULL, "General" },
+        { "device-class",        pa_config_parse_device_class,      NULL, "General" },
         { "mute-during-activation", pa_config_parse_bool,           NULL, "General" },
         { "eld-device",          pa_config_parse_int,               NULL, "General" },
 
@@ -2427,13 +2428,15 @@ pa_alsa_path* pa_alsa_path_new(const char *paths_dir, const char *fname, pa_alsa
     p->name = pa_xstrndup(n, strcspn(n, "."));
     p->proplist = pa_proplist_new();
     p->direction = direction;
+    p->device_class = PA_DEVICE_CLASS_UNKNOWN;
     p->eld_device = -1;
 
     items[0].data = &p->priority;
     items[1].data = &p->description_key;
     items[2].data = &p->description;
-    items[3].data = &mute_during_activation;
-    items[4].data = &p->eld_device;
+    items[3].data = &p->device_class;
+    items[4].data = &mute_during_activation;
+    items[5].data = &p->eld_device;
 
     if (!paths_dir)
         paths_dir = get_default_paths_dir();
@@ -4498,6 +4501,7 @@ static pa_device_port* device_port_alsa_init(pa_hashmap *ports, /* card ports */
         pa_device_port_new_data_set_direction(&port_data, path->direction == PA_ALSA_DIRECTION_OUTPUT ? PA_DIRECTION_OUTPUT : PA_DIRECTION_INPUT);
         pa_device_port_new_data_set_create_node(&port_data, true);
         pa_node_new_data_set_fallback_name_prefix(&port_data.node_data, "alsa");
+        pa_node_new_data_set_device_class(&port_data.node_data, path->device_class);
 
         p = pa_device_port_new(core, &port_data, sizeof(pa_alsa_port_data));
         pa_device_port_new_data_done(&port_data);
