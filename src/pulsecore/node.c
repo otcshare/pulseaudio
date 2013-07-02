@@ -35,6 +35,7 @@ pa_node_new_data *pa_node_new_data_init(pa_node_new_data *data) {
 
     pa_zero(*data);
     data->direction = PA_DIRECTION_OUTPUT;
+    data->device_class = PA_DEVICE_CLASS_UNKNOWN;
 
     return data;
 }
@@ -65,6 +66,12 @@ void pa_node_new_data_set_direction(pa_node_new_data *data, pa_direction_t direc
     data->direction = direction;
 }
 
+void pa_node_new_data_set_device_class(pa_node_new_data *data, pa_device_class_t class) {
+    pa_assert(data);
+
+    data->device_class = class;
+}
+
 void pa_node_new_data_done(pa_node_new_data *data) {
     pa_assert(data);
 
@@ -87,7 +94,10 @@ pa_node *pa_node_new(pa_core *core, pa_node_new_data *data) {
 
     name_buf = pa_strbuf_new();
 
-    /* Automatic name generation code will appear here... */
+    if (data->device_class != PA_DEVICE_CLASS_UNKNOWN) {
+        pa_strbuf_printf(name_buf, "%s-", pa_device_class_to_string(data->device_class));
+        use_fallback_name_prefix = false;
+    }
 
     if (use_fallback_name_prefix)
         pa_strbuf_printf(name_buf, "%s-", data->fallback_name_prefix);
