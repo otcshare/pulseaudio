@@ -27,6 +27,7 @@ typedef struct pa_node_new_data pa_node_new_data;
 typedef struct pa_node pa_node;
 
 #include <pulsecore/core.h>
+#include <pulsecore/device-class.h>
 
 /* The node type determines what the owner pointer of pa_node points to. */
 typedef enum {
@@ -56,6 +57,7 @@ struct pa_node_new_data {
 
     pa_node_type_t type;
     pa_direction_t direction;
+    pa_device_class_t device_class; /* For nodes representing physical devices. */
 };
 
 struct pa_node {
@@ -78,6 +80,7 @@ void pa_node_new_data_set_fallback_name_prefix(pa_node_new_data *data, const cha
 void pa_node_new_data_set_description(pa_node_new_data *data, const char *description);
 void pa_node_new_data_set_type(pa_node_new_data *data, pa_node_type_t type);
 void pa_node_new_data_set_direction(pa_node_new_data *data, pa_direction_t direction);
+void pa_node_new_data_set_device_class(pa_node_new_data *data, pa_device_class_t class);
 void pa_node_new_data_done(pa_node_new_data *data);
 
 pa_node *pa_node_new(pa_core *core, pa_node_new_data *data);
