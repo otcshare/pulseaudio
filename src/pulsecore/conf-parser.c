@@ -30,6 +30,7 @@
 #include <pulse/xmalloc.h>
 
 #include <pulsecore/core-error.h>
+#include <pulsecore/device-class.h>
 #include <pulsecore/log.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/macro.h>
@@ -311,5 +312,16 @@ int pa_config_parse_string(pa_config_parser_state *state) {
 
     pa_xfree(*s);
     *s = *state->rvalue ? pa_xstrdup(state->rvalue) : NULL;
+    return 0;
+}
+
+int pa_config_parse_device_class(pa_config_parser_state *state) {
+    pa_device_class_t *class;
+
+    pa_assert(state);
+
+    class = state->data;
+    *class = pa_device_class_from_string(state->rvalue);
+
     return 0;
 }

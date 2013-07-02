@@ -79,5 +79,6 @@ int pa_config_parse_size(pa_config_parser_state *state);
 int pa_config_parse_bool(pa_config_parser_state *state);
 int pa_config_parse_not_bool(pa_config_parser_state *state);
 int pa_config_parse_string(pa_config_parser_state *state);
+int pa_config_parse_device_class(pa_config_parser_state *state);
 
 #endif
