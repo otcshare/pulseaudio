@@ -701,6 +701,86 @@ static int add_source(struct userdata *u) {
     return 0;
 }
 
+/* Run from IO thread */
+static int sink_process_msg(pa_msgobject *o, int code, void *data, int64_t offset, pa_memchunk *chunk) {
+    struct userdata *u = PA_SINK(o)->userdata;
+    bool failed = false;
+    int r;
+
+    pa_assert(u->sink == PA_SINK(o));
+    pa_assert(u->transport);
+
+    switch (code) {
+
+        case PA_SINK_MESSAGE_SET_STATE:
+
+            switch ((pa_sink_state_t) PA_PTR_TO_UINT(data)) {
+
+                case PA_SINK_SUSPENDED:
+                    /* Ignore if transition is PA_SINK_INIT->PA_SINK_SUSPENDED */
+                    if (!PA_SINK_IS_OPENED(u->sink->thread_info.state))
+                        break;
+
+                    /* Stop the device if the source is suspended as well */
+                    if (!u->source || u->source->state == PA_SOURCE_SUSPENDED)
+                        /* We deliberately ignore whether stopping
+                         * actually worked. Since the stream_fd is
+                         * closed it doesn't really matter */
+                        transport_release(u);
+
+                    break;
+
+                case PA_SINK_IDLE:
+                case PA_SINK_RUNNING:
+                    if (u->sink->thread_info.state != PA_SINK_SUSPENDED)
+                        break;
+
+                    /* Resume the device if the source was suspended as well */
+                    if (!u->source || !PA_SOURCE_IS_OPENED(u->source->thread_info.state)) {
+                        if (transport_acquire(u, false) < 0)
+                            failed = true;
+                        else
+                            setup_stream(u);
+                    }
+
+                    break;
+
+                case PA_SINK_UNLINKED:
+                case PA_SINK_INIT:
+                case PA_SINK_INVALID_STATE:
+                    break;
+            }
+
+            break;
+
+        case PA_SINK_MESSAGE_GET_LATENCY:
+
+            if (u->read_smoother) {
+                pa_usec_t wi, ri;
+
+                ri = pa_smoother_get(u->read_smoother, pa_rtclock_now());
+                wi = pa_bytes_to_usec(u->write_index + u->write_block_size, &u->sample_spec);
+
+                *((pa_usec_t*) data) = wi > ri ? wi - ri : 0;
+            } else {
+                pa_usec_t ri, wi;
+
+                ri = pa_rtclock_now() - u->started_at;
+                wi = pa_bytes_to_usec(u->write_index, &u->sample_spec);
+
+                *((pa_usec_t*) data) = wi > ri ? wi - ri : 0;
+            }
+
+            *((pa_usec_t*) data) += u->sink->thread_info.fixed_latency;
+
+            return 0;
+    }
+
+    r = pa_sink_process_msg(o, code, data, offset, chunk);
+
+    return (r < 0 || !failed) ? r : -1;
+}
+
 /* Run from main thread */
 static int add_sink(struct userdata *u) {
     pa_sink_new_data data;
@@ -736,6 +816,7 @@ static int add_sink(struct userdata *u) {
     }
 
     u->sink->userdata = u;
+    u->sink->parent.process_msg = sink_process_msg;
 
     return 0;
 }
