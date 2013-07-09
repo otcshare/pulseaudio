@@ -2062,7 +2062,9 @@ module_bluez4_device_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) $(SBC_CFLAGS)
 libbluez5_util_la_SOURCES = \
 		modules/bluetooth/bluez5-util.c \
 		modules/bluetooth/bluez5-util.h \
-		modules/bluetooth/a2dp-codecs.h
+		modules/bluetooth/a2dp-codecs.h \
+		modules/bluetooth/hfaudioagent.h \
+		modules/bluetooth/hfaudioagent-@BLUETOOTH_HEADSET_BACKEND@.c
 libbluez5_util_la_LDFLAGS = -avoid-version
 libbluez5_util_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS)
 libbluez5_util_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
