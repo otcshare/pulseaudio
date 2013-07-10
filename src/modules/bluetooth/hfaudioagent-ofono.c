@@ -59,7 +59,26 @@ struct hf_audio_agent_data {
 
     bool filter_added;
     pa_hashmap *hf_audio_cards;
+
+    PA_LLIST_HEAD(pa_dbus_pending, pending);
 };
+
+static pa_dbus_pending* pa_bluetooth_dbus_send_and_add_to_pending(hf_audio_agent_data *hfdata, DBusMessage *m,
+                                                                  DBusPendingCallNotifyFunction func, void *call_data) {
+    pa_dbus_pending *p;
+    DBusPendingCall *call;
+
+    pa_assert(hfdata);
+    pa_assert(m);
+
+    pa_assert_se(dbus_connection_send_with_reply(pa_dbus_connection_get(hfdata->connection), m, &call, -1));
+
+    p = pa_dbus_pending_new(pa_dbus_connection_get(hfdata->connection), m, call, hfdata, call_data);
+    PA_LLIST_PREPEND(pa_dbus_pending, hfdata->pending, p);
+    dbus_pending_call_set_notify(call, func, p, NULL);
+
+    return p;
+}
 
 static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *data) {
     pa_assert(bus);
@@ -165,6 +184,8 @@ void hf_audio_agent_done(hf_audio_agent_data *data) {
     hf_audio_agent_data *hfdata = data;
 
     pa_assert(hfdata);
+
+    pa_dbus_free_pending_list(&hfdata->pending);
 
     if (hfdata->hf_audio_cards) {
         pa_hashmap_free(hfdata->hf_audio_cards, NULL);
