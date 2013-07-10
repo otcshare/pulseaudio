@@ -1088,6 +1088,10 @@ const char *pa_bluetooth_profile_to_string(pa_bluetooth_profile_t profile) {
             return "a2dp_sink";
         case PA_BLUETOOTH_PROFILE_A2DP_SOURCE:
             return "a2dp_source";
+        case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
+            return "hsp";
+        case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
+            return "hfgw";
         case PA_BLUETOOTH_PROFILE_OFF:
             return "off";
     }
