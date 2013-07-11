@@ -364,6 +364,7 @@ static void hf_audio_agent_unregister(hf_audio_agent_data *hfdata) {
 
 static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *data) {
     const char *sender;
+    DBusError err;
     hf_audio_agent_data *hfdata = data;
 
     pa_assert(bus);
@@ -374,6 +375,46 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
     if (!pa_safe_streq(hfdata->ofono_bus_id, sender) && !pa_streq("org.freedesktop.DBus", sender))
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
+    dbus_error_init(&err);
+
+    if (dbus_message_is_signal(m, "org.freedesktop.DBus", "NameOwnerChanged")) {
+        const char *name, *old_owner, *new_owner;
+
+        if (!dbus_message_get_args(m, &err,
+                                   DBUS_TYPE_STRING, &name,
+                                   DBUS_TYPE_STRING, &old_owner,
+                                   DBUS_TYPE_STRING, &new_owner,
+                                   DBUS_TYPE_INVALID)) {
+            pa_log_error("Failed to parse org.freedesktop.DBus.NameOwnerChanged: %s", err.message);
+            goto fail;
+        }
+
+        if (pa_streq(name, OFONO_SERVICE)) {
+
+            if (old_owner && *old_owner) {
+                pa_log_debug("oFono disappeared");
+
+                if (hfdata->hf_audio_cards) {
+                    pa_hashmap_free(hfdata->hf_audio_cards, hf_audio_card_free);
+                    hfdata->hf_audio_cards = NULL;
+                }
+
+                if(hfdata->ofono_bus_id) {
+                    pa_xfree(hfdata->ofono_bus_id);
+                    hfdata->ofono_bus_id = NULL;
+                }
+            }
+
+            if (new_owner && *new_owner) {
+                pa_log_debug("oFono appeared");
+                hf_audio_agent_register(hfdata);
+            }
+        }
+
+    }
+
+fail:
+    dbus_error_free(&err);
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
