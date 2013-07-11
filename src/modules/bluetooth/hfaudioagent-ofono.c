@@ -411,6 +411,24 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
             }
         }
 
+    } else if (dbus_message_is_signal(m, "org.ofono.HandsfreeAudioManager", "CardAdded")) {
+        const char *p;
+        DBusMessageIter arg_i, props_i;
+
+        if (!dbus_message_iter_init(m, &arg_i) || !pa_streq(dbus_message_get_signature(m), "oa{sv}")) {
+            pa_log_error("Failed to parse org.ofono.HandsfreeAudioManager.CardAdded");
+            goto fail;
+        }
+
+        dbus_message_iter_get_basic(&arg_i, &p);
+
+        pa_assert_se(dbus_message_iter_next(&arg_i));
+        pa_assert(dbus_message_iter_get_arg_type(&arg_i) == DBUS_TYPE_ARRAY);
+
+        dbus_message_iter_recurse(&arg_i, &props_i);
+
+        hf_audio_agent_card_found(hfdata, p, &props_i);
+
     }
 
 fail:
