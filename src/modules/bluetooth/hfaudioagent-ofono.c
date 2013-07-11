@@ -429,6 +429,29 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
 
         hf_audio_agent_card_found(hfdata, p, &props_i);
 
+    } else if (dbus_message_is_signal(m, "org.ofono.HandsfreeAudioManager", "CardRemoved")) {
+        const char *p;
+        hf_audio_card *hfac;
+        bool old_any_connected;
+
+        if (!dbus_message_get_args(m, &err, DBUS_TYPE_OBJECT_PATH, &p, DBUS_TYPE_INVALID)) {
+            pa_log_error("Failed to parse org.ofono.HandsfreeAudioManager.CardRemoved: %s", err.message);
+            goto fail;
+        }
+
+        if ((hfac = pa_hashmap_remove(hfdata->hf_audio_cards, p)) != NULL) {
+            old_any_connected = pa_bluetooth_device_any_transport_connected(hfac->transport->device);
+
+            hfac->transport->state = PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED;
+            hfac->transport->device->transports[hfac->transport->profile] = NULL;
+            pa_hook_fire(pa_bluetooth_discovery_hook(hfdata->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_STATE_CHANGED), hfac->transport);
+
+            if (old_any_connected != pa_bluetooth_device_any_transport_connected(hfac->transport->device)) {
+                pa_hook_fire(pa_bluetooth_discovery_hook(hfdata->discovery, PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED), hfac->transport->device);
+            }
+
+            hf_audio_card_free(hfac);
+        }
     }
 
 fail:
