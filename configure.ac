@@ -679,6 +679,19 @@ fi
 AM_CONDITIONAL(USE_DLOG, test "x$USE_DLOG" = "xyes")
 dnl end --------------------------------------------------------------------
 
+dnl use bt-profile-set --------------------------------------------------------------------------
+AC_ARG_ENABLE(bt-profile-set, AC_HELP_STRING([--enable-bt-profile-set], [enable bt profile param]),
+[
+ case "${enableval}" in
+        yes) USE_BT_PROFILE_SET=yes ;;
+        no)  USE_BT_PROFILE_SET=no ;;
+        *)   AC_MSG_ERROR(bad value ${enableval} for --enable-bt-profile-set) ;;
+ esac
+ ],[USE_BT_PROFILE_SET=no])
+
+AM_CONDITIONAL(USE_BT_PROFILE_SET, test "x$USE_BT_PROFILE_SET" = "xyes")
+dnl end --------------------------------------------------------------------
+
 #### atomic-ops ####
 
 AC_MSG_CHECKING([whether we need libatomic_ops])
