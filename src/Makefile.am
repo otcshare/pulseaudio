@@ -2043,6 +2043,9 @@ module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS) -DBLUETOOTH_AP
 else
 module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
 endif
+if USE_BT_PROFILE_SET
+module_bluetooth_discover_la_CFLAGS += -DBLUETOOTH_PROFILE_SET
+endif
 
 
 libbluetooth_util_la_SOURCES = \

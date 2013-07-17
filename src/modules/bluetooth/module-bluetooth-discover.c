@@ -84,12 +84,29 @@ static pa_hook_result_t load_module_for_device(pa_bluetooth_discovery *y, const 
     if (pa_bluetooth_device_any_audio_connected(d)) {
 
         if (!mi) {
+#ifdef BLUETOOTH_PROFILE_SET
+            const char *profile = NULL;
+
+            if ((d->transports[PROFILE_A2DP] && d->transports[PROFILE_A2DP]->state != PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)) {
+                profile = "a2dp";
+            } if ((d->transports[PROFILE_A2DP_SOURCE] && d->transports[PROFILE_A2DP_SOURCE]->state != PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)) {
+                profile = "a2dp_source";
+            } else if ((d->transports[PROFILE_HFGW] && d->transports[PROFILE_HFGW]->state != PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)) {
+                profile = "hfgw";
+            }
+            if (!profile)
+                return PA_HOOK_OK;
+#endif
             pa_module *m = NULL;
             char *args;
 
             /* Oh, awesome, a new device has shown up and been connected! */
 
+#ifdef BLUETOOTH_PROFILE_SET
+            args = pa_sprintf_malloc("address=\"%s\" path=\"%s\" profile=\"%s\"", d->address, d->path, profile);
+#else
             args = pa_sprintf_malloc("address=\"%s\" path=\"%s\"", d->address, d->path);
+#endif
 
             if (pa_modargs_get_value(u->modargs, "sco_sink", NULL) &&
                 pa_modargs_get_value(u->modargs, "sco_source", NULL)) {
