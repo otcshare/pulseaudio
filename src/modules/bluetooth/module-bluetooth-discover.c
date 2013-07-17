@@ -68,7 +68,6 @@ static bool exists(const char *filename) {
         if (result)
             return true;
     }
-
     state = NULL;
     if (PA_UNLIKELY(pa_run_from_build_tree())) {
         while ((p = pa_split(paths, ":", &state))) {
