@@ -2062,6 +2062,9 @@ module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) -DBLUETOOTH_APTX_SUPPORT
 else
 module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS)
 endif
+if USE_BT_PROFILE_SET
+module_bluetooth_discover_la_CFLAGS += -DBLUETOOTH_PROFILE_SET
+endif
 
 # Bluetooth BlueZ 4 sink / source
 module_bluez4_discover_la_SOURCES = modules/bluetooth/module-bluez4-discover.c
