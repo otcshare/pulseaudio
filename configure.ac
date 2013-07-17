@@ -690,6 +690,19 @@ fi
 AM_CONDITIONAL(USE_DLOG, test "x$USE_DLOG" = "xyes")
 dnl end --------------------------------------------------------------------
 
+dnl use bt-profile-set --------------------------------------------------------------------------
+AC_ARG_ENABLE(bt-profile-set, AC_HELP_STRING([--enable-bt-profile-set], [enable bt profile param]),
+[
+ case "${enableval}" in
+        yes) USE_BT_PROFILE_SET=yes ;;
+        no)  USE_BT_PROFILE_SET=no ;;
+        *)   AC_MSG_ERROR(bad value ${enableval} for --enable-bt-profile-set) ;;
+ esac
+ ],[USE_BT_PROFILE_SET=no])
+
+AM_CONDITIONAL(USE_BT_PROFILE_SET, test "x$USE_BT_PROFILE_SET" = "xyes")
+dnl end --------------------------------------------------------------------
+
 #### atomic-ops ####
 
 AC_MSG_CHECKING([whether we need libatomic_ops])
@@ -1618,6 +1631,7 @@ AS_IF([test "x$USE_DLOG" = "x1"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
 AS_IF([test "x$USE_SAMSUNG_POLICY" = "x1"], ENABLE_SAMSUNG_POLICY=yes, ENABLE_SAMSUNG_POLICY=no)
 AS_IF([test "x$HAVE_BT_A2DP_APTX" = "x1"], HAVE_BT_A2DP_APTX=yes, HAVE_BT_A2DP_APTX=no)
 AS_IF([test "x$HAVE_UDEV_ONLY_USB" = "x1"], ENABLE_UDEV_ONLY_USB=yes, ENABLE_UDEV_ONLY_USB=no)
+AS_IF([test "x$USE_BT_PROFILE_SET" = "x1"], ENABLE_BT_PROFILE_SET=yes, ENABLE_BT_PROFILE_SET=no)
 
 echo "
  ---{ $PACKAGE_NAME $VERSION }---
@@ -1694,6 +1708,7 @@ echo "
       samsung policy:              ${ENABLE_SAMSUNG_POLICY}
       bluetooth aptx codec:        ${HAVE_BT_A2DP_APTX}
       udev with usb only:          ${ENABLE_UDEV_ONLY_USB}
+      bluetooth profile set:       ${ENABLE_BT_PROFILE_SET}
 "
 
 if test "${ENABLE_SPEEX}" = "no" && test "${ENABLE_WEBRTC}" = "no" && test "${ENABLE_ADRIAN_EC}" = "no" ; then
