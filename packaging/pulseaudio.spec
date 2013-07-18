@@ -11,6 +11,7 @@ Group:            Multimedia/Audio
 License:          GPL-2.0+ and LGPL-2.1+
 URL:              http://pulseaudio.org
 Source0:          http://www.freedesktop.org/software/pulseaudio/releases/%{name}-%{version}.tar.gz
+Source1001:       pulseaudio.manifest
 BuildRequires:    libtool-ltdl-devel
 BuildRequires:    libtool
 BuildRequires:    intltool
@@ -176,6 +177,7 @@ PA Vala bindings.
 %prep
 %setup -q -T -b0
 echo "%{version}" > .tarball-version
+cp %{SOURCE1001} .
 
 %build
 export CFLAGS="%{optflags} -fno-strict-aliasing"
@@ -264,6 +266,7 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %lang_package
 
 %files
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %doc LICENSE GPL LGPL
 %{_sysconfdir}/pulse/filter/*.dat
@@ -346,12 +349,14 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %config(noreplace) /etc/bash_completion.d/pulseaudio-bash-completion.sh
 
 %files -n libpulse
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/libpulse.so.*
 %{_libdir}/libpulse-simple.so.*
 %{_libdir}/pulseaudio/libpulsecommon-*.so
 
 %files -n libpulse-devel
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_includedir}/pulse/*
 %{_libdir}/libpulse.so
@@ -364,10 +369,12 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %{_libdir}/cmake/PulseAudio/PulseAudioConfigVersion.cmake
 
 %files -n libpulse-mainloop-glib
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_libdir}/libpulse-mainloop-glib.so.*
 
 %files utils
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %doc %{_mandir}/man1/*
 %doc %{_mandir}/man5/*
@@ -381,6 +388,7 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %{_bindir}/pasuspender
 
 %files module-bluetooth
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-bluetooth-proximity.so
 %{_libdir}/pulse-%{version}/modules/module-bluetooth-device.so
@@ -389,35 +397,43 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %{_libdir}/pulse-%{version}/modules/libbluetooth-util.so
 
 %files module-raop
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/libraop.so
 %{_libdir}/pulse-%{version}/modules/module-raop*.so
 
 %files module-filter
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-filter-*.so
 
 %files module-combine-sink
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-combine-sink.so
 
 %files module-augment-properties
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-augment-properties.so
 
 %files module-dbus-protocol
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-dbus-protocol.so
 
 %files module-null-source
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-null-source.so
 
 %files module-switch-on-connect
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-switch-on-connect.so
 
 %files config
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %config(noreplace) %{_sysconfdir}/pulse/daemon.conf
 %config(noreplace) %{_sysconfdir}/pulse/default.pa
@@ -427,12 +443,14 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %{_datadir}/pulseaudio/alsa-mixer/profile-sets/*
 
 %files module-devel
+%manifest %{name}.manifest
 %defattr(-,root,root)
 %{_includedir}/pulsemodule/pulsecore/*.h
 %{_includedir}/pulsemodule/pulse/*.h
 %{_libdir}/pkgconfig/pulseaudio-module-devel.pc
 
 %files vala-bindings
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_datadir}/vala/vapi/*
 
