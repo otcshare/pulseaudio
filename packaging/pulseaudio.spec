@@ -215,7 +215,6 @@ export LD_AS_NEEDED=0
 %endif
 %if %{with pulseaudio_bt_profile_set}
         --enable-bt-profile-set \
-
 %endif
 %if %{with pulseaudio_udev_with_usb_only}
         --enable-udev-with-usb-only \
