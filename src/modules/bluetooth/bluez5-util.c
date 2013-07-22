@@ -80,11 +80,17 @@ struct pa_bluetooth_discovery {
     bool matches_added;
     bool objects_listed;
     pa_hook hooks[PA_BLUETOOTH_HOOK_MAX];
+    pa_hashmap *adapters;
     pa_hashmap *devices;
     pa_hashmap *transports;
 
     PA_LLIST_HEAD(pa_dbus_pending, pending);
 };
+
+typedef struct pa_bluetooth_adapter {
+    char *path;
+    char *address;
+} pa_bluetooth_adapter;
 
 static pa_dbus_pending* send_and_add_to_pending(pa_bluetooth_discovery *y, DBusMessage *m,
                                                                   DBusPendingCallNotifyFunction func, void *call_data) {
@@ -101,6 +107,31 @@ static pa_dbus_pending* send_and_add_to_pending(pa_bluetooth_discovery *y, DBusM
     dbus_pending_call_set_notify(call, func, p, NULL);
 
     return p;
+}
+
+static const char *check_variant_property(DBusMessageIter *i) {
+    const char *key;
+
+    pa_assert(i);
+
+    if (dbus_message_iter_get_arg_type(i) != DBUS_TYPE_STRING) {
+        pa_log_error("Property name not a string.");
+        return NULL;
+    }
+
+    dbus_message_iter_get_basic(i, &key);
+
+    if (!dbus_message_iter_next(i)) {
+        pa_log_error("Property value missing");
+        return NULL;
+    }
+
+    if (dbus_message_iter_get_arg_type(i) != DBUS_TYPE_VARIANT) {
+        pa_log_error("Property value not a variant.");
+        return NULL;
+    }
+
+    return key;
 }
 
 pa_bluetooth_transport *pa_bluetooth_transport_new(
@@ -356,6 +387,56 @@ static void device_remove_all(pa_bluetooth_discovery *y) {
    }
 }
 
+static void adapter_remove_all(pa_bluetooth_discovery *y) {
+    pa_bluetooth_adapter *a;
+
+    pa_assert(y);
+
+    while ((a = pa_hashmap_steal_first(y->adapters))) {
+        pa_xfree(a->path);
+        pa_xfree(a->address);
+        pa_xfree(a);
+    }
+}
+
+static int parse_adapter_properties(pa_bluetooth_discovery *y, const char *adapter, DBusMessageIter *i) {
+    DBusMessageIter element_i;
+
+    pa_assert(y);
+    pa_assert(adapter);
+
+    dbus_message_iter_recurse(i, &element_i);
+
+    while (dbus_message_iter_get_arg_type(&element_i) == DBUS_TYPE_DICT_ENTRY) {
+        DBusMessageIter dict_i, variant_i;
+        const char *key;
+
+        dbus_message_iter_recurse(&element_i, &dict_i);
+
+        key = check_variant_property(&dict_i);
+        if (key == NULL) {
+            pa_log_error("Received invalid property for adapter %s", adapter);
+            return -1;
+        }
+
+        dbus_message_iter_recurse(&dict_i, &variant_i);
+
+        if (dbus_message_iter_get_arg_type(&variant_i) == DBUS_TYPE_STRING && pa_streq(key, "Address")) {
+            char *value;
+            pa_bluetooth_adapter *a = pa_xnew(pa_bluetooth_adapter, 1);
+
+            dbus_message_iter_get_basic(&variant_i, &value);
+            a->path = pa_xstrdup(adapter);
+            a->address = pa_xstrdup(value);
+            pa_hashmap_put(y->adapters, a->path, a);
+        }
+
+        dbus_message_iter_next(&element_i);
+    }
+
+    return 0;
+}
+
 static void parse_interfaces_and_properties(pa_bluetooth_discovery *y, DBusMessageIter *dict_i) {
     DBusMessageIter element_i;
     const char *path;
@@ -382,7 +463,8 @@ static void parse_interfaces_and_properties(pa_bluetooth_discovery *y, DBusMessa
 
         if (pa_streq(interface, BLUEZ_ADAPTER_INTERFACE)) {
             pa_log_debug("Adapter %s found", path);
-            /* TODO: parse adapter properties and register endpoints */
+            /* TODO: register endpoints with adapter */
+            parse_adapter_properties(y, path, &iface_i);
         } else if (pa_streq(interface, BLUEZ_DEVICE_INTERFACE)) {
             pa_bluetooth_device *d;
 
@@ -1033,6 +1115,7 @@ pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *c) {
     y = pa_xnew0(pa_bluetooth_discovery, 1);
     PA_REFCNT_INIT(y);
     y->core = c;
+    y->adapters = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     y->devices = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     y->transports = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     PA_LLIST_HEAD_INIT(pa_dbus_pending, y->pending);
@@ -1101,6 +1184,11 @@ void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y) {
         return;
 
     pa_dbus_free_pending_list(&y->pending);
+
+    if (y->adapters) {
+        adapter_remove_all(y);
+        pa_hashmap_free(y->adapters, NULL);
+    }
 
     if (y->devices) {
         device_remove_all(y);
