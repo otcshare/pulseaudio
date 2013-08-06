@@ -27,6 +27,7 @@
 #include <pulsecore/core-util.h>
 #include <pulsecore/macro.h>
 #include <pulsecore/module.h>
+#include <pulsecore/shared.h>
 
 #include "bluez5-util.h"
 
@@ -90,7 +91,9 @@ int pa__init(pa_module *m) {
     u->core = m->core;
     u->device_modules = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
 
-    if (!(u->discovery = pa_bluetooth_discovery_get(u->core)))
+    if ((u->discovery = pa_shared_get(u->core, "bluetooth-discovery")))
+        pa_bluetooth_discovery_ref(u->discovery);
+    else if (!(u->discovery = pa_bluetooth_discovery_get(u->core)))
         goto fail;
 
     u->device_connection_changed_slot =
