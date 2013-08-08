@@ -1138,8 +1138,18 @@ AC_SUBST(HAVE_UDEV)
 AM_CONDITIONAL([HAVE_UDEV], [test "x$HAVE_UDEV" = x1])
 AS_IF([test "x$HAVE_UDEV" = "x1"], AC_DEFINE([HAVE_UDEV], 1, [Have UDEV.]))
 
-#### HAL compat support (optional, dependent on UDEV) ####
+#### udev for usb _only_ support (optional, dependant on UDEV) ####
+AC_ARG_ENABLE([udev_with_usb_only],
+    AS_HELP_STRING([--enable-udev-with-usb-only],[Enable UDEV with only USB support]))
 
+AS_IF([test "x$enable_udev_with_usb_only" != "xyes"],
+    [AS_IF([test "x$HAVE_UDEV" = "x1"], HAVE_UDEV_ONLY_USB=0, HAVE_UDEV_ONLY_USB=1)],
+    HAVE_UDEV_ONLY_USB=1)
+
+AM_CONDITIONAL([HAVE_UDEV_ONLY_USB], [test "x$HAVE_UDEV_ONLY_USB" = x1])
+AS_IF([test "x$HAVE_UDEV_ONLY_USB" = "x1"], AC_DEFINE([HAVE_UDEV_ONLY_USB], 1, [Have usb only with udev.]))
+
+#### HAL compat support (optional, dependent on UDEV) ####
 AC_ARG_ENABLE([hal-compat],
     AS_HELP_STRING([--disable-hal-compat],[Disable optional HAL->udev transition compatibility support]))
 
@@ -1607,6 +1617,7 @@ AS_IF([test "x$USE_PM_LOCK" = "x1"], ENABLE_PM_LOCK=yes, ENABLE_PM_LOCK=no)
 AS_IF([test "x$USE_DLOG" = "x1"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
 AS_IF([test "x$USE_SAMSUNG_POLICY" = "x1"], ENABLE_SAMSUNG_POLICY=yes, ENABLE_SAMSUNG_POLICY=no)
 AS_IF([test "x$HAVE_BT_A2DP_APTX" = "x1"], HAVE_BT_A2DP_APTX=yes, HAVE_BT_A2DP_APTX=no)
+AS_IF([test "x$HAVE_UDEV_ONLY_USB" = "x1"], ENABLE_UDEV_ONLY_USB=yes, ENABLE_UDEV_ONLY_USB=no)
 
 echo "
  ---{ $PACKAGE_NAME $VERSION }---
@@ -1647,6 +1658,7 @@ echo "
         Enable native headsets:    ${ENABLE_BLUEZ_5_NATIVE_HEADSET}
     Enable udev:                   ${ENABLE_UDEV}
       Enable HAL->udev compat:     ${ENABLE_HAL_COMPAT}
+      Enable udev usb only:        ${ENABLE_UDEV_ONLY_USB}
     Enable systemd
       Daemon (Socket Activation):  ${ENABLE_SYSTEMD_DAEMON}
       Login (Session Tracking):    ${ENABLE_SYSTEMD_LOGIN}
@@ -1681,6 +1693,7 @@ echo "
       dlog:                        ${ENABLE_DLOG}
       samsung policy:              ${ENABLE_SAMSUNG_POLICY}
       bluetooth aptx codec:        ${HAVE_BT_A2DP_APTX}
+      udev with usb only:          ${ENABLE_UDEV_ONLY_USB}
 "
 
 if test "${ENABLE_SPEEX}" = "no" && test "${ENABLE_WEBRTC}" = "no" && test "${ENABLE_ADRIAN_EC}" = "no" ; then
