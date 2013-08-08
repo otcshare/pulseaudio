@@ -1667,6 +1667,7 @@ static char* make_random_dir(mode_t m) {
     char *fn;
     size_t pathlen;
 
+    srand (time(NULL));
     fn = pa_sprintf_malloc("%s" PA_PATH_SEP "pulse-XXXXXXXXXXXX", pa_get_temp_dir());
     pathlen = strlen(fn);
 
@@ -1732,6 +1733,7 @@ static int make_random_dir_and_link(mode_t m, const char *k) {
 char *pa_get_runtime_dir(void) {
     char *d, *k = NULL, *p = NULL, *t = NULL, *mid;
     mode_t m;
+    int retry_count = 100;
 
     /* The runtime directory shall contain dynamic data that needs NOT
      * to be kept across reboots and is usually private to the user,
@@ -1792,6 +1794,21 @@ char *pa_get_runtime_dir(void) {
     for (;;) {
         /* OK, first let's check if the "runtime" symlink already exists */
 
+        /* FIXME: This is recovery routine for infinite waiting issue such as below situation.
+         * eg. 50f64052a5dbbe087c11dfac4effb63c-runtime -> /tmp/pulse-LDK8gTL6Dh9N
+               50f64052a5dbbe087c11dfac4effb63c-runtime.tmp -> /tmp/pulse-cDM1bQhObZ7O */
+        if (retry_count-- == 0) {
+            pa_log_error ("retry is over....do cleanup");
+
+            /* Remove original file */
+            unlink (k);
+
+            /* Remove original.tmp file */
+            t = pa_sprintf_malloc("%s.tmp", k);
+            unlink (t);
+            pa_xfree(t);
+            t = NULL;
+        }
         p = pa_readlink(k);
         if (!p) {
 
@@ -3266,7 +3283,7 @@ const char *pa_get_temp_dir(void) {
         pa_is_path_absolute(t))
         return t;
 
-    return "/tmp";
+    return "/tmp/pulseaudio";
 }
 
 int pa_open_cloexec(const char *fn, int flags, mode_t mode) {
