@@ -464,6 +464,23 @@ static void process_device(struct userdata *u, struct udev_device *dev) {
         return;
     }
 
+    pa_log_debug ("devpath = %s", udev_device_get_devpath(dev));
+    pa_log_debug ("subsystem = %s", udev_device_get_subsystem(dev));
+    pa_log_debug ("devtype = %s", udev_device_get_devtype(dev));
+    pa_log_debug ("syspath = %s", udev_device_get_syspath(dev));
+    pa_log_debug ("sysname = %s", udev_device_get_sysname(dev));
+    pa_log_debug ("sysnum = %s", udev_device_get_sysnum(dev));
+    pa_log_debug ("devnode = %s", udev_device_get_devnode(dev));
+    pa_log_debug ("parent subsystem = %s", udev_device_get_subsystem(udev_device_get_parent(dev)));
+
+#ifdef ENABLE_UDEV_ONLY_USB
+    /* If parent's subsystem is not USB, return */
+    if (!pa_streq(udev_device_get_subsystem(udev_device_get_parent(dev)), "usb")) {
+        pa_log_debug("Ignoring %s, because it's parent subsystem is not a USB.", udev_device_get_devpath(dev));
+        return;
+    }
+#endif
+
     action = udev_device_get_action(dev);
 
     if (action && pa_streq(action, "remove"))

@@ -678,6 +678,13 @@ int pa__init(pa_module *m) {
         u->use_ucm = FALSE;
 #ifdef HAVE_UDEV
         fn = pa_udev_get_property(u->alsa_card_index, "PULSE_PROFILE_SET");
+#ifdef ENABLE_UDEV_ONLY_USB
+	pa_log("PULSE_PROFILE_SET = %s", fn);
+	if (fn == NULL) {
+            fn = strdup ("tizen_usb.conf");
+	    pa_log("(new) PULSE_PROFILE_SET = %s", fn);
+    }
+#endif
 #endif
 
         if (pa_modargs_get_value(ma, "profile_set", NULL)) {
