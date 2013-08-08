@@ -60,6 +60,7 @@
 #include "alsa-util.h"
 #include "alsa-sink.h"
 
+#define ALSA_SUSPEND_ON_IDLE_TIMEOUT	"0"
 /* #define DEBUG_TIMING */
 
 #define DEFAULT_DEVICE "default"
@@ -2262,6 +2263,9 @@ pa_sink *pa_alsa_sink_new(pa_module *m, pa_modargs *ma, const char*driver, pa_ca
     pa_proplist_setf(data.proplist, PA_PROP_DEVICE_BUFFERING_FRAGMENT_SIZE, "%lu", (unsigned long) (period_frames * frame_size));
     pa_proplist_sets(data.proplist, PA_PROP_DEVICE_ACCESS_MODE, u->use_tsched ? "mmap+timer" : (u->use_mmap ? "mmap" : "serial"));
 
+    /* Set Suspend timeout to ZERO to avoid noise */
+    pa_log_info("Set suspend-on-idle timeout to ZERO to avoid noise");
+    pa_proplist_sets(data.proplist, "module-suspend-on-idle.timeout", ALSA_SUSPEND_ON_IDLE_TIMEOUT);
     if (mapping) {
         pa_proplist_sets(data.proplist, PA_PROP_DEVICE_PROFILE_NAME, mapping->name);
         pa_proplist_sets(data.proplist, PA_PROP_DEVICE_PROFILE_DESCRIPTION, mapping->description);
