@@ -1115,8 +1115,18 @@ AC_SUBST(HAVE_UDEV)
 AM_CONDITIONAL([HAVE_UDEV], [test "x$HAVE_UDEV" = x1])
 AS_IF([test "x$HAVE_UDEV" = "x1"], AC_DEFINE([HAVE_UDEV], 1, [Have UDEV.]))
 
-#### HAL compat support (optional, dependent on UDEV) ####
+#### udev for usb _only_ support (optional, dependant on UDEV) ####
+AC_ARG_ENABLE([udev_with_usb_only],
+    AS_HELP_STRING([--enable-udev-with-usb-only],[Enable UDEV with only USB support]))
 
+AS_IF([test "x$enable_udev_with_usb_only" != "xyes"],
+    [AS_IF([test "x$HAVE_UDEV" = "x1"], HAVE_UDEV_ONLY_USB=0, HAVE_UDEV_ONLY_USB=1)],
+    HAVE_UDEV_ONLY_USB=1)
+
+AM_CONDITIONAL([HAVE_UDEV_ONLY_USB], [test "x$HAVE_UDEV_ONLY_USB" = x1])
+AS_IF([test "x$HAVE_UDEV_ONLY_USB" = "x1"], AC_DEFINE([HAVE_UDEV_ONLY_USB], 1, [Have usb only with udev.]))
+
+#### HAL compat support (optional, dependent on UDEV) ####
 AC_ARG_ENABLE([hal-compat],
     AS_HELP_STRING([--disable-hal-compat],[Disable optional HAL->udev transition compatibility support]))
 
@@ -1511,6 +1521,7 @@ AS_IF([test "x$HAVE_SYSTEMD_JOURNAL" = "x1"], ENABLE_SYSTEMD_JOURNAL=yes, ENABLE
 AS_IF([test "x$HAVE_BLUEZ_4" = "x1"], ENABLE_BLUEZ_4=yes, ENABLE_BLUEZ_4=no)
 AS_IF([test "x$HAVE_BLUEZ_5" = "x1"], ENABLE_BLUEZ_5=yes, ENABLE_BLUEZ_5=no)
 AS_IF([test "x$HAVE_HAL_COMPAT" = "x1"], ENABLE_HAL_COMPAT=yes, ENABLE_HAL_COMPAT=no)
+AS_IF([test "x$HAVE_UDEV_ONLY_USB" = "x1"], ENABLE_UDEV_ONLY_USB=yes, ENABLE_UDEV_ONLY_USB=no)
 AS_IF([test "x$HAVE_TCPWRAP" = "x1"], ENABLE_TCPWRAP=yes, ENABLE_TCPWRAP=no)
 AS_IF([test "x$HAVE_LIBSAMPLERATE" = "x1"], ENABLE_LIBSAMPLERATE=yes, ENABLE_LIBSAMPLERATE=no)
 AS_IF([test "x$HAVE_IPV6" = "x1"], ENABLE_IPV6=yes, ENABLE_IPV6=no)
@@ -1566,6 +1577,7 @@ echo "
         headset backed:            ${BLUETOOTH_HEADSET_BACKEND}
     Enable udev:                   ${ENABLE_UDEV}
       Enable HAL->udev compat:     ${ENABLE_HAL_COMPAT}
+      Enable udev usb only:        ${ENABLE_UDEV_ONLY_USB}
     Enable systemd login:          ${ENABLE_SYSTEMD}
     Enable systemd journal:        ${ENABLE_SYSTEMD_JOURNAL}
     Enable TCP Wrappers:           ${ENABLE_TCPWRAP}
