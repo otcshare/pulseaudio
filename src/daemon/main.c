@@ -38,6 +38,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <fcntl.h>
+
 #ifdef HAVE_SYS_MMAN_H
 #include <sys/mman.h>
 #endif
@@ -100,6 +102,7 @@
 #include "ltdl-bind-now.h"
 #include "server-lookup.h"
 
+#define PA_READY "/tmp/.pa_ready"
 #ifdef HAVE_LIBWRAP
 /* Only one instance of these variables */
 int allow_severity = LOG_INFO;
@@ -1130,7 +1133,9 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    pa_log_info("Daemon startup complete.");
+    pa_log_info(_("Daemon startup complete."));
+    /* broadcast if we're ready */
+    creat(PA_READY, 0644);
 
     retval = 0;
     if (pa_mainloop_run(mainloop, &retval) < 0)
