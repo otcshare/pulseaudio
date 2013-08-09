@@ -521,7 +521,10 @@ typedef enum pa_subscription_mask {
     PA_SUBSCRIPTION_MASK_CARD = 0x0200U,
     /**< Card events. \since 0.9.15 */
 
-    PA_SUBSCRIPTION_MASK_ALL = 0x02ffU
+    PA_SUBSCRIPTION_MASK_NODE = 0x0400U,
+    /**< Node events. \since 6.0 */
+
+    PA_SUBSCRIPTION_MASK_ALL = 0x06ffU /* The deprecated autoload events (0x0100) are not included. */
     /**< Catch all events */
 } pa_subscription_mask_t;
 
@@ -558,6 +561,9 @@ typedef enum pa_subscription_event_type {
 
     PA_SUBSCRIPTION_EVENT_CARD = 0x0009U,
     /**< Event type: Card \since 0.9.15 */
+
+    PA_SUBSCRIPTION_EVENT_NODE = 0x000aU,
+    /**< Event type: Node \since 6.0 */
 
     PA_SUBSCRIPTION_EVENT_FACILITY_MASK = 0x000FU,
     /**< A mask to extract the event type from an event value */
