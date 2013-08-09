@@ -323,6 +323,42 @@ static void stream_read_callback(pa_stream *s, size_t length, void *userdata) {
     }
 }
 
+/* Called when we get a response to the request sent by
+ * pa_context_get_sink_input_info(). */
+static void sink_input_info_cb(pa_context *c, const pa_sink_input_info *i, int eol, void *userdata) {
+    pa_assert(c);
+
+    if (eol > 0)
+        return;
+
+    if (eol < 0) {
+        pa_log(_("Failed to get sink input info: %s"), pa_strerror(pa_context_errno(c)));
+        return;
+    }
+
+    pa_assert(i);
+
+    pa_log(_("Connected as sink input #%u (\"%s\")." CLEAR_LINE), i->index, pa_strnull(pa_proplist_gets(i->proplist, PA_PROP_MEDIA_NAME)));
+}
+
+/* Called when we get a response to the request sent by
+ * pa_context_get_source_output_info(). */
+static void source_output_info_cb(pa_context *c, const pa_source_output_info *i, int eol, void *userdata) {
+    pa_assert(c);
+
+    if (eol > 0)
+        return;
+
+    if (eol < 0) {
+        pa_log(_("Failed to get source output info: %s"), pa_strerror(pa_context_errno(c)));
+        return;
+    }
+
+    pa_assert(i);
+
+    pa_log(_("Connected as source output #%u (\"%s\")." CLEAR_LINE), i->index, pa_strnull(pa_proplist_gets(i->proplist, PA_PROP_MEDIA_NAME)));
+}
+
 /* This routine is called whenever the stream state changes */
 static void stream_state_callback(pa_stream *s, void *userdata) {
     pa_assert(s);
@@ -360,6 +396,11 @@ static void stream_state_callback(pa_stream *s, void *userdata) {
                         pa_stream_get_device_name(s),
                         pa_stream_get_device_index(s),
                         pa_stream_is_suspended(s) ? "" : "not ");
+
+                if (mode == PLAYBACK)
+                    pa_operation_unref(pa_context_get_sink_input_info(pa_stream_get_context(s), pa_stream_get_index(s), sink_input_info_cb, NULL));
+                else
+                    pa_operation_unref(pa_context_get_source_output_info(pa_stream_get_context(s), pa_stream_get_index(s), source_output_info_cb, NULL));
             }
 
             break;
