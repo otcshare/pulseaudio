@@ -66,7 +66,7 @@ typedef enum {
 } pa_device_class_t;
 
 pa_device_class_t pa_device_class_from_string(const char *str);
-const char *pa_device_class_to_string(pa_device_class_t class);
+const char *pa_device_class_to_string(pa_device_class_t device_class);
 
 /* This function produces a string that is suitable to be used as the
  * PA_PROP_DEVICE_FORM_FACTOR property. Not all device classes are suitable,
@@ -84,6 +84,6 @@ const char *pa_device_class_to_string(pa_device_class_t class);
  * they are pretty similar (also note that they may be similar, but definitely
  * not the same thing, because e.g. "tuner" is a valid device class, but not a
  * form factor). */
-const char *pa_device_class_to_form_factor_string(pa_device_class_t class);
+const char *pa_device_class_to_form_factor_string(pa_device_class_t device_class);
 
 #endif

@@ -80,7 +80,7 @@ void pa_node_new_data_set_fallback_name_prefix(pa_node_new_data *data, const cha
 void pa_node_new_data_set_description(pa_node_new_data *data, const char *description);
 void pa_node_new_data_set_type(pa_node_new_data *data, pa_node_type_t type);
 void pa_node_new_data_set_direction(pa_node_new_data *data, pa_direction_t direction);
-void pa_node_new_data_set_device_class(pa_node_new_data *data, pa_device_class_t class);
+void pa_node_new_data_set_device_class(pa_node_new_data *data, pa_device_class_t decice_class);
 void pa_node_new_data_done(pa_node_new_data *data);
 
 pa_node *pa_node_new(pa_core *core, pa_node_new_data *data);
