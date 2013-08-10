@@ -80,10 +80,10 @@ pa_device_class_t pa_device_class_from_string(const char *str) {
     return PA_DEVICE_CLASS_UNKNOWN;
 }
 
-const char *pa_device_class_to_string(pa_device_class_t class) {
-    return string_table[class];
+const char *pa_device_class_to_string(pa_device_class_t device_class) {
+    return string_table[device_class];
 }
 
-const char *pa_device_class_to_form_factor_string(pa_device_class_t class) {
-    return form_factor_table[class];
+const char *pa_device_class_to_form_factor_string(pa_device_class_t device_class) {
+    return form_factor_table[device_class];
 }
