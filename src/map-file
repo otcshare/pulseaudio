@@ -292,6 +292,7 @@ pa_stream_get_format_info;
 pa_stream_get_index;
 pa_stream_get_latency;
 pa_stream_get_monitor_stream;
+pa_stream_get_node_index;
 pa_stream_get_sample_spec;
 pa_stream_get_state;
 pa_stream_get_time;

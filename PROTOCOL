@@ -382,6 +382,13 @@ INPUT, not both.
 GET_NODE_INFO_LIST reply parameters are otherwise the same as with
 GET_NODE_INFO, but the parameter list is repeated for each node.
 
+New field added to the end of PA_COMMAND_CREATE_RECORD_STREAM and
+PA_COMMAND_CREATE_PLAYBACK_STREAM replies:
+    uint32 node_index
+
+PA_INVALID_INDEX is used to signal that the stream doesn't have a node
+associated with it.
+
 #### If you just changed the protocol, read this
 ## module-tunnel depends on the sink/source/sink-input/source-input protocol
 ## internals, so if you changed these, you might have broken module-tunnel.

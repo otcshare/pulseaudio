@@ -159,6 +159,7 @@ struct pa_stream {
     uint32_t channel;
     uint32_t syncid;
     uint32_t stream_index;
+    uint32_t node_index;
 
     int64_t requested_bytes;
     pa_buffer_attr buffer_attr;

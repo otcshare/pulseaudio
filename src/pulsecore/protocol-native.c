@@ -2229,6 +2229,13 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
         }
     }
 
+    if (c->version >= 30) {
+        if (s->sink_input->node)
+            pa_tagstruct_putu32(reply, s->sink_input->node->index);
+        else
+            pa_tagstruct_putu32(reply, PA_INVALID_INDEX);
+    }
+
     pa_pstream_send_tagstruct(c->pstream, reply);
 
 finish:
@@ -2541,6 +2548,13 @@ static void command_create_record_stream(pa_pdispatch *pd, uint32_t command, uin
             pa_tagstruct_put_format_info(reply, f);
             pa_format_info_free(f);
         }
+    }
+
+    if (c->version >= 30) {
+        if (s->source_output->node)
+            pa_tagstruct_putu32(reply, s->source_output->node->index);
+        else
+            pa_tagstruct_putu32(reply, PA_INVALID_INDEX);
     }
 
     pa_pstream_send_tagstruct(c->pstream, reply);

@@ -141,6 +141,7 @@ static pa_stream *pa_stream_new_with_proplist_internal(
     s->channel_valid = false;
     s->syncid = c->csyncid++;
     s->stream_index = PA_INVALID_INDEX;
+    s->node_index = PA_INVALID_INDEX;
 
     s->requested_bytes = 0;
     memset(&s->buffer_attr, 0, sizeof(s->buffer_attr));
@@ -354,6 +355,18 @@ uint32_t pa_stream_get_index(pa_stream *s) {
     PA_CHECK_VALIDITY_RETURN_ANY(s->context, s->state == PA_STREAM_READY, PA_ERR_BADSTATE, PA_INVALID_INDEX);
 
     return s->stream_index;
+}
+
+int pa_stream_get_node_index(pa_stream *s, uint32_t *idx) {
+    pa_assert(s);
+    pa_assert(PA_REFCNT_VALUE(s) >= 1);
+
+    PA_CHECK_VALIDITY_RETURN_ANY(s->context, !pa_detect_fork(), PA_ERR_FORKED, -1);
+    PA_CHECK_VALIDITY_RETURN_ANY(s->context, s->state == PA_STREAM_READY, PA_ERR_BADSTATE, -1);
+
+    *idx = s->node_index;
+
+    return 0;
 }
 
 void pa_stream_set_state(pa_stream *s, pa_stream_state_t st) {
@@ -1140,6 +1153,13 @@ void pa_create_stream_callback(pa_pdispatch *pd, uint32_t command, uint32_t tag,
                 pa_context_fail(s->context, PA_ERR_PROTOCOL);
                 goto finish;
             }
+        }
+    }
+
+    if (s->context->version >= 30) {
+        if (pa_tagstruct_getu32(t, &s->node_index) < 0) {
+            pa_context_fail(s->context, PA_ERR_PROTOCOL);
+            goto finish;
         }
     }
 

@@ -1230,41 +1230,103 @@ static void context_state_callback(pa_context *c, void *userdata) {
                     pa_operation_unref(pa_context_exit_daemon(c, simple_callback, NULL));
                     break;
 
-                case LIST:
+                case LIST: {
+                    pa_operation *o;
+
+                    actions = 0;
+
                     if (list_type) {
                         if (pa_streq(list_type, "modules"))
-                            pa_operation_unref(pa_context_get_module_info_list(c, get_module_info_callback, NULL));
+                            o = pa_context_get_module_info_list(c, get_module_info_callback, NULL);
                         else if (pa_streq(list_type, "sinks"))
-                            pa_operation_unref(pa_context_get_sink_info_list(c, get_sink_info_callback, NULL));
+                            o = pa_context_get_sink_info_list(c, get_sink_info_callback, NULL);
                         else if (pa_streq(list_type, "sources"))
-                            pa_operation_unref(pa_context_get_source_info_list(c, get_source_info_callback, NULL));
+                            o = pa_context_get_source_info_list(c, get_source_info_callback, NULL);
                         else if (pa_streq(list_type, "sink-inputs"))
-                            pa_operation_unref(pa_context_get_sink_input_info_list(c, get_sink_input_info_callback, NULL));
+                            o = pa_context_get_sink_input_info_list(c, get_sink_input_info_callback, NULL);
                         else if (pa_streq(list_type, "source-outputs"))
-                            pa_operation_unref(pa_context_get_source_output_info_list(c, get_source_output_info_callback, NULL));
+                            o = pa_context_get_source_output_info_list(c, get_source_output_info_callback, NULL);
                         else if (pa_streq(list_type, "clients"))
-                            pa_operation_unref(pa_context_get_client_info_list(c, get_client_info_callback, NULL));
+                            o = pa_context_get_client_info_list(c, get_client_info_callback, NULL);
                         else if (pa_streq(list_type, "samples"))
-                            pa_operation_unref(pa_context_get_sample_info_list(c, get_sample_info_callback, NULL));
+                            o = pa_context_get_sample_info_list(c, get_sample_info_callback, NULL);
                         else if (pa_streq(list_type, "cards"))
-                            pa_operation_unref(pa_context_get_card_info_list(c, get_card_info_callback, NULL));
+                            o = pa_context_get_card_info_list(c, get_card_info_callback, NULL);
                         else if (pa_streq(list_type, "nodes"))
-                            pa_operation_unref(pa_context_get_node_info_list(c, get_node_info_callback, NULL));
+                            o = pa_context_get_node_info_list(c, get_node_info_callback, NULL);
                         else
                             pa_assert_not_reached();
+
+                        if (o) {
+                            pa_operation_unref(o);
+                            actions = 1;
+                        } else {
+                            pa_log(_("Failed to list %s: %s"), list_type, pa_strerror(pa_context_errno(c)));
+                            quit(1);
+                        }
                     } else {
-                        actions = 9;
-                        pa_operation_unref(pa_context_get_module_info_list(c, get_module_info_callback, NULL));
-                        pa_operation_unref(pa_context_get_sink_info_list(c, get_sink_info_callback, NULL));
-                        pa_operation_unref(pa_context_get_source_info_list(c, get_source_info_callback, NULL));
-                        pa_operation_unref(pa_context_get_sink_input_info_list(c, get_sink_input_info_callback, NULL));
-                        pa_operation_unref(pa_context_get_source_output_info_list(c, get_source_output_info_callback, NULL));
-                        pa_operation_unref(pa_context_get_client_info_list(c, get_client_info_callback, NULL));
-                        pa_operation_unref(pa_context_get_sample_info_list(c, get_sample_info_callback, NULL));
-                        pa_operation_unref(pa_context_get_card_info_list(c, get_card_info_callback, NULL));
-                        pa_operation_unref(pa_context_get_node_info_list(c, get_node_info_callback, NULL));
+                        if ((o = pa_context_get_module_info_list(c, get_module_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_module_info_list(c, get_module_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_module_info_list(c, get_module_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_sink_info_list(c, get_sink_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_source_info_list(c, get_source_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_sink_input_info_list(c, get_sink_input_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_source_output_info_list(c, get_source_output_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_client_info_list(c, get_client_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_sample_info_list(c, get_sample_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_card_info_list(c, get_card_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if ((o = pa_context_get_node_info_list(c, get_node_info_callback, NULL))) {
+                            pa_operation_unref(o);
+                            actions++;
+                        }
+
+                        if (actions == 0) {
+                            pa_log(_("Failed to list anything."));
+                            quit(1);
+                        }
                     }
                     break;
+                }
 
                 case MOVE_SINK_INPUT:
                     pa_operation_unref(pa_context_move_sink_input_by_name(c, sink_input_idx, sink_name, simple_callback, NULL));

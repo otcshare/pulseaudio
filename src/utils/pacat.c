@@ -359,6 +359,68 @@ static void source_output_info_cb(pa_context *c, const pa_source_output_info *i,
     pa_log(_("Connected as source output #%u (\"%s\")." CLEAR_LINE), i->index, pa_strnull(pa_proplist_gets(i->proplist, PA_PROP_MEDIA_NAME)));
 }
 
+/* Called when we get a response to the request sent by
+ * pa_context_get_sink_info_by_index(). */
+static void sink_info_cb(pa_context *c, const pa_sink_info *i, int eol, void *userdata) {
+    bool suspended;
+
+    pa_assert(c);
+
+    if (eol > 0)
+        return;
+
+    if (eol < 0) {
+        pa_log(_("Failed to get sink info: %s"), pa_strerror(pa_context_errno(c)));
+        return;
+    }
+
+    pa_assert(i);
+
+    suspended = pa_stream_is_suspended(stream);
+    pa_log(_("Connected to sink #%u %s (\"%s\"). The sink is %s." CLEAR_LINE), i->index, i->name, i->description,
+           suspended ? _("suspended") : _("not suspended"));
+}
+
+/* Called when we get a response to the request sent by
+ * pa_context_get_source_info_by_index(). */
+static void source_info_cb(pa_context *c, const pa_source_info *i, int eol, void *userdata) {
+    bool suspended;
+
+    pa_assert(c);
+
+    if (eol > 0)
+        return;
+
+    if (eol < 0) {
+        pa_log(_("Failed to get source info: %s"), pa_strerror(pa_context_errno(c)));
+        return;
+    }
+
+    pa_assert(i);
+
+    suspended = pa_stream_is_suspended(stream);
+    pa_log(_("Connected to source #%u %s (\"%s\"). The source is %s." CLEAR_LINE), i->index, i->name, i->description,
+           suspended ? _("suspended") : _("not suspended"));
+}
+
+/* Called when we get a response to the request sent by
+ * pa_context_get_node_info(). */
+static void node_info_cb(pa_context *c, const pa_node_info *i, int eol, void *userdata) {
+    pa_assert(c);
+
+    if (eol > 0)
+        return;
+
+    if (eol < 0) {
+        pa_log(_("Failed to get node info: %s"), pa_strerror(pa_context_errno(c)));
+        return;
+    }
+
+    pa_assert(i);
+
+    pa_log(_("Connected as node #%u %s (\"%s\")." CLEAR_LINE), i->index, i->name, i->description);
+}
+
 /* This routine is called whenever the stream state changes */
 static void stream_state_callback(pa_stream *s, void *userdata) {
     pa_assert(s);
@@ -373,6 +435,7 @@ static void stream_state_callback(pa_stream *s, void *userdata) {
             if (verbose) {
                 const pa_buffer_attr *a;
                 char cmt[PA_CHANNEL_MAP_SNPRINT_MAX], sst[PA_SAMPLE_SPEC_SNPRINT_MAX];
+                uint32_t idx;
 
                 pa_log(_("Stream successfully created."));
 
@@ -392,15 +455,21 @@ static void stream_state_callback(pa_stream *s, void *userdata) {
                         pa_sample_spec_snprint(sst, sizeof(sst), pa_stream_get_sample_spec(s)),
                         pa_channel_map_snprint(cmt, sizeof(cmt), pa_stream_get_channel_map(s)));
 
-                pa_log(_("Connected to device %s (%u, %ssuspended)."),
-                        pa_stream_get_device_name(s),
-                        pa_stream_get_device_index(s),
-                        pa_stream_is_suspended(s) ? "" : "not ");
-
-                if (mode == PLAYBACK)
+                if (mode == PLAYBACK) {
                     pa_operation_unref(pa_context_get_sink_input_info(pa_stream_get_context(s), pa_stream_get_index(s), sink_input_info_cb, NULL));
-                else
+                    pa_operation_unref(pa_context_get_sink_info_by_index(pa_stream_get_context(s), pa_stream_get_device_index(s), sink_info_cb, NULL));
+                } else {
                     pa_operation_unref(pa_context_get_source_output_info(pa_stream_get_context(s), pa_stream_get_index(s), source_output_info_cb, NULL));
+                    pa_operation_unref(pa_context_get_source_info_by_index(pa_stream_get_context(s), pa_stream_get_device_index(s), source_info_cb, NULL));
+                }
+
+                if (pa_stream_get_node_index(s, &idx) >= 0) {
+                    if (idx != PA_INVALID_INDEX)
+                        pa_operation_unref(pa_context_get_node_info_by_index(pa_stream_get_context(s), idx, node_info_cb, NULL));
+                    else
+                        pa_log(_("No node created for the stream."));
+                } else
+                    pa_log(_("Failed to get the node index: %s" CLEAR_LINE), pa_strerror(pa_context_errno(pa_stream_get_context(s))));
             }
 
             break;

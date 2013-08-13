@@ -386,6 +386,12 @@ pa_context* pa_stream_get_context(pa_stream *p);
  * or pa_context_get_source_output_info(). */
 uint32_t pa_stream_get_index(pa_stream *s);
 
+/** Get the node index of the stream. Returns a negative number on failure,
+ * otherwise returns the node index in \a idx. If the stream doesn't have
+ * a node representing the stream, \a idx is set to PA_INVALID_INDEX.
+ * \since 6.0 */
+int pa_stream_get_node_index(pa_stream *s, uint32_t *idx);
+
 /** Return the index of the sink or source this stream is connected to
  * in the server. This is useful with the introspection
  * functions such as pa_context_get_sink_info_by_index() or
