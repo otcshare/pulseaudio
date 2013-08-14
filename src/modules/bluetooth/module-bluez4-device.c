@@ -2527,6 +2527,8 @@ static int add_card(struct userdata *u) {
         else
             pa_log_warn("Profile '%s' not valid or not supported by device.", default_profile);
     }
+    else
+      pa_card_new_data_set_profile(&data, p->name);
 
     u->card = pa_card_new(u->core, &data);
     pa_card_new_data_done(&data);
