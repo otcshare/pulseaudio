@@ -1,3 +1,6 @@
+* Fri Aug 16 2013 Vivian Zhang <vivian.zhang@intel.com>
+- check module-fileter-xx.so exists before loading them to avoid module load failure
+
 * Thu Aug 15 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 4.0
 - upgrade to 4.0 version
 
