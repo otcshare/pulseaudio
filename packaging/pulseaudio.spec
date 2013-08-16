@@ -12,6 +12,7 @@ Group:            Multimedia/Audio
 License:          GPL-2.0+ and LGPL-2.1+
 URL:              http://pulseaudio.org
 Source0:          http://www.freedesktop.org/software/pulseaudio/releases/%{name}-%{version}.tar.gz
+Source99:         baselibs.conf
 Source1001:       pulseaudio.manifest
 BuildRequires:    libtool-ltdl-devel
 BuildRequires:    libtool
