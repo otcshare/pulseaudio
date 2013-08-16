@@ -148,8 +148,12 @@ load-module module-role-cork
 ### on demand. module-filter-heuristics tries to determine what filters
 ### make sense, and module-filter-apply does the heavy-lifting of
 ### loading modules and rerouting streams.
+.ifexists module-filter-heuristics@PA_SOEXT@
 load-module module-filter-heuristics
+.endif
+.ifexists module-filter-apply@PA_SOEXT@
 load-module module-filter-apply
+.endif
 ])dnl
 
 ifelse(@HAVE_X11@, 1, [dnl
