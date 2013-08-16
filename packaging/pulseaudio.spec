@@ -222,11 +222,6 @@ make %{?_smp_mflags} V=1
 %make_install
 %find_lang %{name}
 
-install -d  %{buildroot}/%{_libdir}/systemd/system
-install -m 644 pulseaudio.service %{buildroot}/%{_libdir}/systemd/system/pulseaudio.service
-mkdir -p  %{buildroot}/%{_libdir}/systemd/system/multi-user.target.wants
-ln -s  ../pulseaudio.service  %{buildroot}/%{_libdir}/systemd/system/multi-user.target.wants/pulseaudio.service
-
 pushd %{buildroot}/etc/pulse/filter
 ln -sf filter_8000_44100.dat filter_11025_44100.dat
 ln -sf filter_8000_44100.dat filter_12000_44100.dat
@@ -344,8 +339,6 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %{_libdir}/pulse-%{version}/modules/module-policy.so
 %{_libdir}/pulse-%{version}/modules/module-role-ducking.so
 %{_libdir}/pulse-%{version}/modules/module-systemd-login.so
-%{_libdir}/systemd/system/pulseaudio.service
-%{_libdir}/systemd/system/multi-user.target.wants/pulseaudio.service
 %config(noreplace) /etc/bash_completion.d/pulseaudio-bash-completion.sh
 
 %files -n libpulse
