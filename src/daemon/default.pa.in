@@ -141,9 +141,6 @@ load-module module-systemd-login
 ### Enable positioned event sounds
 load-module module-position-event-sounds
 
-### Cork music/video streams when a phone stream is active
-load-module module-role-cork
-
 ### Modules to allow autoloading of filters (such as echo cancellation)
 ### on demand. module-filter-heuristics tries to determine what filters
 ### make sense, and module-filter-apply does the heavy-lifting of
@@ -181,8 +178,6 @@ ifelse(@HAVE_X11@, 1, [dnl
 #.endif
 ])dnl
 
-load-module module-switch-on-port-available
-
 ### Load the Murphy IVI module if it exists
 .ifexists module-murphy-ivi@PA_SOEXT@
 load-module module-murphy-ivi
@@ -200,6 +195,11 @@ load-module module-augment-properties
 
 ### Honour intended role device property
 load-module module-intended-roles
+
+### Cork music/video streams when a phone stream is active
+load-module module-role-cork
+
+load-module module-switch-on-port-available
 
 .endif
 
