@@ -33,6 +33,7 @@ BuildRequires:    pkgconfig(json)
 BuildRequires:    pkgconfig(tdb)
 BuildRequires:    pkgconfig(vconf)
 BuildRequires:    systemd-devel
+BuildRequires:    libcap-devel
 %if %{with pulseaudio_dlog}
 BuildRequires:    pkgconfig(dlog)
 %endif
