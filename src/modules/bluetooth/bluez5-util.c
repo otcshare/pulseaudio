@@ -567,6 +567,7 @@ static int parse_device_property(pa_bluetooth_device *d, DBusMessageIter *i, boo
                  * is no need to handle it here. */
                 while (dbus_message_iter_get_arg_type(&ai) != DBUS_TYPE_INVALID) {
                     const char *value;
+                    char *copy;
 
                     dbus_message_iter_get_basic(&ai, &value);
 
@@ -575,7 +576,8 @@ static int parse_device_property(pa_bluetooth_device *d, DBusMessageIter *i, boo
                         continue;
                     }
 
-                    pa_hashmap_put(d->uuids, value, (void *) 1);
+                    copy = pa_xstrdup(value);
+                    pa_hashmap_put(d->uuids, copy, copy);
 
                     pa_log_debug("%s: %s", key, value);
                     dbus_message_iter_next(&ai);
@@ -775,7 +777,7 @@ static void parse_interfaces_and_properties(pa_bluetooth_discovery *y, DBusMessa
 
                 if (d->device_info_valid == -1) {
                     pa_log_notice("Device %s was known before but had invalid information, reseting", path);
-                    pa_hashmap_remove_all(d->uuids, NULL);
+                    pa_hashmap_remove_all(d->uuids, pa_xfree);
                     pa_xfree(d->alias);
                     pa_xfree(d->remote);
                     pa_xfree(d->local);
