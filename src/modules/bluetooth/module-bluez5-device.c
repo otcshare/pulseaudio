@@ -768,6 +768,12 @@ static void transport_release(struct userdata *u) {
 
     u->transport_acquired = false;
 
+    if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY) {
+        u->transport->state = PA_BLUETOOTH_TRANSPORT_STATE_IDLE;
+        pa_asyncmsgq_post(pa_thread_mq_get()->outq, PA_MSGOBJECT(u->msg), BLUETOOTH_MESSAGE_TRANSPORT_STATE_CHANGED, u, 0,
+                              NULL, NULL);
+    }
+
     teardown_stream(u);
 }
 
@@ -1428,13 +1434,7 @@ io_fail:
         pending_read_bytes = 0;
         writable = false;
 
-        if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY) {
-            u->transport->state = PA_BLUETOOTH_TRANSPORT_STATE_IDLE;
-            pa_asyncmsgq_post(pa_thread_mq_get()->outq, PA_MSGOBJECT(u->msg), BLUETOOTH_MESSAGE_TRANSPORT_STATE_CHANGED, u, 0,
-                              NULL, NULL);
-        }
-
-        teardown_stream(u);
+        transport_release(u);
     }
 
 fail:
