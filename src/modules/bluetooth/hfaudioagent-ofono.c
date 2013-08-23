@@ -153,6 +153,13 @@ static int hf_audio_agent_transport_acquire(pa_bluetooth_transport *t, bool opti
 }
 
 static void hf_audio_agent_transport_release(pa_bluetooth_transport *t) {
+    hf_audio_agent_data *hfdata = t->userdata;
+    hf_audio_card *hfac = pa_hashmap_get(hfdata->hf_audio_cards, t->path);
+
+    if (hfac) {
+        shutdown(hfac->fd, SHUT_RDWR);
+        hfac->fd = -1;
+    }
 }
 
 static void hf_audio_agent_card_found(hf_audio_agent_data *hfdata, const char *path, DBusMessageIter *props_i) {
