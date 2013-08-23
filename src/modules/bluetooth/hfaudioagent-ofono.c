@@ -23,6 +23,8 @@
 #include <config.h>
 #endif
 
+#include <errno.h>
+
 #include <pulsecore/core-util.h>
 #include <pulsecore/dbus-shared.h>
 #include <pulsecore/shared.h>
@@ -518,8 +520,16 @@ static DBusMessage *hf_audio_agent_new_connection(DBusConnection *c, DBusMessage
         pa_log_warn("New audio connection on unknown card %s (fd=%d, codec=%d)", card, fd, codec);
         pa_assert_se(r = dbus_message_new_error(m, "org.ofono.Error.InvalidArguments", "Unknown card"));
         return r;
-    } else
-        pa_log_debug("New audio connection on card %s (fd=%d, codec=%d)", card, fd, codec);
+    }
+
+    pa_log_debug("New audio connection on card %s (fd=%d, codec=%d)", card, fd, codec);
+
+    /* Do the socket defered setup */
+    if (recv(fd, NULL, 0, 0) < 0) {
+        const char *strerr = strerror(errno);
+        pa_log_warn("Defered setup failed: %d (%s)", errno, strerr);
+        pa_assert_se(r = dbus_message_new_error(m, "org.ofono.Error.InvalidArguments", strerr));
+    }
 
     hfac->fd = fd;
     hfac->codec = codec;
