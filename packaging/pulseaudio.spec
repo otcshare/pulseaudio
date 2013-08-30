@@ -200,6 +200,7 @@ export LD_AS_NEEDED=0
         --disable-xen \
         --without-fftw \
         --enable-bluez \
+        --with-bluetooth-headset-backend=ofono \
         --enable-systemd \
         --with-database=tdb \
 %if %{with pulseaudio_dlog}
