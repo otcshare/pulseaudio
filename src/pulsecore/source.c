@@ -333,6 +333,8 @@ pa_source* pa_source_new(
         pa_assert_se(pa_idxset_put(s->card->sources, s, NULL) >= 0);
 
     if (data->create_node) {
+        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, pa_source_get_description(s));
 

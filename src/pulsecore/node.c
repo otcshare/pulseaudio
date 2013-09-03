@@ -34,6 +34,7 @@ pa_node_new_data *pa_node_new_data_init(pa_node_new_data *data) {
     pa_assert(data);
 
     pa_zero(*data);
+    pa_domain_list_init(&data->domains);
     data->direction = PA_DIRECTION_OUTPUT;
     data->device_class = PA_DEVICE_CLASS_UNKNOWN;
 
@@ -66,6 +67,13 @@ void pa_node_new_data_set_direction(pa_node_new_data *data, pa_direction_t direc
     data->direction = direction;
 }
 
+void pa_node_new_data_add_domain(pa_node_new_data *data, pa_domain *domain) {
+    pa_assert(data);
+    pa_assert(domain);
+
+    pa_assert_se(pa_domain_list_add(&data->domains, domain) == 0);
+}
+
 void pa_node_new_data_set_device_class(pa_node_new_data *data, pa_device_class_t class) {
     pa_assert(data);
 
@@ -74,6 +82,8 @@ void pa_node_new_data_set_device_class(pa_node_new_data *data, pa_device_class_t
 
 void pa_node_new_data_done(pa_node_new_data *data) {
     pa_assert(data);
+
+    pa_domain_list_free(&data->domains);
 
     pa_xfree(data->description);
     pa_xfree(data->fallback_name_prefix);
@@ -89,6 +99,9 @@ pa_node *pa_node_new(pa_core *core, pa_node_new_data *data) {
     pa_assert(core);
     pa_assert(data);
     pa_assert(data->description);
+    pa_assert(data->direction == PA_DIRECTION_INPUT || data->direction == PA_DIRECTION_OUTPUT);
+    pa_assert(!pa_domain_list_is_empty(&data->domains));
+    pa_assert(pa_domain_list_is_valid(core, &data->domains));
 
     use_fallback_name_prefix = !!data->fallback_name_prefix;
 
@@ -122,6 +135,12 @@ pa_node *pa_node_new(pa_core *core, pa_node_new_data *data) {
     n->type = data->type;
     n->direction = data->direction;
 
+    pa_domain_list_copy(&n->domains, &data->domains);
+
+    PA_SEQUENCE_LIST_INIT(n->implicit_route.list);
+    PA_SEQUENCE_HEAD_INIT(n->implicit_route.member_of, NULL);
+    n->implicit_route.group = NULL;
+
     return n;
 
 fail:
@@ -154,13 +173,18 @@ void pa_node_put(pa_node *node) {
 
     pa_assert_se(pa_idxset_put(node->core->nodes, node, &node->index) >= 0);
 
+    pa_router_register_node(node);
+
     node->state = PA_NODE_STATE_LINKED;
 
     pa_log_debug("Created node %s.", node->name);
 }
 
 void pa_node_unlink(pa_node *node) {
+    pa_core *core;
+
     pa_assert(node);
+    pa_assert_se((core = node->core));
     pa_assert(node->state != PA_NODE_STATE_INIT);
 
     if (node->state == PA_NODE_STATE_UNLINKED)
@@ -168,7 +192,87 @@ void pa_node_unlink(pa_node *node) {
 
     pa_log_debug("Unlinking node %s.", node->name);
 
-    pa_assert_se(pa_idxset_remove_by_index(node->core->nodes, node->index));
+    pa_router_unregister_node(node);
+
+    pa_assert_se(pa_idxset_remove_by_index(core->nodes, node->index));
 
     node->state = PA_NODE_STATE_UNLINKED;
+}
+
+bool pa_node_available(pa_node *node, pa_domain *domain) {
+    pa_assert(node);
+    pa_assert(domain);
+
+    return node->available ? node->available(node, domain) : true;
+}
+
+pa_node_features *pa_node_get_features(pa_node *node, pa_domain *domain) {
+    static pa_node_features default_features = {
+        2, 2,                                            /* channels min & max */
+        PA_NODE_LATENCY_MEDIUM, PA_NODE_LATENCY_MEDIUM,  /* latency min & max */
+        16000, 48000                                     /* sample rate min & max */
+    };
+
+    pa_node_features *features;
+
+    pa_assert(node);
+    pa_assert(domain);
+
+    features = node->get_features ? node->get_features(node, domain) : &default_features;
+
+    pa_assert(features);
+
+    return features;
+}
+
+bool pa_node_set_features(pa_node *node, pa_domain *domain, pa_node_features *features) {
+    pa_assert(node);
+    pa_assert(domain);
+    pa_assert(features);
+
+    return node->set_features ? node->set_features(node, domain, features) : true;
+}
+
+bool pa_node_activate_features(pa_node *node, pa_domain *domain) {
+    pa_assert(node);
+    pa_assert(domain);
+
+    return node->activate_features ? node->activate_features(node, domain) : true;
+}
+
+bool pa_node_common_features(pa_node_features *f1, pa_node_features *f2, pa_node_features *common) {
+    pa_assert(f1);
+    pa_assert(f2);
+
+    uint8_t channels_min, channels_max;
+    pa_node_latency_t latency_min, latency_max;
+    uint32_t rate_min, rate_max;
+
+    channels_min = PA_MAX(f1->channels_min, f2->channels_min);
+    channels_max = PA_MIN(f1->channels_max, f2->channels_max);
+
+    latency_min = PA_MAX(f1->latency_min, f2->latency_min);
+    latency_max = PA_MIN(f1->latency_max, f2->latency_max);
+
+    rate_min = PA_MAX(f1->rate_min, f2->rate_min);
+    rate_max = PA_MIN(f1->rate_max, f2->rate_max);
+
+    if (channels_min > channels_max || latency_min > latency_max || rate_min > rate_max) {
+        if (common)
+            pa_zero(*common);
+        return false;
+    }
+
+    if (common) {
+        common->channels_min = channels_min;
+        common->channels_max = channels_max;
+
+        common->latency_min = latency_min;
+        common->latency_max = latency_max;
+
+        common->rate_min = rate_min;
+        common->rate_max = rate_max;
+    }
+
+    return true;
 }

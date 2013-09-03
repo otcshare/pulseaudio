@@ -592,6 +592,8 @@ int pa_sink_input_new(
     pa_xfree(memblockq_name);
 
     if (data->create_node) {
+        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, pa_sink_input_get_description(i));
 

@@ -145,6 +145,8 @@ pa_device_port *pa_device_port_new(pa_core *c, pa_device_port_new_data *data, si
     p->proplist = pa_proplist_new();
 
     if (data->create_node) {
+        pa_node_new_data_add_domain(&data->node_data, c->router.pulse_domain);
+
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, p->description);
 
