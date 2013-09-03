@@ -107,6 +107,8 @@ pa_core* pa_core_new(pa_mainloop_api *m, bool shared, size_t shm_size) {
     c->default_source = NULL;
     c->default_sink = NULL;
 
+    pa_router_init(c);
+
     c->default_sample_spec.format = PA_SAMPLE_S16NE;
     c->default_sample_spec.rate = 44100;
     c->default_sample_spec.channels = 2;

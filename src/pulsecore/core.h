@@ -48,6 +48,7 @@ typedef enum pa_suspend_cause {
 #include <pulsecore/hook-list.h>
 #include <pulsecore/asyncmsgq.h>
 #include <pulsecore/sample-util.h>
+#include <pulsecore/node.h>
 #include <pulsecore/sink.h>
 #include <pulsecore/source.h>
 #include <pulsecore/core-subscribe.h>
@@ -147,6 +148,9 @@ struct pa_core {
     /* The default sink/source */
     pa_source *default_source;
     pa_sink *default_sink;
+
+    /* Router data */
+    pa_router router;
 
     pa_channel_map default_channel_map;
     pa_sample_spec default_sample_spec;

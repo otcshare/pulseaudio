@@ -630,6 +630,7 @@ libpulsecommon_@PA_MAJORMINOR@_la_SOURCES = \
 		pulsecore/ioline.c pulsecore/ioline.h \
 		pulsecore/ipacl.c pulsecore/ipacl.h \
 		pulsecore/llist.h \
+		pulsecore/sequence.h pulsecore/sequence.c \
 		pulsecore/lock-autospawn.c pulsecore/lock-autospawn.h \
 		pulsecore/log.c pulsecore/log.h \
 		pulsecore/ratelimit.c pulsecore/ratelimit.h \
@@ -884,6 +885,10 @@ libpulsecore_@PA_MAJORMINOR@_la_SOURCES = \
 		pulsecore/msgobject.c pulsecore/msgobject.h \
 		pulsecore/namereg.c pulsecore/namereg.h \
 		pulsecore/node.c pulsecore/node.h \
+		pulsecore/domain.c pulsecore/domain.h \
+		pulsecore/pulse-domain.c pulsecore/pulse-domain.h \
+		pulsecore/router.c pulsecore/router.h \
+		pulsecore/connection.c pulsecore/connection.h \
 		pulsecore/object.c pulsecore/object.h \
 		pulsecore/play-memblockq.c pulsecore/play-memblockq.h \
 		pulsecore/play-memchunk.c pulsecore/play-memchunk.h \

@@ -378,6 +378,8 @@ pa_sink* pa_sink_new(
     pa_source_set_max_rewind(s->monitor_source, s->thread_info.max_rewind);
 
     if (data->create_node) {
+        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, pa_sink_get_description(s));
 

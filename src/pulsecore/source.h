@@ -37,7 +37,6 @@ typedef struct pa_source_volume_change pa_source_volume_change;
 #include <pulsecore/core.h>
 #include <pulsecore/idxset.h>
 #include <pulsecore/memchunk.h>
-#include <pulsecore/node.h>
 #include <pulsecore/sink.h>
 #include <pulsecore/module.h>
 #include <pulsecore/asyncmsgq.h>
