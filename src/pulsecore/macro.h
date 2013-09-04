@@ -201,6 +201,15 @@ static inline size_t PA_PAGE_ALIGN(size_t l) {
 
 #define pa_return_null_if_fail(expr) pa_return_val_if_fail(expr, NULL)
 
+#define pa_goto_if_fail(expr, label, ...)                               \
+    do {                                                                \
+        if (PA_UNLIKELY(!(expr))) {                                     \
+            pa_log_debug("Assertion '%s' failed at %s:%u, function %s.\n", #expr , __FILE__, __LINE__, PA_PRETTY_FUNCTION); \
+            __VA_ARGS__;                                                \
+            goto label;                                                 \
+        }                                                               \
+    } while(false)
+
 /* pa_assert_se() is an assert which guarantees side effects of x,
  * i.e. is never optimized away, regardless of NDEBUG or FASTPATH. */
 #define pa_assert_se(expr)                                              \
