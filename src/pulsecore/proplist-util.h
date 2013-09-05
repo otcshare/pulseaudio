@@ -26,5 +26,6 @@
 
 void pa_init_proplist(pa_proplist *p);
 char *pa_proplist_get_stream_group(pa_proplist *pl, const char *prefix, const char *cache);
+char *pa_proplist_get_stream_group_extended(pa_proplist *p, const char *prefix, const char *cache, const char *preferred_stream_group);
 
 #endif
