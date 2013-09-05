@@ -286,6 +286,87 @@ static void reset_callbacks(pa_sink_input *i) {
     i->mute_changed = NULL;
 }
 
+static char *get_description_from_properties(pa_proplist *pl) {
+    const char *description;
+
+    pa_assert(pl);
+
+    description = pa_proplist_gets(pl, PA_PROP_MEDIA_NAME);
+
+    if (!description)
+        description = _("(unnamed stream)");
+
+    return (char *)description;
+}
+
+static bool available(pa_node *node, pa_domain *domain) {
+    pa_assert(node);
+    pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
+    pa_assert(domain);
+    pa_assert(domain->core);
+
+    return (domain == domain->core->router.pulse_domain);
+}
+
+static pa_node_features *get_features(pa_node *node, pa_domain *domain, pa_node_features *buf) {
+    pa_proplist *pl;
+    const char *role;
+
+    pa_assert(node);
+    pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
+    pa_assert(node->owner);
+    pa_assert(domain);
+    pa_assert(domain->core);
+    pa_assert(buf);
+
+    if (domain != domain->core->router.pulse_domain)
+        pa_zero(*buf);
+    else {
+        if (node->state == PA_NODE_STATE_UNDER_CONSTRUCTION)
+            pl = ((pa_sink_input_new_data *)(node->owner))->proplist;
+        else
+            pl = ((pa_sink_input *)(node->owner))->proplist;
+
+        pa_assert(pl);
+
+        if (!(role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE)))
+            role = "<unknown>";
+
+        buf->channels_min = 1;
+        buf->channels_max = 7;
+
+        buf->latency_min = PA_NODE_LATENCY_LOW;
+        buf->rate_min = 8000;
+
+        if (pa_streq(role, "phone")) {
+            buf->latency_max = PA_NODE_LATENCY_LOW;
+            buf->rate_max = 16000;
+        } else {
+            buf->latency_max = PA_NODE_LATENCY_HIGH;
+            buf->rate_max = 128000;
+        }
+    }
+
+    return buf;
+}
+
+static bool set_features(pa_node *node, pa_domain *domain, pa_node_features *features) {
+    pa_assert(node);
+    pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
+    pa_assert(domain);
+    pa_assert(features);
+
+    return (domain == domain->core->router.pulse_domain);
+}
+
+static bool activate_features(pa_node *node, pa_domain *domain) {
+    pa_assert(node);
+    pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
+    pa_assert(domain);
+
+    return (domain == domain->core->router.pulse_domain);
+}
+
 /* Called from main context */
 int pa_sink_input_new(
         pa_sink_input **_i,
@@ -294,6 +375,7 @@ int pa_sink_input_new(
 
     pa_sink_input *i = NULL;
     pa_resampler *resampler = NULL;
+    pa_node *node = NULL;
     char st[PA_SAMPLE_SPEC_SNPRINT_MAX], cm[PA_CHANNEL_MAP_SNPRINT_MAX], fmt[PA_FORMAT_INFO_SNPRINT_MAX];
     pa_channel_map original_cm;
     int r;
@@ -301,7 +383,7 @@ int pa_sink_input_new(
     char *memblockq_name;
     pa_sample_spec ss;
     pa_channel_map map;
-    int ret = 0;
+    int err;
 
     pa_assert(_i);
     pa_assert(core);
@@ -330,9 +412,35 @@ int pa_sink_input_new(
 
     pa_return_val_if_fail(!data->driver || pa_utf8_valid(data->driver), -PA_ERR_INVALID);
 
+    if (data->create_node) {
+        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+
+        if (!data->node_data.description)
+            pa_node_new_data_set_description(&data->node_data, get_description_from_properties(data->proplist));
+
+        if (!(node = pa_node_new(core, &data->node_data))) {
+            pa_log("Failed to create a node for sink input \"%s\".", get_description_from_properties(data->proplist));
+            return -PA_ERR_INTERNAL;
+        }
+
+        node->state = PA_NODE_STATE_UNDER_CONSTRUCTION;
+        node->owner = data;
+        node->available = available;
+        node->get_features = get_features;
+        node->set_features = set_features;
+        node->activate_features = activate_features;
+
+        /* TODO: move the following to node.c Terminology? */
+        pa_assert_se(pa_idxset_put(core->nodes, node, &node->index) >= 0);
+        pa_router_register_node(node);
+
+        if (!data->sink)
+            pa_router_make_routing(core);
+    }
+
     if (!data->sink) {
         pa_sink *sink = pa_namereg_get(core, NULL, PA_NAMEREG_SINK);
-        pa_return_val_if_fail(sink, -PA_ERR_NOENTITY);
+        pa_goto_if_fail(sink, failed, err = -PA_ERR_NOENTITY);
         pa_sink_input_new_data_set_sink(data, sink, false);
     }
     /* Routing's done, we have a sink. Now let's fix the format and set up the
@@ -353,27 +461,30 @@ int pa_sink_input_new(
         PA_IDXSET_FOREACH(format, data->req_formats, idx)
             pa_log_info(" -- %s", pa_format_info_snprint(fmt, sizeof(fmt), format));
 
-        return -PA_ERR_NOTSUPPORTED;
+        err = -PA_ERR_NOTSUPPORTED;
+        goto failed;
     }
 
     /* Now populate the sample spec and format according to the final
      * format that we've negotiated */
-    pa_return_val_if_fail(pa_format_info_to_sample_spec(data->format, &ss, &map) == 0, -PA_ERR_INVALID);
+    pa_goto_if_fail(pa_format_info_to_sample_spec(data->format, &ss, &map) == 0, failed, err = -PA_ERR_INVALID);
     pa_sink_input_new_data_set_sample_spec(data, &ss);
     if (pa_format_info_is_pcm(data->format) && pa_channel_map_valid(&map))
         pa_sink_input_new_data_set_channel_map(data, &map);
 
-    pa_return_val_if_fail(PA_SINK_IS_LINKED(pa_sink_get_state(data->sink)), -PA_ERR_BADSTATE);
-    pa_return_val_if_fail(!data->sync_base || (data->sync_base->sink == data->sink && pa_sink_input_get_state(data->sync_base) == PA_SINK_INPUT_CORKED), -PA_ERR_INVALID);
+    pa_goto_if_fail(PA_SINK_IS_LINKED(pa_sink_get_state(data->sink)), failed, err = -PA_ERR_BADSTATE);
+    pa_goto_if_fail(!data->sync_base || (data->sync_base->sink == data->sink && pa_sink_input_get_state(data->sync_base) == PA_SINK_INPUT_CORKED), failed, err = -PA_ERR_INVALID);
 
     r = check_passthrough_connection(pa_sink_input_new_data_is_passthrough(data), data->sink);
-    if (r != PA_OK)
-        return r;
+    if (r != PA_OK) {
+        err = r;
+        goto failed;
+    }
 
     if (!data->sample_spec_is_set)
         data->sample_spec = data->sink->sample_spec;
 
-    pa_return_val_if_fail(pa_sample_spec_valid(&data->sample_spec), -PA_ERR_INVALID);
+    pa_goto_if_fail(pa_sample_spec_valid(&data->sample_spec), failed, err = -PA_ERR_INVALID);
 
     if (!data->channel_map_is_set) {
         if (pa_channel_map_compatible(&data->sink->channel_map, &data->sample_spec))
@@ -382,7 +493,7 @@ int pa_sink_input_new(
             pa_channel_map_init_extend(&data->channel_map, data->sample_spec.channels, PA_CHANNEL_MAP_DEFAULT);
     }
 
-    pa_return_val_if_fail(pa_channel_map_compatible(&data->channel_map, &data->sample_spec), -PA_ERR_INVALID);
+    pa_goto_if_fail(pa_channel_map_compatible(&data->channel_map, &data->sample_spec), failed, err = -PA_ERR_INVALID);
 
     /* Don't restore (or save) stream volume for passthrough streams and
      * prevent attenuation/gain */
@@ -402,19 +513,19 @@ int pa_sink_input_new(
     if (!data->volume_writable)
         data->save_volume = false;
 
-    pa_return_val_if_fail(pa_cvolume_compatible(&data->volume, &data->sample_spec), -PA_ERR_INVALID);
+    pa_goto_if_fail(pa_cvolume_compatible(&data->volume, &data->sample_spec), failed, err = -PA_ERR_INVALID);
 
     if (!data->muted_is_set)
         data->muted = false;
 
     if (data->flags & PA_SINK_INPUT_FIX_FORMAT) {
-        pa_return_val_if_fail(pa_format_info_is_pcm(data->format), -PA_ERR_INVALID);
+        pa_goto_if_fail(pa_format_info_is_pcm(data->format), failed, err = -PA_ERR_INVALID);
         data->sample_spec.format = data->sink->sample_spec.format;
         pa_format_info_set_sample_format(data->format, data->sample_spec.format);
     }
 
     if (data->flags & PA_SINK_INPUT_FIX_RATE) {
-        pa_return_val_if_fail(pa_format_info_is_pcm(data->format), -PA_ERR_INVALID);
+        pa_goto_if_fail(pa_format_info_is_pcm(data->format), failed, err = -PA_ERR_INVALID);
         data->sample_spec.rate = data->sink->sample_spec.rate;
         pa_format_info_set_rate(data->format, data->sample_spec.rate);
     }
@@ -422,7 +533,7 @@ int pa_sink_input_new(
     original_cm = data->channel_map;
 
     if (data->flags & PA_SINK_INPUT_FIX_CHANNELS) {
-        pa_return_val_if_fail(pa_format_info_is_pcm(data->format), -PA_ERR_INVALID);
+        pa_goto_if_fail(pa_format_info_is_pcm(data->format), failed, err = -PA_ERR_INVALID);
         data->sample_spec.channels = data->sink->sample_spec.channels;
         data->channel_map = data->sink->channel_map;
         pa_format_info_set_channels(data->format, data->sample_spec.channels);
@@ -456,10 +567,12 @@ int pa_sink_input_new(
     if (data->resample_method == PA_RESAMPLER_INVALID)
         data->resample_method = core->resample_method;
 
-    pa_return_val_if_fail(data->resample_method < PA_RESAMPLER_MAX, -PA_ERR_INVALID);
+    pa_goto_if_fail(data->resample_method < PA_RESAMPLER_MAX, failed, err = -PA_ERR_INVALID);
 
-    if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_FIXATE], data)) < 0)
-        return r;
+    if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_FIXATE], data)) < 0) {
+        err = r;
+        goto failed;
+    }
 
     if ((data->flags & PA_SINK_INPUT_NO_CREATE_ON_SUSPEND) &&
         pa_sink_get_state(data->sink) == PA_SINK_SUSPENDED) {
@@ -591,19 +704,11 @@ int pa_sink_input_new(
             &i->sink->silence);
     pa_xfree(memblockq_name);
 
-    if (data->create_node) {
-        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+    if (node) {
+        i->node = node;
 
-        if (!data->node_data.description)
-            pa_node_new_data_set_description(&data->node_data, pa_sink_input_get_description(i));
-
-        if (!(i->node = pa_node_new(i->core, &data->node_data))) {
-            pa_log("Failed to create a node for sink input \"%s\".", pa_sink_input_get_description(i));
-            ret = -PA_ERR_INTERNAL;
-            goto fail;
-        }
-
-        i->node->owner = i;
+        node->state = PA_NODE_STATE_INIT;
+        node->owner = i;
     }
 
     pt = pa_proplist_to_string_sep(i->proplist, "\n    ");
@@ -621,13 +726,10 @@ int pa_sink_input_new(
     *_i = i;
     return 0;
 
-fail:
-    if (i) {
-        pa_sink_input_unlink(i);
-        pa_sink_input_unref(i);
-    }
-
-    return ret;
+ failed:
+    if (node)
+        pa_node_free(node);
+    return err;
 }
 
 /* Called from main context */
@@ -869,16 +971,7 @@ void pa_sink_input_put(pa_sink_input *i) {
 
 /* Called from the main thread. */
 const char *pa_sink_input_get_description(pa_sink_input *i) {
-    const char *description;
-
-    pa_assert(i);
-
-    description = pa_proplist_gets(i->proplist, PA_PROP_MEDIA_NAME);
-
-    if (!description)
-        description = _("(unnamed stream)");
-
-    return description;
+    return get_description_from_properties(i->proplist);
 }
 
 /* Called from main context */

@@ -35,6 +35,7 @@ typedef struct pa_node_implicit_route_data pa_node_implicit_route_data;
 #include "router.h"
 
 typedef enum {
+    PA_NODE_LATENCY_INVALID = 0,
     PA_NODE_LATENCY_LOW,
     PA_NODE_LATENCY_MEDIUM,
     PA_NODE_LATENCY_HIGH
@@ -51,11 +52,12 @@ typedef enum {
     PA_NODE_TYPE_PORT,          /* owner: pa_port */
     PA_NODE_TYPE_SINK,          /* owner: pa_sink */
     PA_NODE_TYPE_SOURCE,        /* owner: pa_source */
-    PA_NODE_TYPE_SINK_INPUT,    /* owner: pa_sink_input */
-    PA_NODE_TYPE_SOURCE_OUTPUT  /* owner: pa_source_output */
+    PA_NODE_TYPE_SINK_INPUT,    /* owner: pa_sink_input or pa_sink_input_new_data depending on state*/
+    PA_NODE_TYPE_SOURCE_OUTPUT  /* owner: pa_source_output or pa_source_output_new_data depending on state */
 } pa_node_type_t;
 
 typedef enum {
+    PA_NODE_STATE_UNDER_CONSTRUCTION,
     PA_NODE_STATE_INIT,
     PA_NODE_STATE_LINKED,
     PA_NODE_STATE_UNLINKED
@@ -102,7 +104,7 @@ struct pa_node {
     void *owner;
 
     bool (*available)(pa_node *node, pa_domain *domain);
-    pa_node_features *(*get_features)(pa_node *node, pa_domain *domain);
+    pa_node_features *(*get_features)(pa_node *node, pa_domain *domain, pa_node_features *buf);
     bool (*set_features)(pa_node *node, pa_domain *domain, pa_node_features *features);
     bool (*activate_features)(pa_node *node, pa_domain *domain);
 
@@ -126,7 +128,7 @@ void pa_node_put(pa_node *node);
 void pa_node_unlink(pa_node *node);
 
 bool pa_node_available(pa_node *node, pa_domain *domain);
-pa_node_features *pa_node_get_features(pa_node *node, pa_domain *domain);
+pa_node_features *pa_node_get_features(pa_node *node, pa_domain *domain, pa_node_features *buf);
 bool pa_node_set_features(pa_node *node, pa_domain *domain, pa_node_features *features);
 bool pa_node_activate_features(pa_node *node, pa_domain *domain);
 bool pa_node_common_features(pa_node_features *f1, pa_node_features *f2, pa_node_features *common);
