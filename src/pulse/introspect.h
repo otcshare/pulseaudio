@@ -695,6 +695,13 @@ typedef struct pa_node_info {
 
     /** The direction of this node. */
     pa_direction_t direction;
+
+    /** The connections that this node is part of. The connections are
+     * represented by an array of node connection indexes. */
+    uint32_t *connections;
+
+    /** Size of the connections array. */
+    unsigned n_connections;
 } pa_node_info;
 
 /** Callback prototype for pa_context_get_node_info_by_name() and friends.
@@ -709,6 +716,32 @@ pa_operation *pa_context_get_node_info_by_index(pa_context *c, uint32_t idx, pa_
 
 /** Get a list of all nodes. \since 6.0 */
 pa_operation *pa_context_get_node_info_list(pa_context *c, pa_node_info_cb_t cb, void *userdata);
+
+/** Information about a connection between two nodes. Please note that this
+ * structure can be extended as part of evolutionary API updates at any time in
+ * any new release.
+ *
+ * \since 6.0 */
+typedef struct pa_node_connection_info {
+    /** The index of this connection. */
+    uint32_t index;
+
+    /** The index of the input node. */
+    uint32_t input_node;
+
+    /** The index of the output node. */
+    uint32_t output_node;
+} pa_node_connection_info;
+
+/** Callback prototype for pa_context_get_node_connection_info() and friends.
+ * \since 6.0 */
+typedef void (*pa_node_connection_info_cb_t)(pa_context *c, const pa_node_connection_info *info, int eol, void *userdata);
+
+/** Get information about a node connection. \since 6.0 */
+pa_operation *pa_context_get_node_connection_info(pa_context *c, uint32_t idx, pa_node_connection_info_cb_t cb, void *userdata);
+
+/** Get a list of all node connections. \since 6.0 */
+pa_operation *pa_context_get_node_connection_info_list(pa_context *c, pa_node_connection_info_cb_t cb, void *userdata);
 
 /** @} */
 

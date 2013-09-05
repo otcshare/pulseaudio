@@ -46,6 +46,7 @@
 #include <pulsecore/macro.h>
 #include <pulsecore/sndfile-util.h>
 #include <pulsecore/sample-util.h>
+#include <pulsecore/strbuf.h>
 
 #define TIME_EVENT_USEC 50000
 
@@ -98,6 +99,10 @@ static int file_format = -1;
 static uint32_t monitor_stream = PA_INVALID_INDEX;
 
 static uint32_t cork_requests = 0;
+
+static unsigned missing_node_infos = 0;
+static pa_node_info *node_infos = NULL;
+static unsigned n_connections = 0;
 
 /* A shortcut for terminating the application */
 static void quit(int ret) {
@@ -325,7 +330,7 @@ static void stream_read_callback(pa_stream *s, size_t length, void *userdata) {
 
 /* Called when we get a response to the request sent by
  * pa_context_get_sink_input_info(). */
-static void sink_input_info_cb(pa_context *c, const pa_sink_input_info *i, int eol, void *userdata) {
+static void sink_input_info_cb(pa_context *c, const pa_sink_input_info *info, int eol, void *userdata) {
     pa_assert(c);
 
     if (eol > 0)
@@ -336,14 +341,14 @@ static void sink_input_info_cb(pa_context *c, const pa_sink_input_info *i, int e
         return;
     }
 
-    pa_assert(i);
+    pa_assert(info);
 
-    pa_log(_("Connected as sink input #%u (\"%s\")." CLEAR_LINE), i->index, pa_strnull(pa_proplist_gets(i->proplist, PA_PROP_MEDIA_NAME)));
+    pa_log(_("Connected as sink input #%u (\"%s\")." CLEAR_LINE), info->index, info->name);
 }
 
 /* Called when we get a response to the request sent by
  * pa_context_get_source_output_info(). */
-static void source_output_info_cb(pa_context *c, const pa_source_output_info *i, int eol, void *userdata) {
+static void source_output_info_cb(pa_context *c, const pa_source_output_info *info, int eol, void *userdata) {
     pa_assert(c);
 
     if (eol > 0)
@@ -354,14 +359,14 @@ static void source_output_info_cb(pa_context *c, const pa_source_output_info *i,
         return;
     }
 
-    pa_assert(i);
+    pa_assert(info);
 
-    pa_log(_("Connected as source output #%u (\"%s\")." CLEAR_LINE), i->index, pa_strnull(pa_proplist_gets(i->proplist, PA_PROP_MEDIA_NAME)));
+    pa_log(_("Connected as source output #%u (\"%s\")." CLEAR_LINE), info->index, info->name);
 }
 
 /* Called when we get a response to the request sent by
  * pa_context_get_sink_info_by_index(). */
-static void sink_info_cb(pa_context *c, const pa_sink_info *i, int eol, void *userdata) {
+static void sink_info_cb(pa_context *c, const pa_sink_info *info, int eol, void *userdata) {
     bool suspended;
 
     pa_assert(c);
@@ -374,16 +379,16 @@ static void sink_info_cb(pa_context *c, const pa_sink_info *i, int eol, void *us
         return;
     }
 
-    pa_assert(i);
+    pa_assert(info);
 
     suspended = pa_stream_is_suspended(stream);
-    pa_log(_("Connected to sink #%u %s (\"%s\"). The sink is %s." CLEAR_LINE), i->index, i->name, i->description,
+    pa_log(_("Connected to sink #%u %s (\"%s\"). The sink is %s." CLEAR_LINE), info->index, info->name, info->description,
            suspended ? _("suspended") : _("not suspended"));
 }
 
 /* Called when we get a response to the request sent by
  * pa_context_get_source_info_by_index(). */
-static void source_info_cb(pa_context *c, const pa_source_info *i, int eol, void *userdata) {
+static void source_info_cb(pa_context *c, const pa_source_info *info, int eol, void *userdata) {
     bool suspended;
 
     pa_assert(c);
@@ -396,16 +401,18 @@ static void source_info_cb(pa_context *c, const pa_source_info *i, int eol, void
         return;
     }
 
-    pa_assert(i);
+    pa_assert(info);
 
     suspended = pa_stream_is_suspended(stream);
-    pa_log(_("Connected to source #%u %s (\"%s\"). The source is %s." CLEAR_LINE), i->index, i->name, i->description,
+    pa_log(_("Connected to source #%u %s (\"%s\"). The source is %s." CLEAR_LINE), info->index, info->name, info->description,
            suspended ? _("suspended") : _("not suspended"));
 }
 
 /* Called when we get a response to the request sent by
- * pa_context_get_node_info(). */
-static void node_info_cb(pa_context *c, const pa_node_info *i, int eol, void *userdata) {
+ * pa_context_get_node_info_by_index() for nodes to which we are connected. */
+static void connected_node_info_cb(pa_context *c, const pa_node_info *info, int eol, void *userdata) {
+    unsigned i;
+
     pa_assert(c);
 
     if (eol > 0)
@@ -416,9 +423,94 @@ static void node_info_cb(pa_context *c, const pa_node_info *i, int eol, void *us
         return;
     }
 
-    pa_assert(i);
+    pa_assert(info);
+    pa_assert(missing_node_infos > 0);
+    pa_assert(node_infos);
 
-    pa_log(_("Connected as node #%u %s (\"%s\")." CLEAR_LINE), i->index, i->name, i->description);
+    i = n_connections - missing_node_infos;
+    node_infos[i] = *info;
+
+    /* The pointers in i will become invalid after we return from this
+     * function, so the strings that we are interested in have to be copied. */
+    node_infos[i].name = pa_xstrdup(info->name);
+    node_infos[i].description = pa_xstrdup(info->description);
+
+    missing_node_infos--;
+
+    if (missing_node_infos == 0) {
+        pa_strbuf *buf = pa_strbuf_new();
+        char *s;
+
+        pa_strbuf_puts(buf, _("Routed to nodes: "));
+
+        for (i = 0; i < n_connections; i++) {
+            if (i != 0)
+                pa_strbuf_puts(buf, ", ");
+
+            pa_strbuf_printf(buf, "#%u %s (\"%s\")", node_infos[i].index, node_infos[i].name, node_infos[i].description);
+        }
+
+        s = pa_strbuf_tostring_free(buf);
+        pa_log("%s", s);
+        pa_xfree(s);
+
+        pa_xfree(node_infos);
+        node_infos = NULL;
+    }
+}
+
+/* Called when we get a response to the request sent by
+ * pa_context_get_node_connection_info_by_index(). */
+static void node_connection_info_cb(pa_context *c, const pa_node_connection_info *info, int eol, void *userdata) {
+    uint32_t node_index;
+
+    pa_assert(c);
+
+    if (eol > 0)
+        return;
+
+    if (eol < 0) {
+        pa_log(_("Failed to get node connection info: %s"), pa_strerror(pa_context_errno(c)));
+        return;
+    }
+
+    pa_assert(info);
+
+    if (mode == PLAYBACK)
+        node_index = info->output_node;
+    else
+        node_index = info->input_node;
+
+    pa_operation_unref(pa_context_get_node_info_by_index(c, node_index, connected_node_info_cb, NULL));
+}
+
+/* Called when we get a response to the request sent by
+ * pa_context_get_node_info_by_index() for our own node. */
+static void node_info_cb(pa_context *c, const pa_node_info *info, int eol, void *userdata) {
+    unsigned i;
+
+    pa_assert(c);
+
+    if (eol > 0)
+        return;
+
+    if (eol < 0) {
+        pa_log(_("Failed to get node info: %s"), pa_strerror(pa_context_errno(c)));
+        return;
+    }
+
+    pa_assert(info);
+
+    pa_log(_("Connected as node #%u %s (\"%s\")." CLEAR_LINE), info->index, info->name, info->description);
+    missing_node_infos = n_connections = info->n_connections;
+
+    for (i = 0; i < n_connections; i++)
+        pa_operation_unref(pa_context_get_node_connection_info(c, info->connections[i], node_connection_info_cb, NULL));
+
+    if (n_connections > 0)
+        node_infos = pa_xnew0(pa_node_info, n_connections);
+    else
+        pa_log(_("Not routed to any nodes."));
 }
 
 /* This routine is called whenever the stream state changes */
