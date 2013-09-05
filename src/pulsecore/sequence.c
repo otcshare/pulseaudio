@@ -37,8 +37,8 @@ void pa_sequence_insert(pa_sequence_head *head, pa_sequence_list *elem)
 
     before = after->next;
 
-    before->next = elem;
-    after->prev = elem;
+    before->prev = elem;
+    after->next = elem;
 
     elem->next = before;
     elem->prev = after;
