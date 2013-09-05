@@ -152,8 +152,12 @@ int pa_router_module_register(pa_module *module, pa_router_module_registration_d
 
     pa_assert(PA_SEQUENCE_IS_EMPTY(router->implicit_route.node_list));
 
+    router->module = module;
+
     router->implicit_route.compare = data->implicit_route.compare;
     router->implicit_route.accept = data->implicit_route.accept;
+
+    pa_log_info("router module '%s' registered", module->name);
 
     return 0;
 }
@@ -228,20 +232,25 @@ static int routing_group_compare(pa_sequence_list *l1, pa_sequence_list *l2)
 pa_router_group *pa_router_group_new(pa_core *core, pa_router_group_new_data *data) {
     const char *registered_name = NULL;
     pa_router_group *rtg = NULL;
+    pa_router *router;
 
     pa_assert(core);
     pa_assert(data);
     pa_assert(data->name);
-    pa_assert(data->direction == PA_DIRECTION_INPUT || data->direction == PA_DIRECTION_INPUT);
+    pa_assert(data->direction == PA_DIRECTION_INPUT || data->direction == PA_DIRECTION_OUTPUT);
     pa_assert(data->accept);
     pa_assert(data->compare);
 
+    router = &core->router;
+
+    rtg = pa_xnew0(pa_router_group, 1);
+
     if (!(registered_name = pa_namereg_register(core, data->name, PA_NAMEREG_ROUTING_GROUP, rtg, false))) {
         pa_log("Failed to register name %s.", data->name);
+        pa_xfree(rtg);
         return NULL;
     }
 
-    rtg = pa_xnew0(pa_router_group, 1);
     rtg->core = core;
     rtg->name = pa_xstrdup(registered_name);
     rtg->direction = data->direction;
@@ -249,6 +258,10 @@ pa_router_group *pa_router_group_new(pa_core *core, pa_router_group_new_data *da
     rtg->compare = data->compare;
 
     PA_SEQUENCE_HEAD_INIT(rtg->entries, routing_group_compare);
+
+    pa_assert_se(pa_idxset_put(router->implicit_route.groups, rtg, NULL) == 0);
+
+    pa_log_info("router group '%s' added", rtg->name);
 
     return rtg;
 }
@@ -285,10 +298,14 @@ static void router_group_add_node(pa_router_group *rtg, pa_node *node) {
 
     PA_SEQUENCE_INSERT(rtg->entries, entry->group_list);
     PA_SEQUENCE_INSERT(node->implicit_route.member_of, entry->node_list);
+
+    pa_log_debug("node '%s' added to routing group '%s'", node->name, rtg->name);
 }
 
 void pa_router_group_entry_free(pa_router_group_entry *entry) {
     pa_assert(entry);
+
+    entry->node->implicit_route.group = NULL;
 
     PA_SEQUENCE_REMOVE(entry->group_list);
     PA_SEQUENCE_REMOVE(entry->node_list);
@@ -309,14 +326,12 @@ void pa_router_register_node(pa_node *node) {
 
     router = &core->router;
 
-    if (router->implicit_route.accept && router->implicit_route.accept(router, node)) {
-        pa_assert(node->implicit_route.group);
+    if (router->implicit_route.accept && router->implicit_route.accept(router, node) && node->implicit_route.group) {
         PA_SEQUENCE_INSERT(router->implicit_route.node_list, node->implicit_route.list);
     }
 
-
     PA_IDXSET_FOREACH(rtg, router->implicit_route.groups, idx) {
-        if ((rtg->direction & node->direction) && rtg->accept(rtg, node))
+        if ((rtg->direction ^ node->direction) && rtg->accept(rtg, node))
             router_group_add_node(rtg, node);
     }
 }
@@ -389,8 +404,10 @@ static void make_implicit_routing(pa_core *core) {
             data.node1_index = node1->index;
             data.node2_index = node2->index;
 
-            if (pa_connection_new(core, &data))
+            if (pa_connection_new(core, &data)) {
+                pa_log_debug("      '%s' => '%s'", node1->name, node2->name);
                 break;
+            }
         }
     }
 

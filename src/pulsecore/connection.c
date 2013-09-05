@@ -40,13 +40,14 @@ pa_connection_new_data *pa_connection_new_data_init(pa_connection_new_data *data
 
 static bool get_connection_features(pa_node *input, pa_node *output, pa_domain *domain, pa_node_features *features) {
     pa_node_features *feat1, *feat2;
+    pa_node_features buf1, buf2;
 
     pa_assert(input);
     pa_assert(output);
     pa_assert(features);
 
-    feat1 = pa_node_get_features(input, domain);
-    feat2 = pa_node_get_features(output, domain);
+    feat1 = pa_node_get_features(input, domain, &buf1);
+    feat2 = pa_node_get_features(output, domain, &buf2);
 
     return pa_node_common_features(feat1, feat2, features);
 }
@@ -185,6 +186,9 @@ pa_connection *pa_connection_new(pa_core *core, pa_connection_new_data *data) {
     pa_assert(data);
     pa_assert(data->type == PA_CONN_TYPE_IMPLICIT || data->type == PA_CONN_TYPE_EXPLICIT);
 
+    if (data->node1_index == data->node2_index)
+        return NULL;
+
     if (!(node1 = pa_idxset_get_by_index(core->nodes, data->node1_index)) ||
         !(node2 = pa_idxset_get_by_index(core->nodes, data->node2_index))) {
         pa_log_debug("     can't connect '%s'(%d) and '%s' (%d). Nonexisting node",
@@ -207,8 +211,8 @@ pa_connection *pa_connection_new(pa_core *core, pa_connection_new_data *data) {
     else if (node2->direction == PA_DIRECTION_OUTPUT)
         output = node2;
 
-    pa_assert(input);
-    pa_assert(output);
+    if (!input || !output)
+        return NULL;
 
     key = ((uint64_t)input->index << 32) | (uint64_t)output->index;
 
