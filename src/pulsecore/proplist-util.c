@@ -274,3 +274,61 @@ char *pa_proplist_get_stream_group(pa_proplist *p, const char *prefix, const cha
 
     return t;
 }
+
+char *pa_proplist_get_stream_group_extended(pa_proplist *p, const char *prefix, const char *cache, const char *preferred_stream_group) {
+    const char *r = NULL;
+    const char *q = NULL;
+    char *t;
+
+    if (!p)
+        return NULL;
+
+    if (cache && (r = pa_proplist_gets(p, cache)))
+        return pa_xstrdup(r);
+
+    if (!prefix)
+        prefix = "stream";
+
+    /* try first to get the preferred stream group, then fallback to hard coded order */
+    if (preferred_stream_group) {
+        if (!strcmp(preferred_stream_group, "media.role.within.application.name")) {
+	    if ((r = pa_proplist_gets(p, PA_PROP_APPLICATION_NAME)) &&
+	        (q = pa_proplist_gets(p, PA_PROP_MEDIA_ROLE))) {
+                    t = pa_sprintf_malloc("%s-by-media-role-within-application-name:%s-%s", prefix, q, r);
+	    } else {
+	        /* make r NULL to be able to fallback to "standard" stream restore code */
+                r = NULL;
+	    }
+	}
+	else if (r = pa_proplist_gets(p, preferred_stream_group)) {
+            if (!strcmp(preferred_stream_group, PA_PROP_MEDIA_ROLE))
+                t = pa_sprintf_malloc("%s-by-media-role:%s", prefix, r);
+	    else if (!strcmp(preferred_stream_group, PA_PROP_APPLICATION_ID))
+                t = pa_sprintf_malloc("%s-by-application-id:%s", prefix, r);
+            else if (!strcmp(preferred_stream_group, PA_PROP_APPLICATION_NAME))
+                t = pa_sprintf_malloc("%s-by-application-name:%s", prefix, r);
+            else if (!strcmp(preferred_stream_group, PA_PROP_MEDIA_NAME))
+	        t = pa_sprintf_malloc("%s-by-media-name:%s", prefix, r);
+            else
+                t = pa_sprintf_malloc("%s-fallback:%s", prefix, r);
+        }
+    }
+
+    if (!r) {
+        if ((r = pa_proplist_gets(p, PA_PROP_MEDIA_ROLE)))
+            t = pa_sprintf_malloc("%s-by-media-role:%s", prefix, r);
+        else if ((r = pa_proplist_gets(p, PA_PROP_APPLICATION_ID)))
+            t = pa_sprintf_malloc("%s-by-application-id:%s", prefix, r);
+        else if ((r = pa_proplist_gets(p, PA_PROP_APPLICATION_NAME)))
+            t = pa_sprintf_malloc("%s-by-application-name:%s", prefix, r);
+        else if ((r = pa_proplist_gets(p, PA_PROP_MEDIA_NAME)))
+            t = pa_sprintf_malloc("%s-by-media-name:%s", prefix, r);
+        else
+            t = pa_sprintf_malloc("%s-fallback:%s", prefix, r);
+    }
+
+    if (cache)
+        pa_proplist_sets(p, cache, t);
+
+    return t;
+}
