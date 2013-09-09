@@ -121,6 +121,7 @@ pa_node *pa_node_new(pa_core *core, pa_node_new_data *data) {
 
     n = pa_xnew0(pa_node, 1);
     n->core = core;
+    pa_assert_se(pa_idxset_put(core->nodes, n, &n->index) >= 0);
     n->state = PA_NODE_STATE_INIT;
 
     if (!(registered_name = pa_namereg_register(core, name, PA_NAMEREG_NODE, n, false))) {
@@ -172,6 +173,7 @@ void pa_node_free(pa_node *node) {
         pa_xfree(node->name);
     }
 
+    pa_assert_se(pa_idxset_remove_by_index(node->core->nodes, node->index));
     pa_xfree(node);
 }
 
@@ -180,13 +182,10 @@ void pa_node_put(pa_node *node) {
     pa_assert(node->state == PA_NODE_STATE_INIT);
     pa_assert(node->owner);
 
-    if (node->type !=  PA_NODE_TYPE_SINK_INPUT && node->type != PA_NODE_TYPE_SOURCE_OUTPUT) {
-        pa_assert_se(pa_idxset_put(node->core->nodes, node, &node->index) >= 0);
-        pa_router_register_node(node);
-        pa_router_make_routing(node->core);
-    }
-
     node->state = PA_NODE_STATE_LINKED;
+
+    pa_router_register_node(node);
+    pa_router_make_routing(node->core);
 
     pa_log_debug("Created node %s.", node->name);
 }
@@ -204,8 +203,6 @@ void pa_node_unlink(pa_node *node) {
     pa_log_debug("Unlinking node %s.", node->name);
 
     pa_router_unregister_node(node);
-
-    pa_assert_se(pa_idxset_remove_by_index(core->nodes, node->index));
 
     node->state = PA_NODE_STATE_UNLINKED;
 

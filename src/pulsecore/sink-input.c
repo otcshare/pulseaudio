@@ -309,7 +309,7 @@ static bool available(pa_node *node, pa_domain *domain) {
 }
 
 static pa_node_features *get_features(pa_node *node, pa_domain *domain, pa_node_features *buf) {
-    pa_proplist *pl;
+    pa_sink_input *i;
     const char *role;
 
     pa_assert(node);
@@ -318,18 +318,12 @@ static pa_node_features *get_features(pa_node *node, pa_domain *domain, pa_node_
     pa_assert(domain);
     pa_assert(domain->core);
     pa_assert(buf);
+    pa_assert_se(i = node->owner);
 
     if (domain != domain->core->router.pulse_domain)
         pa_zero(*buf);
     else {
-        if (node->state == PA_NODE_STATE_UNDER_CONSTRUCTION)
-            pl = ((pa_sink_input_new_data *)(node->owner))->proplist;
-        else
-            pl = ((pa_sink_input *)(node->owner))->proplist;
-
-        pa_assert(pl);
-
-        if (!(role = pa_proplist_gets(pl, PA_PROP_MEDIA_ROLE)))
+        if (!(role = pa_proplist_gets(i->proplist, PA_PROP_MEDIA_ROLE)))
             role = "<unknown>";
 
         buf->channels_min = 1;
@@ -375,7 +369,6 @@ int pa_sink_input_new(
 
     pa_sink_input *i = NULL;
     pa_resampler *resampler = NULL;
-    pa_node *node = NULL;
     char st[PA_SAMPLE_SPEC_SNPRINT_MAX], cm[PA_CHANNEL_MAP_SNPRINT_MAX], fmt[PA_FORMAT_INFO_SNPRINT_MAX];
     pa_channel_map original_cm;
     int r;
@@ -390,8 +383,15 @@ int pa_sink_input_new(
     pa_assert(data);
     pa_assert_ctl_context();
 
-    if (data->client)
-        pa_proplist_update(data->proplist, PA_UPDATE_MERGE, data->client->proplist);
+    i = pa_msgobject_new(pa_sink_input);
+    i->parent.parent.free = sink_input_free;
+    i->parent.process_msg = pa_sink_input_process_msg;
+
+    i->client = data->client;
+    i->proplist = pa_proplist_copy(data->proplist);
+
+    if (i->client)
+        pa_proplist_update(i->proplist, PA_UPDATE_MERGE, i->client->proplist);
 
     if (data->origin_sink && (data->origin_sink->flags & PA_SINK_SHARE_VOLUME_WITH_MASTER))
         data->volume_writable = false;
@@ -407,8 +407,8 @@ int pa_sink_input_new(
         pa_sink_input_new_data_set_formats(data, tmp);
     }
 
-    if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_NEW], data)) < 0)
-        return r;
+    r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_NEW], data);
+    pa_assert(r >= 0);
 
     pa_return_val_if_fail(!data->driver || pa_utf8_valid(data->driver), -PA_ERR_INVALID);
 
@@ -416,31 +416,26 @@ int pa_sink_input_new(
         pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
 
         if (!data->node_data.description)
-            pa_node_new_data_set_description(&data->node_data, get_description_from_properties(data->proplist));
+            pa_node_new_data_set_description(&data->node_data, pa_sink_input_get_description(i));
 
-        if (!(node = pa_node_new(core, &data->node_data))) {
-            pa_log("Failed to create a node for sink input \"%s\".", get_description_from_properties(data->proplist));
-            return -PA_ERR_INTERNAL;
+        if (!(i->node = pa_node_new(core, &data->node_data))) {
+            pa_log("Failed to create a node for sink input \"%s\".", pa_sink_input_get_description(i));
+            err = -PA_ERR_INTERNAL;
+            goto fail;
         }
 
-        node->state = PA_NODE_STATE_UNDER_CONSTRUCTION;
-        node->owner = data;
-        node->available = available;
-        node->get_features = get_features;
-        node->set_features = set_features;
-        node->activate_features = activate_features;
+        i->node->owner = i;
+        i->node->available = available;
+        i->node->get_features = get_features;
+        i->node->set_features = set_features;
+        i->node->activate_features = activate_features;
 
-        /* TODO: move the following to node.c Terminology? */
-        pa_assert_se(pa_idxset_put(core->nodes, node, &node->index) >= 0);
-        pa_router_register_node(node);
-
-        if (!data->sink)
-            pa_router_make_routing(core);
+        pa_node_put(i->node);
     }
 
     if (!data->sink) {
         pa_sink *sink = pa_namereg_get(core, NULL, PA_NAMEREG_SINK);
-        pa_goto_if_fail(sink, failed, err = -PA_ERR_NOENTITY);
+        pa_goto_if_fail(sink, fail, err = -PA_ERR_NOENTITY);
         pa_sink_input_new_data_set_sink(data, sink, false);
     }
     /* Routing's done, we have a sink. Now let's fix the format and set up the
@@ -462,29 +457,29 @@ int pa_sink_input_new(
             pa_log_info(" -- %s", pa_format_info_snprint(fmt, sizeof(fmt), format));
 
         err = -PA_ERR_NOTSUPPORTED;
-        goto failed;
+        goto fail;
     }
 
     /* Now populate the sample spec and format according to the final
      * format that we've negotiated */
-    pa_goto_if_fail(pa_format_info_to_sample_spec(data->format, &ss, &map) == 0, failed, err = -PA_ERR_INVALID);
+    pa_goto_if_fail(pa_format_info_to_sample_spec(data->format, &ss, &map) == 0, fail, err = -PA_ERR_INVALID);
     pa_sink_input_new_data_set_sample_spec(data, &ss);
     if (pa_format_info_is_pcm(data->format) && pa_channel_map_valid(&map))
         pa_sink_input_new_data_set_channel_map(data, &map);
 
-    pa_goto_if_fail(PA_SINK_IS_LINKED(pa_sink_get_state(data->sink)), failed, err = -PA_ERR_BADSTATE);
-    pa_goto_if_fail(!data->sync_base || (data->sync_base->sink == data->sink && pa_sink_input_get_state(data->sync_base) == PA_SINK_INPUT_CORKED), failed, err = -PA_ERR_INVALID);
+    pa_goto_if_fail(PA_SINK_IS_LINKED(pa_sink_get_state(data->sink)), fail, err = -PA_ERR_BADSTATE);
+    pa_goto_if_fail(!data->sync_base || (data->sync_base->sink == data->sink && pa_sink_input_get_state(data->sync_base) == PA_SINK_INPUT_CORKED), fail, err = -PA_ERR_INVALID);
 
     r = check_passthrough_connection(pa_sink_input_new_data_is_passthrough(data), data->sink);
     if (r != PA_OK) {
         err = r;
-        goto failed;
+        goto fail;
     }
 
     if (!data->sample_spec_is_set)
         data->sample_spec = data->sink->sample_spec;
 
-    pa_goto_if_fail(pa_sample_spec_valid(&data->sample_spec), failed, err = -PA_ERR_INVALID);
+    pa_goto_if_fail(pa_sample_spec_valid(&data->sample_spec), fail, err = -PA_ERR_INVALID);
 
     if (!data->channel_map_is_set) {
         if (pa_channel_map_compatible(&data->sink->channel_map, &data->sample_spec))
@@ -493,7 +488,7 @@ int pa_sink_input_new(
             pa_channel_map_init_extend(&data->channel_map, data->sample_spec.channels, PA_CHANNEL_MAP_DEFAULT);
     }
 
-    pa_goto_if_fail(pa_channel_map_compatible(&data->channel_map, &data->sample_spec), failed, err = -PA_ERR_INVALID);
+    pa_goto_if_fail(pa_channel_map_compatible(&data->channel_map, &data->sample_spec), fail, err = -PA_ERR_INVALID);
 
     /* Don't restore (or save) stream volume for passthrough streams and
      * prevent attenuation/gain */
@@ -513,19 +508,19 @@ int pa_sink_input_new(
     if (!data->volume_writable)
         data->save_volume = false;
 
-    pa_goto_if_fail(pa_cvolume_compatible(&data->volume, &data->sample_spec), failed, err = -PA_ERR_INVALID);
+    pa_goto_if_fail(pa_cvolume_compatible(&data->volume, &data->sample_spec), fail, err = -PA_ERR_INVALID);
 
     if (!data->muted_is_set)
         data->muted = false;
 
     if (data->flags & PA_SINK_INPUT_FIX_FORMAT) {
-        pa_goto_if_fail(pa_format_info_is_pcm(data->format), failed, err = -PA_ERR_INVALID);
+        pa_goto_if_fail(pa_format_info_is_pcm(data->format), fail, err = -PA_ERR_INVALID);
         data->sample_spec.format = data->sink->sample_spec.format;
         pa_format_info_set_sample_format(data->format, data->sample_spec.format);
     }
 
     if (data->flags & PA_SINK_INPUT_FIX_RATE) {
-        pa_goto_if_fail(pa_format_info_is_pcm(data->format), failed, err = -PA_ERR_INVALID);
+        pa_goto_if_fail(pa_format_info_is_pcm(data->format), fail, err = -PA_ERR_INVALID);
         data->sample_spec.rate = data->sink->sample_spec.rate;
         pa_format_info_set_rate(data->format, data->sample_spec.rate);
     }
@@ -533,7 +528,7 @@ int pa_sink_input_new(
     original_cm = data->channel_map;
 
     if (data->flags & PA_SINK_INPUT_FIX_CHANNELS) {
-        pa_goto_if_fail(pa_format_info_is_pcm(data->format), failed, err = -PA_ERR_INVALID);
+        pa_goto_if_fail(pa_format_info_is_pcm(data->format), fail, err = -PA_ERR_INVALID);
         data->sample_spec.channels = data->sink->sample_spec.channels;
         data->channel_map = data->sink->channel_map;
         pa_format_info_set_channels(data->format, data->sample_spec.channels);
@@ -558,7 +553,8 @@ int pa_sink_input_new(
         /* rate update failed, or other parts of sample spec didn't match */
 
         pa_log_debug("Could not update sink sample spec to match passthrough stream");
-        return -PA_ERR_NOTSUPPORTED;
+        err = -PA_ERR_NOTSUPPORTED;
+        goto fail;
     }
 
     /* Due to the fixing of the sample spec the volume might not match anymore */
@@ -567,22 +563,22 @@ int pa_sink_input_new(
     if (data->resample_method == PA_RESAMPLER_INVALID)
         data->resample_method = core->resample_method;
 
-    pa_goto_if_fail(data->resample_method < PA_RESAMPLER_MAX, failed, err = -PA_ERR_INVALID);
+    pa_goto_if_fail(data->resample_method < PA_RESAMPLER_MAX, fail, err = -PA_ERR_INVALID);
 
-    if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_FIXATE], data)) < 0) {
-        err = r;
-        goto failed;
-    }
+    r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_FIXATE], data);
+    pa_assert(r >= 0);
 
     if ((data->flags & PA_SINK_INPUT_NO_CREATE_ON_SUSPEND) &&
         pa_sink_get_state(data->sink) == PA_SINK_SUSPENDED) {
         pa_log_warn("Failed to create sink input: sink is suspended.");
-        return -PA_ERR_BADSTATE;
+        err = -PA_ERR_BADSTATE;
+        goto fail;
     }
 
     if (pa_idxset_size(data->sink->inputs) >= PA_MAX_INPUTS_PER_SINK) {
         pa_log_warn("Failed to create sink input: too many inputs per sink.");
-        return -PA_ERR_TOOLARGE;
+        err = -PA_ERR_TOOLARGE;
+        goto fail;
     }
 
     if ((data->flags & PA_SINK_INPUT_VARIABLE_RATE) ||
@@ -601,23 +597,18 @@ int pa_sink_input_new(
                           (core->disable_remixing || (data->flags & PA_SINK_INPUT_NO_REMIX) ? PA_RESAMPLER_NO_REMIX : 0) |
                           (core->disable_lfe_remixing ? PA_RESAMPLER_NO_LFE : 0)))) {
                 pa_log_warn("Unsupported resampling operation.");
-                return -PA_ERR_NOTSUPPORTED;
+                err = -PA_ERR_NOTSUPPORTED;
+                goto fail;
             }
     }
-
-    i = pa_msgobject_new(pa_sink_input);
-    i->parent.parent.free = sink_input_free;
-    i->parent.process_msg = pa_sink_input_process_msg;
 
     i->core = core;
     i->state = PA_SINK_INPUT_INIT;
     i->flags = data->flags;
-    i->proplist = pa_proplist_copy(data->proplist);
     i->driver = pa_xstrdup(pa_path_get_filename(data->driver));
     i->module = data->module;
     i->sink = data->sink;
     i->origin_sink = data->origin_sink;
-    i->client = data->client;
 
     i->requested_resample_method = data->resample_method;
     i->actual_resample_method = resampler ? pa_resampler_get_method(resampler) : PA_RESAMPLER_INVALID;
@@ -704,13 +695,6 @@ int pa_sink_input_new(
             &i->sink->silence);
     pa_xfree(memblockq_name);
 
-    if (node) {
-        i->node = node;
-
-        node->state = PA_NODE_STATE_INIT;
-        node->owner = i;
-    }
-
     pt = pa_proplist_to_string_sep(i->proplist, "\n    ");
     pa_log_info("Created input %u \"%s\" on %s with sample spec %s and channel map %s\n    %s",
                 i->index,
@@ -726,9 +710,12 @@ int pa_sink_input_new(
     *_i = i;
     return 0;
 
- failed:
-    if (node)
-        pa_node_free(node);
+fail:
+    if (i) {
+        pa_sink_input_unlink(i);
+        pa_sink_input_unref(i);
+    }
+
     return err;
 }
 
@@ -959,9 +946,6 @@ void pa_sink_input_put(pa_sink_input *i) {
     i->thread_info.muted = i->muted;
 
     pa_assert_se(pa_asyncmsgq_send(i->sink->asyncmsgq, PA_MSGOBJECT(i->sink), PA_SINK_MESSAGE_ADD_INPUT, i, 0, NULL) == 0);
-
-    if (i->node)
-        pa_node_put(i->node);
 
     pa_subscription_post(i->core, PA_SUBSCRIPTION_EVENT_SINK_INPUT|PA_SUBSCRIPTION_EVENT_NEW, i->index);
     pa_hook_fire(&i->core->hooks[PA_CORE_HOOK_SINK_INPUT_PUT], i);

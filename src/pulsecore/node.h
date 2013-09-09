@@ -57,7 +57,6 @@ typedef enum {
 } pa_node_type_t;
 
 typedef enum {
-    PA_NODE_STATE_UNDER_CONSTRUCTION,
     PA_NODE_STATE_INIT,
     PA_NODE_STATE_LINKED,
     PA_NODE_STATE_UNLINKED
