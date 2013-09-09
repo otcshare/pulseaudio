@@ -212,6 +212,26 @@ void pa_node_unlink(pa_node *node) {
     pa_router_make_routing(core);
 }
 
+void *pa_node_get_owner(pa_node *node, pa_domain *domain) {
+    pa_domain *pulse_domain;
+
+    pa_assert(node);
+    pa_assert(node->core);
+
+    pa_assert_se((pulse_domain = node->core->router.pulse_domain));
+
+    if (!domain || domain == pulse_domain) {
+        pa_assert(node->type == PA_NODE_TYPE_PORT || node->type == PA_NODE_TYPE_SINK || node->type == PA_NODE_TYPE_SOURCE ||
+                  node->type == PA_NODE_TYPE_SINK_INPUT || node->type == PA_NODE_TYPE_SOURCE_OUTPUT);
+        return node->owner;
+    }
+
+    pa_assert(node->type == PA_NODE_TYPE_NONPULSE);
+    pa_assert(node->get_owner);
+
+    return node->get_owner(node, domain);
+}
+
 bool pa_node_available(pa_node *node, pa_domain *domain) {
     pa_assert(node);
     pa_assert(domain);
@@ -241,19 +261,19 @@ pa_node_features *pa_node_get_features(pa_node *node, pa_domain *domain, pa_node
     return features;
 }
 
-bool pa_node_set_features(pa_node *node, pa_domain *domain, pa_node_features *features) {
+bool pa_node_reserve_path_to_node(pa_node *node, pa_domain_routing_plan *plan, pa_node_features *features) {
     pa_assert(node);
-    pa_assert(domain);
+    pa_assert(plan);
     pa_assert(features);
 
-    return node->set_features ? node->set_features(node, domain, features) : true;
+    return node->reserve_path_to_node ? node->reserve_path_to_node(node, plan, features) : true;
 }
 
-bool pa_node_activate_features(pa_node *node, pa_domain *domain) {
+bool pa_node_activate_path_to_node(pa_node *node, pa_domain_routing_plan *plan) {
     pa_assert(node);
-    pa_assert(domain);
+    pa_assert(plan);
 
-    return node->activate_features ? node->activate_features(node, domain) : true;
+    return node->activate_path_to_node ? node->activate_path_to_node(node, plan) : true;
 }
 
 bool pa_node_common_features(pa_node_features *f1, pa_node_features *f2, pa_node_features *common) {

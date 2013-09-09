@@ -38,26 +38,31 @@ pa_connection_new_data *pa_connection_new_data_init(pa_connection_new_data *data
 }
 
 
-static bool get_connection_features(pa_node *input, pa_node *output, pa_domain *domain, pa_node_features *features) {
+static bool get_connection_features(pa_domain_routing_plan *plan, pa_node *input, pa_node *output, pa_node_features *features) {
     pa_node_features *feat1, *feat2;
     pa_node_features buf1, buf2;
 
     pa_assert(input);
     pa_assert(output);
+    pa_assert(plan);
+    pa_assert(plan->domain);
     pa_assert(features);
 
-    feat1 = pa_node_get_features(input, domain, &buf1);
-    feat2 = pa_node_get_features(output, domain, &buf2);
+
+    feat1 = pa_node_get_features(input, plan->domain, &buf1);
+    feat2 = pa_node_get_features(output, plan->domain, &buf2);
 
     return pa_node_common_features(feat1, feat2, features);
 }
 
-static pa_connection *setup_new_connection(pa_node *input, pa_node *output, pa_connection_type_t type, uint64_t key) {
+static pa_connection *setup_new_connection(pa_node *input, pa_node *output, pa_connection_type_t type, uint32_t routing_plan_id, uint64_t key) {
     pa_core *core;
     pa_router *router;
     pa_domain *domain;
+    pa_domain_routing_plan *plan;
     pa_node_features features;
     pa_connection *conn;
+    bool nodes_available;
 
     pa_assert(output);
     pa_assert(input);
@@ -71,18 +76,20 @@ static pa_connection *setup_new_connection(pa_node *input, pa_node *output, pa_c
         return NULL;
     }
 
-    if (!pa_node_available(input, domain)) {
-        pa_log_debug("     can't connect '%s' => '%s'. Input unavailable", input->name, output->name);
-        return NULL;
+    pa_assert_se((plan = pa_domain_get_routing_plan(domain, routing_plan_id)));
+
+    pa_assert(routing_plan_id == plan->id);
+    pa_assert(domain == plan->domain);
+
+    if (!(nodes_available = pa_node_available(input, domain) && pa_node_available(output, domain))) {
+        if (type != PA_CONN_TYPE_EXPLICIT) {
+            pa_log_debug("     can't connect '%s' (%d) => '%s' (%d). Node unavailable", input->name, input->index, output->name, output->index);
+            return NULL;
+        }
     }
 
-    if (!pa_node_available(output, domain)) {
-        pa_log_debug("     can't connect '%s' => '%s'. Output unavailable", input->name, output->name);
-        return NULL;
-    }
-
-    if (!get_connection_features(input, output, domain, &features)) {
-        pa_log_debug("     can't connect '%s' => '%s'. Feauture mismatch", input->name, output->name);
+    if (!get_connection_features(plan, input, output, &features)) {
+        pa_log_debug("     can't connect '%s' (%u) => '%s' (%u). Feauture mismatch", input->name, input->index, output->name, output->index);
         return NULL;
     }
 
@@ -93,33 +100,43 @@ static pa_connection *setup_new_connection(pa_node *input, pa_node *output, pa_c
     conn->output_index = output->index;
     conn->key = key;
     conn->domain_index = domain->index;
-    conn->stamp = router->stamp;
+    conn->routing_plan_id = routing_plan_id;
 
     pa_assert(!pa_hashmap_put(router->connections, &conn->key, conn));
 
-    if (!pa_node_set_features(input, domain, &features)) {
-        pa_log_debug("     can't connect '%s' => '%s'. Failed to set input features", input->name, output->name);
-        goto failed_to_set_features;
+    if (!nodes_available) {
+        pa_log_debug("     created new dormant connection '%s' (%u) => '%s' (%u)", input->name, input->index, output->name, output->index);
+        conn->userdata = NULL;
     }
+    else {
+        if (!pa_node_reserve_path_to_node(input, plan, &features)) {
+            pa_log_debug("     can't connect '%s' => '%s'. Failed to set input features", input->name, output->name);
+            goto failed_to_set_features;
+        }
 
-    if (!pa_node_set_features(output, domain, &features)) {
-        pa_log_debug("     can't connect '%s' => '%s'. Failed to set output features", input->name, output->name);
-        goto failed_to_set_features;
+        if (!pa_node_reserve_path_to_node(output, plan, &features)) {
+            pa_log_debug("     can't connect '%s' => '%s'. Failed to set output features", input->name, output->name);
+            goto failed_to_set_features;
+        }
+
+        pa_log_debug("     setup new connection '%s' (%u) => '%s' (%u)", input->name, input->index, output->name, output->index);
+        conn->userdata = pa_domain_create_new_connection(plan, input, output);
     }
 
     return conn;
 
  failed_to_set_features:
-    if (conn->type == PA_CONN_TYPE_IMPLICIT)
+    if (conn->type != PA_CONN_TYPE_EXPLICIT)
         pa_connection_free(conn);
 
     return NULL;
 }
 
-static pa_connection *reallocate_connection(pa_connection *conn, pa_node *input, pa_node *output, pa_connection_type_t type) {
+static pa_connection *reallocate_connection(pa_connection *conn, pa_node *input, pa_node *output, pa_connection_type_t type, uint32_t routing_plan_id) {
     pa_core *core;
     pa_router *router;
     pa_domain *domain;
+    pa_domain_routing_plan *plan;
     pa_node_features features;
 
     pa_assert_se((core = conn->core));
@@ -128,51 +145,55 @@ static pa_connection *reallocate_connection(pa_connection *conn, pa_node *input,
 
     router = &core->router;
 
-    if (!(domain = pa_idxset_get_by_index(router->domains, conn->domain_index))) {
-        pa_log_debug("     removing invalid connection '%s' => '%s'. Nonexistent domain", input->name, output->name);
-        pa_connection_free(conn);
-        return NULL;
-    }
+    pa_assert_se((domain = pa_idxset_get_by_index(router->domains, conn->domain_index)));
+    pa_assert_se((plan = pa_domain_get_routing_plan(domain, routing_plan_id)));
 
-    /* convert an implicit route to explicit */
+    pa_assert(routing_plan_id == plan->id);
+    pa_assert(domain == plan->domain);
+
+    /* convert an implicit route to explicit, if needed */
     if (conn->type != PA_CONN_TYPE_EXPLICIT && type == PA_CONN_TYPE_EXPLICIT) {
         conn->type = PA_CONN_TYPE_EXPLICIT;
+        /* TODO: check the possible disasterous consequences of the following lines
+           if we happend to iterate the same hashmap */
         pa_hashmap_remove(router->connections, &conn->key);
         pa_assert(!pa_hashmap_put(router->connections, &conn->key, conn));
         pa_log_debug("     converted connection '%s' => '%s' to explicit", input->name, output->name);
     }
 
-    /* allocate the features we need */
-    if (conn->stamp != router->stamp) {
-        if (!get_connection_features(input, output, domain, &features)) {
+    /* if the connection is not part of the plan reserve the pathes to nodes */
+    if (conn->routing_plan_id == routing_plan_id)
+        pa_log_debug("     nothing to do: connection '%s' (%u) => '%s' (%u) is already part of the plan",
+                     input->name, input->index, output->name, output->index);
+    else {
+        if (!get_connection_features(plan, input, output, &features)) {
             pa_log_debug("     can't connect '%s' => '%s'. Feauture mismatch", input->name, output->name);
-            if (conn->type == PA_CONN_TYPE_IMPLICIT)
-                pa_connection_free(conn);
             return NULL;
         }
 
-        conn->stamp = router->stamp;
-
-        if (pa_node_available(input, domain) && pa_node_available(output, domain)) {
-            if (!pa_node_set_features(input, domain, &features)) {
+        if (!pa_node_available(input, domain) || pa_node_available(output, domain)) {
+            if (conn->type != PA_CONN_TYPE_EXPLICIT)
+                return NULL;
+        } else {
+            if (!pa_node_reserve_path_to_node(input, plan, &features)) {
                 pa_log_debug("     can't connect '%s' => '%s'. Failed to set input features", input->name, output->name);
-                goto failed_to_set_features;
+                return NULL;
             }
 
-            if (!pa_node_set_features(output, domain, &features)) {
+            if (!pa_node_reserve_path_to_node(output, plan, &features)) {
                 pa_log_debug("     can't connect '%s' => '%s'. Failed to set output features", input->name, output->name);
-                goto failed_to_set_features;
+                return NULL;
             }
         }
+
+        conn->routing_plan_id = routing_plan_id;
+
+        pa_domain_update_existing_connection(plan, conn->userdata);
+
+        pa_log_debug("     reallocated connection '%s' (%u) => '%s' (%u)", input->name, input->index, output->name, output->index);
     }
 
     return conn;
-
- failed_to_set_features:
-    if (conn->type == PA_CONN_TYPE_IMPLICIT)
-        pa_connection_free(conn);
-
-    return NULL;
 }
 
 
@@ -216,39 +237,35 @@ pa_connection *pa_connection_new(pa_core *core, pa_connection_new_data *data) {
 
     key = ((uint64_t)input->index << 32) | (uint64_t)output->index;
 
-    if ((conn = pa_hashmap_get(router->connections, &key))) {
+    if ((conn = pa_hashmap_get(router->connections, &key)))
         /* existing connection */
-        if (!(conn = reallocate_connection(conn, input, output, data->type)))
-            return NULL;
+        return reallocate_connection(conn, input, output, data->type, data->routing_plan_id);
 
-        pa_log_debug("     reallocated connection '%s' => '%s'", input->name, output->name);
-    }
-    else {
-        /* new connection */
-        if (!(conn = setup_new_connection(input, output, data->type, key)))
-            return NULL;
-
-        pa_log_debug("     setup new connection '%s' => '%s'", input->name, output->name);
-    }
-
-    return conn;
+    /* new connection */
+    return setup_new_connection(input, output, data->type, data->routing_plan_id, key);
 }
 
 void pa_connection_free(pa_connection *conn) {
     pa_core *core;
     pa_router *router;
+    pa_domain *domain;
+    pa_domain_routing_plan *plan;
 
     pa_assert(conn);
     pa_assert_se((core = conn->core));
 
     router = &core->router;
 
+    if ((domain = pa_idxset_get_by_index(router->domains, conn->domain_index)) &&
+        (plan = pa_domain_get_routing_plan(domain, conn->routing_plan_id)))
+        pa_domain_delete_connection(plan, conn->userdata);
+
     pa_assert_se(conn == pa_hashmap_remove(router->connections, &conn->key));
 
     pa_xfree(conn);
 }
 
-pa_connection *pa_connection_update(pa_connection *conn) {
+pa_connection *pa_connection_update(pa_connection *conn, uint32_t routing_plan_id) {
     pa_core *core;
     pa_node *input, *output;
 
@@ -257,22 +274,19 @@ pa_connection *pa_connection_update(pa_connection *conn) {
 
     if (!(input = pa_idxset_get_by_index(core->nodes, conn->input_index)) ||
         !(output = pa_idxset_get_by_index(core->nodes, conn->output_index))) {
-        pa_log_debug("can't update connection '%s'(%d) => '%s' (%d). Nonexisting node",
-                     input ? input->name : "<nonexistent>", conn->input_index,
-                     output ? output->name : "<nonexistent>", conn->output_index);
-        pa_connection_free(conn);
+        if (conn->type == PA_CONN_TYPE_IMPLICIT) {
+            pa_log_debug("     delete connection '%s'(%u) => '%s' (%u). Nonexisting node",
+                         input ? input->name : "<nonexistent>", conn->input_index,
+                         output ? output->name : "<nonexistent>", conn->output_index);
+            pa_connection_free(conn);
+        }
         return NULL;
     }
 
-    if (!(conn = reallocate_connection(conn, input, output, conn->type)))
-        return NULL;
-
-    pa_log_debug("     updated connection '%s' => '%s'", input->name, output->name);
-
-    return conn;
+    return reallocate_connection(conn, input, output, conn->type, routing_plan_id);
 }
 
-bool pa_connection_is_valid(pa_connection *conn) {
+bool pa_connection_isvalid(pa_connection *conn) {
     pa_core *core;
     pa_router *router;
     pa_domain *domain;
@@ -283,29 +297,27 @@ bool pa_connection_is_valid(pa_connection *conn) {
 
     router = &core->router;
 
+    pa_assert_se((domain = pa_idxset_get_by_index(router->domains, conn->domain_index)));
+
     if (!(input = pa_idxset_get_by_index(core->nodes, conn->input_index)) ||
-        !(output = pa_idxset_get_by_index(core->nodes, conn->output_index)) ||
-        !(domain = pa_idxset_get_by_index(router->domains, conn->domain_index)))
+        !(output = pa_idxset_get_by_index(core->nodes, conn->output_index)))
         return false;
 
     return true;
 }
 
-pa_connection *pa_connection_iterate(pa_core *core, void **state) {
+pa_domain_routing_plan *pa_connection_get_routing_plan(pa_connection *conn) {
+    pa_core *core;
     pa_router *router;
-    pa_connection *conn;
+    pa_domain *domain;
 
-    pa_assert(core);
-    pa_assert(state);
+    pa_assert(conn);
 
+    pa_assert_se((core = conn->core));
     router = &core->router;
 
-    while ((conn = pa_hashmap_iterate_backwards(router->connections, state, NULL))) {
-        if (pa_connection_is_valid(conn))
-            return conn;
+    if ((domain = router->pulse_domain)->index != conn->domain_index)
+        pa_assert_se((domain = pa_idxset_get_by_index(router->domains, conn->domain_index)));
 
-        pa_connection_free(conn);
-    }
-
-    return NULL;
+    return pa_domain_get_routing_plan(domain, conn->routing_plan_id);
 }

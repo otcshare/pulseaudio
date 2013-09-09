@@ -53,7 +53,8 @@ typedef enum {
     PA_NODE_TYPE_SINK,          /* owner: pa_sink */
     PA_NODE_TYPE_SOURCE,        /* owner: pa_source */
     PA_NODE_TYPE_SINK_INPUT,    /* owner: pa_sink_input or pa_sink_input_new_data depending on state*/
-    PA_NODE_TYPE_SOURCE_OUTPUT  /* owner: pa_source_output or pa_source_output_new_data depending on state */
+    PA_NODE_TYPE_SOURCE_OUTPUT, /* owner: pa_source_output or pa_source_output_new_data depending on state */
+    PA_NODE_TYPE_NONPULSE       /* owner: unknown */
 } pa_node_type_t;
 
 typedef enum {
@@ -103,10 +104,11 @@ struct pa_node {
 
     void *owner;
 
+    void *(*get_owner)(pa_node *, pa_domain *domain);
     bool (*available)(pa_node *node, pa_domain *domain);
     pa_node_features *(*get_features)(pa_node *node, pa_domain *domain, pa_node_features *buf);
-    bool (*set_features)(pa_node *node, pa_domain *domain, pa_node_features *features);
-    bool (*activate_features)(pa_node *node, pa_domain *domain);
+    bool (*reserve_path_to_node)(pa_node *node, pa_domain_routing_plan *routing_plan, pa_node_features *features);
+    bool (*activate_path_to_node)(pa_node *node, pa_domain_routing_plan *routing_plan);
 
     pa_node_implicit_route_data implicit_route;
 };
@@ -127,10 +129,11 @@ void pa_node_free(pa_node *node);
 void pa_node_put(pa_node *node);
 void pa_node_unlink(pa_node *node);
 
+void *pa_node_get_owner(pa_node *node, pa_domain *domain);
 bool pa_node_available(pa_node *node, pa_domain *domain);
 pa_node_features *pa_node_get_features(pa_node *node, pa_domain *domain, pa_node_features *buf);
-bool pa_node_set_features(pa_node *node, pa_domain *domain, pa_node_features *features);
-bool pa_node_activate_features(pa_node *node, pa_domain *domain);
+bool pa_node_reserve_path_to_node(pa_node *node, pa_domain_routing_plan *routing_plan, pa_node_features *features);
+bool pa_node_activate_path_to_node(pa_node *node, pa_domain_routing_plan *routing_plan);
 bool pa_node_common_features(pa_node_features *f1, pa_node_features *f2, pa_node_features *common);
 
 #endif

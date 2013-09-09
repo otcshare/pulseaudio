@@ -60,7 +60,6 @@ struct pa_router {
         pa_idxset *groups;
     } implicit_route;
     pa_hashmap *connections;
-    uint32_t stamp;
 };
 
 
@@ -92,7 +91,7 @@ struct pa_router_group_entry {
     pa_router_group *group;
     pa_node *node;
     bool blocked;
-    uint32_t stamp;
+    uint32_t routing_plan_id;
 };
 
 
