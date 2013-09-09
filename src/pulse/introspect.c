@@ -1921,8 +1921,7 @@ static void context_get_node_connection_info_callback(pa_pdispatch *pd, uint32_t
                 pa_tagstruct_getu32(t, &info.input_node) < 0 ||
                 info.input_node == PA_INVALID_INDEX ||
                 pa_tagstruct_getu32(t, &info.output_node) < 0 ||
-                info.output_node == PA_INVALID_INDEX ||
-                pa_tagstruct_get_direction(t, &info.direction)) {
+                info.output_node == PA_INVALID_INDEX) {
 
                 pa_context_fail(o->context, PA_ERR_PROTOCOL);
                 goto finish;
