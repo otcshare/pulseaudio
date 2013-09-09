@@ -353,7 +353,7 @@ void pa_router_unregister_node(pa_node *node) {
     }
 }
 
-static void make_explicit_routing(pa_core *core) {
+static void make_explicit_routing(pa_core *core, uint32_t routing_plan_id) {
     pa_connection *conn;
     void *state;
 
@@ -365,21 +365,19 @@ static void make_explicit_routing(pa_core *core) {
         if (conn->type != PA_CONN_TYPE_EXPLICIT)
             continue;
 
-        pa_connection_update(conn);
+        pa_connection_update(conn, routing_plan_id);
     }
 
     pa_log_debug("explicit routing is done");
 }
 
-static void make_implicit_routing(pa_core *core) {
+static void make_implicit_routing(pa_core *core, uint32_t routing_plan_id) {
     pa_router *router;
     pa_sequence_list *e1, *e2, *n1, *n2;
     pa_node *node1, *node2;
     pa_router_group *group;
     pa_router_group_entry *rte;
     pa_connection_new_data data;
-    pa_connection *conn;
-    void *state;
 
     pa_assert(core);
 
@@ -403,6 +401,7 @@ static void make_implicit_routing(pa_core *core) {
             data.type = PA_CONN_TYPE_IMPLICIT;
             data.node1_index = node1->index;
             data.node2_index = node2->index;
+            data.routing_plan_id = routing_plan_id;
 
             if (pa_connection_new(core, &data)) {
                 pa_log_debug("      '%s' => '%s'", node1->name, node2->name);
@@ -411,29 +410,46 @@ static void make_implicit_routing(pa_core *core) {
         }
     }
 
-    pa_log_debug("purging unused implicit routes");
-
-
-    PA_CONNECTION_FOREACH(conn, core, state) {
-        if (conn->type != PA_CONN_TYPE_IMPLICIT)
-            continue;
-
-        if (conn->stamp != router->stamp) {
-            node1 = pa_idxset_get_by_index(core->nodes, conn->input_index);
-            node2 = pa_idxset_get_by_index(core->nodes, conn->output_index);
-
-            pa_log_debug("     removing unused implicit connection '%s'(%d) => '%s' (%d)",
-                         node1 ? node1->name : "<nonexistent>", node1->index,
-                         node2 ? node2->name : "<nonexistent>", node2->index);
-
-            pa_connection_free(conn);
-        }
-    }
-
     pa_log_debug("implicit routing is done");
 }
 
+static void implement_routes(pa_core *core, uint32_t routing_plan_id) {
+    pa_connection *conn;
+    void *state;
+    pa_node *input, *output;
+    pa_domain_routing_plan *plan;
+
+    pa_log_debug("implement routes");
+
+
+    PA_CONNECTION_FOREACH(conn, core, state) {
+        input = pa_idxset_get_by_index(core->nodes, conn->input_index);
+        output = pa_idxset_get_by_index(core->nodes, conn->output_index);
+
+        if (conn->routing_plan_id != routing_plan_id) {
+            pa_log_debug("     removing unused connection '%s'(%d) => '%s' (%d)",
+                         input ? input->name : "<nonexistent>", conn->input_index,
+                         output ? output->name : "<nonexistent>", conn->output_index);
+
+            pa_connection_free(conn);
+        }
+        else {
+            pa_assert(input);
+            pa_assert(output);
+            pa_assert_se((plan = pa_connection_get_routing_plan(conn)));
+
+            pa_log_debug("     implementing connection '%s'(%d) => '%s' (%d)", input->name, input->index, output->name, output->index);
+
+            pa_domain_implement_connection(plan, conn->userdata);
+        }
+    }
+
+    pa_log_debug("routing implementation done");
+}
+
 void pa_router_make_routing(pa_core *core) {
+    static uint32_t plan_id;
+
     pa_router *router;
     pa_domain *domain;
     uint32_t domidx;
@@ -441,14 +457,16 @@ void pa_router_make_routing(pa_core *core) {
     pa_assert(core);
     router = &core->router;
 
-    router->stamp++;
+    plan_id++;
 
     PA_IDXSET_FOREACH(domain, router->domains, domidx)
-        pa_domain_routing_start(domain);
+        pa_domain_create_routing_plan(domain, plan_id);
 
-    make_explicit_routing(core);
-    make_implicit_routing(core);
+    make_explicit_routing(core, plan_id);
+    make_implicit_routing(core, plan_id);
+
+    implement_routes(core, plan_id);
 
     PA_IDXSET_FOREACH(domain, router->domains, domidx)
-        pa_domain_routing_end(domain);
+        pa_domain_delete_routing_plan(domain, plan_id);
 }

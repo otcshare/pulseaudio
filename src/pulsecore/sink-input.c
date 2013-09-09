@@ -344,21 +344,37 @@ static pa_node_features *get_features(pa_node *node, pa_domain *domain, pa_node_
     return buf;
 }
 
-static bool set_features(pa_node *node, pa_domain *domain, pa_node_features *features) {
+static bool reserve_path_to_node(pa_node *node, pa_domain_routing_plan *plan, pa_node_features *features) {
+    pa_domain *domain;
+    pa_core *core;
+    pa_router *router;
+
     pa_assert(node);
     pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
-    pa_assert(domain);
+    pa_assert(plan);
     pa_assert(features);
 
-    return (domain == domain->core->router.pulse_domain);
+    pa_assert_se((domain = plan->domain));
+    pa_assert_se((core = domain->core));
+    router = &core->router;
+
+    return (domain == router->pulse_domain);
 }
 
-static bool activate_features(pa_node *node, pa_domain *domain) {
+static bool activate_path_to_node(pa_node *node, pa_domain_routing_plan *plan) {
+    pa_domain *domain;
+    pa_core *core;
+    pa_router *router;
+
     pa_assert(node);
     pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
-    pa_assert(domain);
+    pa_assert(plan);
 
-    return (domain == domain->core->router.pulse_domain);
+    pa_assert_se((domain = plan->domain));
+    pa_assert_se((core = domain->core));
+    router = &core->router;
+
+    return (domain == router->pulse_domain);
 }
 
 /* Called from main context */
@@ -427,8 +443,8 @@ int pa_sink_input_new(
         i->node->owner = i;
         i->node->available = available;
         i->node->get_features = get_features;
-        i->node->set_features = set_features;
-        i->node->activate_features = activate_features;
+        i->node->reserve_path_to_node = reserve_path_to_node;
+        i->node->activate_path_to_node = activate_path_to_node;
 
         pa_node_put(i->node);
     }

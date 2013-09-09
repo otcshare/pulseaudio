@@ -37,6 +37,7 @@ typedef enum {
 struct pa_connection_new_data {
     pa_connection_type_t type;
     uint32_t node1_index, node2_index;
+    uint32_t routing_plan_id;
 };
 
 struct pa_connection {
@@ -45,20 +46,20 @@ struct pa_connection {
     uint32_t input_index, output_index;
     uint64_t key;
     uint32_t domain_index;
-    uint32_t stamp;
+    uint32_t routing_plan_id;
+    void *userdata;  /* domian specific implementation of the connection */
 };
 
 pa_connection_new_data *pa_connection_new_data_init(pa_connection_new_data *data);
 pa_connection *pa_connection_new(pa_core *core, pa_connection_new_data *data);
-void pa_connection_free(pa_connection *conn);
+void pa_connection_free(pa_connection *connection);
 
-pa_connection *pa_connection_update(pa_connection *conn);
+pa_connection *pa_connection_update(pa_connection *connection, uint32_t routing_plan_id);
 
-bool pa_connection_is_valid(pa_connection *conn);
-
-pa_connection *pa_connection_iterate(pa_core *core, void **state);
+bool pa_connection_isvalid(pa_connection *connection);
+pa_domain_routing_plan *pa_connection_get_routing_plan(pa_connection *connection);
 
 #define PA_CONNECTION_FOREACH(conn, core, state) \
-    for ((state) = NULL, (conn) = pa_connection_iterate(core, &(state)); (conn); (conn) = pa_connection_iterate(core, &(state)))
+    for ((state) = NULL, (conn) = pa_hashmap_iterate_backwards(core->router.connections, &(state), NULL); (conn); (conn) = pa_hashmap_iterate_backwards(core->router.connections, &(state), NULL))
 
 #endif

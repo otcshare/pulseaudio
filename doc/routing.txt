@@ -1,0 +1,110 @@
+/************************
+ * client API for routers
+ ************************/
+/*
+ * calling any of the following routines will trigger a new
+ * routing cycle, ie. creation a new routing plan and execution of it
+ * (ie. a call for pa_router_make_routing)
+ */
+int pa_router_connect_nodes(pa_core *core, pa_node *node1, pa_node *node2)
+int pa_router_disconnect_nodes(pa_core *core, pa_node *node1, pa_node *node2)
+int pa_router_change_route(pa_core *core, pa_node *node1, pa_node *node2, pa_node *node3)
+
+/*************************
+ * domain interface
+ *************************/
+/*
+ * Create/Destroy domains
+ */
+pa_domain_new_data *pa_domain_new_data_init(pa_domain_new_data *data)
+void pa_domain_new_data_done(pa_domain_new_data *data)
+pa_domain *pa_domain_new(pa_core *core, pa_domain_new_data *data)
+void pa_domain_free(pa_domain *domain)
+
+/*
+ * Routing plan management:
+ *
+ * To prepare/finish a routing cycle domain implemenations
+ * routing_plan_new() and routing_plan_done() callback functions
+ * will be called respectively. This functions in turn should call the
+ * pa_domain_routing_plan_new() and  pa_domain_routing_plan_done()
+ * respectively to manage the common part of the pa_domain_routing_plan
+ * structure.
+ */
+pa_domain_routing_plan *pa_domain_routing_plan_new(pa_domain *domain, uint32_t routing_plan_id, size_t extra)
+void pa_domain_routing_plan_done(pa_domain_routing_plan *routing_plan)
+
+struct pa_domain {
+    ...
+    pa_domain_routing_plan *(*create_new_routing_plan)(pa_domain *domain, uint32_t routing_plan_id);
+    void (*routing_plan_done)(pa_routing_plan *routing_plan);
+    ...
+}
+
+/*
+ * Connection management in domains:
+ *
+ * create_new_connection() is called whenever a new connection is built and it supposed to return
+ * a void pointer to the domain specific implementation of th connection. This void pointer is
+ * passed to the other connection management routines as 'connection'.
+ *
+ * update_existing_connection() is to include a connection from an old routing plan into the routing
+ * plan under construction, ie. the routing plan identified by the 'routing_plan' argument.
+ *
+ * Connecting nodes in a routing plan happens in two phases. In the firstphase  create_new_connection()
+ * and update_existing_connection() are called to prepare connection in the routing plan under construction.
+ * Whenever the construction is ready, the routing plan will be executed and implement_connection() will
+ * will be called to set up the actual link that are part of the new plan and delete_connection() is called
+ * to destroy the connections that are no more part of the routing plan.
+ *
+ * Before these domain specific callbacks are called the reserve_path_to_node() which is also implemented
+ * by the domain controller, ie. the domain controller created the node and provided the domain controller
+ * specific callbacks to manage the node.
+ *
+ * In 'pulse-domain' for instance reserve_path_to_node() supposed to set profiles and port, if applies,
+ * while implement_connection() is to call pa_sink_input_move_to(), pa_source_output_move_to() and/or load
+ * looback modules etc.
+ *
+ * For a more complex example lets consider a DSP domain implementation, that exposes the same node in both
+ * the DSP and the 'pulse-domain'. For the 'pulse-domain' implementation a normal ALSA sink would be loaded
+ * but the actual node is created by the DSP domain implementation. If a connection is to build inside
+ * DSP domain the callback sequence is as follows:
+ *      DSP::reserve_path_to_node(dsp_node_1, dsp_domain, features)
+ *      DSP::reserve_path_to_node(dsp_node_2, dsp_domain, features)
+ *      connection = DSP::create_new_connection(dsp_domain, routing_plan, dsp_node_1, dsp_node_2)
+ *      ...
+ *      DSP::activate_path_to_node(dsp_node_1, dsp_domain, routing_plan)
+ *      DSP::activate_path_to_node(dsp_node_2, dsp_domain, routing_plan)
+ *      DSP::implement_connection(conection, routing_plan)
+ *
+ * If a connection were built in pulse domain the sequence look like:
+ *      Pulse::reserve_path_to_node(pulse_node, pulse_domain, features)
+ *      DSP::reserve_path_to_node(dsp_node, pulse_domain, features)
+ *      connection = Pulse::create_new_connection(pulse_domain, routing_plan, pulse_node, dsp_node)
+ *      ...
+ *      Pulse::activate_path_to_node(pulse_node, pulse_domain, routing_plan)
+ *      DSP::activate_path_to_node(dsp_node, pulse_domain, routing_plan) /* build the path from ALSA, inside the DSP */
+ *      Pulse::implement_connection(connection, routing_plan)
+ *
+ */
+struct pa_domain {
+    ...
+    void *(*create_new_connection)(pa_domain *domain, pa_routing_plan *routing_plan, pa_node *input, pa_node *output);
+    void (*update_existing_connection)(void *connection, pa_routing_plan *routing_plan);
+    void (*implement_connection)(void *connection, pa_routing_plan *routing_plan);
+    void (*delete_connection)(void *connection, pa_routing_plan *routing_plan);
+    ...
+}
+
+/*********************
+ * node interface
+ *********************/
+struct pa_node {
+    ...
+    bool (*available)(pa_node *node, pa_domain *domain);
+    ...
+    pa_node_features *(*get_features)(pa_node *node, pa_domain *domain, pa_node_features *buf);
+    ...
+    bool (*reserve_path_to_node)(pa_node *node, pa_node_routing_plan *routing_plan, pa_node_features *features);
+    bool (*activate_path_to_node)(pa_node *node, pa_node_routing_plan *routing_plan);
+}

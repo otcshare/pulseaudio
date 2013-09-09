@@ -28,6 +28,7 @@
 typedef struct pa_domain pa_domain;
 typedef struct pa_domain_new_data pa_domain_new_data;
 typedef uint32_t pa_domain_list;
+typedef struct pa_domain_routing_plan pa_domain_routing_plan;
 
 struct pa_domain_new_data {
     char *name;
@@ -39,7 +40,27 @@ struct pa_domain {
     uint32_t index;
     char *name;
 
-    uint32_t stamp;
+    pa_hashmap *routing_plans;
+    uint32_t routing_plan_id;
+
+    pa_domain_routing_plan *(*create_new_routing_plan)(pa_domain *domain, uint32_t routing_plan_id);
+    void (*delete_routing_plan)(pa_domain_routing_plan *routing_plan);
+
+    void *(*create_new_connection)(pa_domain_routing_plan *routing_plan, pa_node *input, pa_node *output);
+    void (*update_existing_connection)(pa_domain_routing_plan *routing_plan, void *connection);
+    void (*implement_connection)(pa_domain_routing_plan *routing_plan, void *connection);
+    void (*delete_connection)(pa_domain_routing_plan *routing_plan, void *connection);
+
+    void *userdata; /* domain implementation specific data */
+};
+
+#define PA_DOMAIN_ROUTING_PLAN_DATA(d) ((void*) ((uint8_t*)d + PA_ALIGN(sizeof(pa_domain_routing_plan))))
+
+struct pa_domain_routing_plan {
+    pa_domain *domain;
+    uint32_t id;  /* routing plan id */
+
+    /* followed by domain specific data */
 };
 
 pa_domain_new_data *pa_domain_new_data_init(pa_domain_new_data *data);
@@ -55,7 +76,16 @@ bool pa_domain_list_includes(pa_domain_list *list, pa_domain *domain);
 bool pa_domain_list_is_valid(pa_core *core, pa_domain_list *list);
 pa_domain *pa_domain_list_common(pa_core *core, pa_domain_list *list1, pa_domain_list *list2);
 
-void pa_domain_routing_start(pa_domain *domain);
-void pa_domain_routing_end(pa_domain *domain);
+pa_domain_routing_plan *pa_domain_create_routing_plan(pa_domain *domain, uint32_t routing_plan_id);
+void pa_domain_delete_routing_plan(pa_domain *domain, uint32_t routing_plan_id);
+
+pa_domain_routing_plan *pa_domain_routing_plan_new(pa_domain *domain, uint32_t routing_plan_id, size_t extra);
+void pa_domain_routing_plan_done(pa_domain_routing_plan *routing_plan);
+pa_domain_routing_plan *pa_domain_get_routing_plan(pa_domain *domain, uint32_t routing_plan_id);
+
+void *pa_domain_create_new_connection(pa_domain_routing_plan *plan, pa_node *input, pa_node *output);
+void pa_domain_update_existing_connection(pa_domain_routing_plan *plan, void *connection);
+void pa_domain_implement_connection(pa_domain_routing_plan *plan, void *connection);
+void pa_domain_delete_connection(pa_domain_routing_plan *plan, void *connection);
 
 #endif
