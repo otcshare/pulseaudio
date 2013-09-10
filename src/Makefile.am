@@ -885,6 +885,7 @@ libpulsecore_@PA_MAJORMINOR@_la_SOURCES = \
 		pulsecore/msgobject.c pulsecore/msgobject.h \
 		pulsecore/namereg.c pulsecore/namereg.h \
 		pulsecore/node.c pulsecore/node.h \
+		pulsecore/null-sink.c pulsecore/null-sink.h \
 		pulsecore/domain.c pulsecore/domain.h \
 		pulsecore/pulse-domain.c pulsecore/pulse-domain.h \
 		pulsecore/router.c pulsecore/router.h \

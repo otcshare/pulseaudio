@@ -30,6 +30,7 @@ typedef struct pa_sink_input pa_sink_input;
 #include <pulse/sample.h>
 #include <pulse/format.h>
 #include <pulsecore/memblockq.h>
+#include <pulsecore/null-sink.h>
 #include <pulsecore/resampler.h>
 #include <pulsecore/module.h>
 #include <pulsecore/client.h>
@@ -127,6 +128,15 @@ struct pa_sink_input {
     bool save_sink:1, save_volume:1, save_muted:1;
 
     pa_resample_method_t requested_resample_method, actual_resample_method;
+
+    /* Used for implementing the "not routed anywhere" scenario. Sink inputs
+     * must be always connected to some sink, but in the node-based routing
+     * system, it's possible that a sink input node is not routed to any other
+     * node. The solution is to load a private null sink that is not supposed
+     * to be used for any other purpose than as the fallback sink to satisfy
+     * the requirement to always have the sink input connected to some sink.
+     * When the sink input is freed, the private null sink is freed too. */
+    pa_null_sink *private_null_sink;
 
     /* Returns the chunk of audio data and drops it from the
      * queue. Returns -1 on failure. Called from IO thread context. If

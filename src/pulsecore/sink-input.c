@@ -403,8 +403,16 @@ int pa_sink_input_new(
     i->parent.parent.free = sink_input_free;
     i->parent.process_msg = pa_sink_input_process_msg;
 
+    i->core = core;
+    i->state = PA_SINK_INPUT_INIT;
+    pa_assert_se(pa_idxset_put(core->sink_inputs, i, &i->index) == 0);
+    i->flags = data->flags;
     i->client = data->client;
     i->proplist = pa_proplist_copy(data->proplist);
+    i->driver = pa_xstrdup(pa_path_get_filename(data->driver));
+    i->module = data->module;
+    i->origin_sink = data->origin_sink;
+    i->direct_outputs = pa_idxset_new(NULL, NULL);
 
     if (i->client)
         pa_proplist_update(i->proplist, PA_UPDATE_MERGE, i->client->proplist);
@@ -426,6 +434,11 @@ int pa_sink_input_new(
     r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_NEW], data);
     pa_assert(r >= 0);
 
+    i->sink = data->sink;
+
+    if (i->sink)
+        i->save_sink = data->save_sink;
+
     pa_return_val_if_fail(!data->driver || pa_utf8_valid(data->driver), -PA_ERR_INVALID);
 
     if (data->create_node) {
@@ -446,16 +459,54 @@ int pa_sink_input_new(
         i->node->reserve_path_to_node = reserve_path_to_node;
         i->node->activate_path_to_node = activate_path_to_node;
 
+        /* TODO: If i->sink is non-NULL prior to calling pa_node_put(), we
+         * should prevent the routing system from overriding the requested
+         * routing. */
+
         pa_node_put(i->node);
+
+        /* TODO: It's possible that the sink input will need to be routed to
+         * the private null sink also at a later time. When support for that is
+         * implemented, this code should probably be moved somewhere else so
+         * that the same code can be shared both during the initial routing
+         * phase and any later routing changes. */
+        if (!i->sink) {
+            pa_null_sink_new_data null_sink_data;
+            char *name;
+
+            pa_null_sink_new_data_init(&null_sink_data);
+            name = pa_sprintf_malloc("sink-input-%u-private-null-sink", i->index);
+            pa_null_sink_new_data_set_name(&null_sink_data, name);
+            pa_xfree(name);
+            pa_proplist_setf(null_sink_data.proplist,
+                             PA_PROP_DEVICE_DESCRIPTION, _("Private Null Output for Sink Input #%u"), i->index);
+
+            i->private_null_sink = pa_null_sink_new(core, &null_sink_data);
+            pa_null_sink_new_data_done(&null_sink_data);
+
+            if (i->private_null_sink) {
+                i->sink = pa_null_sink_get_sink(i->private_null_sink);
+                i->save_sink = false;
+            } else
+                pa_log("Failed to create a private null sink for sink input #%u (\"%s\").",
+                       i->index, pa_sink_input_get_description(i));
+        }
     }
 
-    if (!data->sink) {
-        pa_sink *sink = pa_namereg_get(core, NULL, PA_NAMEREG_SINK);
-        pa_goto_if_fail(sink, fail, err = -PA_ERR_NOENTITY);
-        pa_sink_input_new_data_set_sink(data, sink, false);
+    if (!i->sink) {
+        i->sink = pa_namereg_get(core, NULL, PA_NAMEREG_SINK);
+        pa_goto_if_fail(i->sink, fail, err = -PA_ERR_NOENTITY);
+        i->save_sink = false;
     }
     /* Routing's done, we have a sink. Now let's fix the format and set up the
      * sample spec */
+
+    /* FIXME: This is very ugly. i->sink has already been decided, so why are
+     * we setting data->sink at this point? The reason is that the format
+     * negotiation is done in pa_sink_input_new_data_set_sink(), and we may or
+     * may not have negotiated the format yet. If we have done the negotiation
+     * already, this will be a no-op. */
+    pa_sink_input_new_data_set_sink(data, i->sink, i->save_sink);
 
     /* If something didn't pick a format for us, pick the top-most format since
      * we assume this is sorted in priority order */
@@ -483,23 +534,23 @@ int pa_sink_input_new(
     if (pa_format_info_is_pcm(data->format) && pa_channel_map_valid(&map))
         pa_sink_input_new_data_set_channel_map(data, &map);
 
-    pa_goto_if_fail(PA_SINK_IS_LINKED(pa_sink_get_state(data->sink)), fail, err = -PA_ERR_BADSTATE);
+    pa_goto_if_fail(PA_SINK_IS_LINKED(pa_sink_get_state(i->sink)), fail, err = -PA_ERR_BADSTATE);
     pa_goto_if_fail(!data->sync_base || (data->sync_base->sink == data->sink && pa_sink_input_get_state(data->sync_base) == PA_SINK_INPUT_CORKED), fail, err = -PA_ERR_INVALID);
 
-    r = check_passthrough_connection(pa_sink_input_new_data_is_passthrough(data), data->sink);
+    r = check_passthrough_connection(pa_sink_input_new_data_is_passthrough(data), i->sink);
     if (r != PA_OK) {
         err = r;
         goto fail;
     }
 
     if (!data->sample_spec_is_set)
-        data->sample_spec = data->sink->sample_spec;
+        data->sample_spec = i->sink->sample_spec;
 
     pa_goto_if_fail(pa_sample_spec_valid(&data->sample_spec), fail, err = -PA_ERR_INVALID);
 
     if (!data->channel_map_is_set) {
-        if (pa_channel_map_compatible(&data->sink->channel_map, &data->sample_spec))
-            data->channel_map = data->sink->channel_map;
+        if (pa_channel_map_compatible(&i->sink->channel_map, &data->sample_spec))
+            data->channel_map = i->sink->channel_map;
         else
             pa_channel_map_init_extend(&data->channel_map, data->sample_spec.channels, PA_CHANNEL_MAP_DEFAULT);
     }
@@ -529,24 +580,24 @@ int pa_sink_input_new(
     if (!data->muted_is_set)
         data->muted = false;
 
-    if (data->flags & PA_SINK_INPUT_FIX_FORMAT) {
+    if (i->flags & PA_SINK_INPUT_FIX_FORMAT) {
         pa_goto_if_fail(pa_format_info_is_pcm(data->format), fail, err = -PA_ERR_INVALID);
-        data->sample_spec.format = data->sink->sample_spec.format;
+        data->sample_spec.format = i->sink->sample_spec.format;
         pa_format_info_set_sample_format(data->format, data->sample_spec.format);
     }
 
-    if (data->flags & PA_SINK_INPUT_FIX_RATE) {
+    if (i->flags & PA_SINK_INPUT_FIX_RATE) {
         pa_goto_if_fail(pa_format_info_is_pcm(data->format), fail, err = -PA_ERR_INVALID);
-        data->sample_spec.rate = data->sink->sample_spec.rate;
+        data->sample_spec.rate = i->sink->sample_spec.rate;
         pa_format_info_set_rate(data->format, data->sample_spec.rate);
     }
 
     original_cm = data->channel_map;
 
-    if (data->flags & PA_SINK_INPUT_FIX_CHANNELS) {
+    if (i->flags & PA_SINK_INPUT_FIX_CHANNELS) {
         pa_goto_if_fail(pa_format_info_is_pcm(data->format), fail, err = -PA_ERR_INVALID);
-        data->sample_spec.channels = data->sink->sample_spec.channels;
-        data->channel_map = data->sink->channel_map;
+        data->sample_spec.channels = i->sink->sample_spec.channels;
+        data->channel_map = i->sink->channel_map;
         pa_format_info_set_channels(data->format, data->sample_spec.channels);
         pa_format_info_set_channel_map(data->format, &data->channel_map);
     }
@@ -554,18 +605,18 @@ int pa_sink_input_new(
     pa_assert(pa_sample_spec_valid(&data->sample_spec));
     pa_assert(pa_channel_map_valid(&data->channel_map));
 
-    if (!(data->flags & PA_SINK_INPUT_VARIABLE_RATE) &&
-        !pa_sample_spec_equal(&data->sample_spec, &data->sink->sample_spec)) {
+    if (!(i->flags & PA_SINK_INPUT_VARIABLE_RATE) &&
+        !pa_sample_spec_equal(&data->sample_spec, &i->sink->sample_spec)) {
         /* try to change sink rate. This is done before the FIXATE hook since
            module-suspend-on-idle can resume a sink */
 
         pa_log_info("Trying to change sample rate");
-        if (pa_sink_update_rate(data->sink, data->sample_spec.rate, pa_sink_input_new_data_is_passthrough(data)) >= 0)
-            pa_log_info("Rate changed to %u Hz", data->sink->sample_spec.rate);
+        if (pa_sink_update_rate(i->sink, data->sample_spec.rate, pa_sink_input_new_data_is_passthrough(data)) >= 0)
+            pa_log_info("Rate changed to %u Hz", i->sink->sample_spec.rate);
     }
 
     if (pa_sink_input_new_data_is_passthrough(data) &&
-        !pa_sample_spec_equal(&data->sample_spec, &data->sink->sample_spec)) {
+        !pa_sample_spec_equal(&data->sample_spec, &i->sink->sample_spec)) {
         /* rate update failed, or other parts of sample spec didn't match */
 
         pa_log_debug("Could not update sink sample spec to match passthrough stream");
@@ -584,47 +635,39 @@ int pa_sink_input_new(
     r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_FIXATE], data);
     pa_assert(r >= 0);
 
-    if ((data->flags & PA_SINK_INPUT_NO_CREATE_ON_SUSPEND) &&
-        pa_sink_get_state(data->sink) == PA_SINK_SUSPENDED) {
+    if ((i->flags & PA_SINK_INPUT_NO_CREATE_ON_SUSPEND) &&
+        pa_sink_get_state(i->sink) == PA_SINK_SUSPENDED) {
         pa_log_warn("Failed to create sink input: sink is suspended.");
         err = -PA_ERR_BADSTATE;
         goto fail;
     }
 
-    if (pa_idxset_size(data->sink->inputs) >= PA_MAX_INPUTS_PER_SINK) {
+    if (pa_idxset_size(i->sink->inputs) >= PA_MAX_INPUTS_PER_SINK) {
         pa_log_warn("Failed to create sink input: too many inputs per sink.");
         err = -PA_ERR_TOOLARGE;
         goto fail;
     }
 
-    if ((data->flags & PA_SINK_INPUT_VARIABLE_RATE) ||
-        !pa_sample_spec_equal(&data->sample_spec, &data->sink->sample_spec) ||
-        !pa_channel_map_equal(&data->channel_map, &data->sink->channel_map)) {
+    if ((i->flags & PA_SINK_INPUT_VARIABLE_RATE) ||
+        !pa_sample_spec_equal(&data->sample_spec, &i->sink->sample_spec) ||
+        !pa_channel_map_equal(&data->channel_map, &i->sink->channel_map)) {
 
         /* Note: for passthrough content we need to adjust the output rate to that of the current sink-input */
         if (!pa_sink_input_new_data_is_passthrough(data)) /* no resampler for passthrough content */
             if (!(resampler = pa_resampler_new(
                           core->mempool,
                           &data->sample_spec, &data->channel_map,
-                          &data->sink->sample_spec, &data->sink->channel_map,
+                          &i->sink->sample_spec, &i->sink->channel_map,
                           data->resample_method,
-                          ((data->flags & PA_SINK_INPUT_VARIABLE_RATE) ? PA_RESAMPLER_VARIABLE_RATE : 0) |
-                          ((data->flags & PA_SINK_INPUT_NO_REMAP) ? PA_RESAMPLER_NO_REMAP : 0) |
-                          (core->disable_remixing || (data->flags & PA_SINK_INPUT_NO_REMIX) ? PA_RESAMPLER_NO_REMIX : 0) |
+                          ((i->flags & PA_SINK_INPUT_VARIABLE_RATE) ? PA_RESAMPLER_VARIABLE_RATE : 0) |
+                          ((i->flags & PA_SINK_INPUT_NO_REMAP) ? PA_RESAMPLER_NO_REMAP : 0) |
+                          (core->disable_remixing || (i->flags & PA_SINK_INPUT_NO_REMIX) ? PA_RESAMPLER_NO_REMIX : 0) |
                           (core->disable_lfe_remixing ? PA_RESAMPLER_NO_LFE : 0)))) {
                 pa_log_warn("Unsupported resampling operation.");
                 err = -PA_ERR_NOTSUPPORTED;
                 goto fail;
             }
     }
-
-    i->core = core;
-    i->state = PA_SINK_INPUT_INIT;
-    i->flags = data->flags;
-    i->driver = pa_xstrdup(pa_path_get_filename(data->driver));
-    i->module = data->module;
-    i->sink = data->sink;
-    i->origin_sink = data->origin_sink;
 
     i->requested_resample_method = data->resample_method;
     i->actual_resample_method = resampler ? pa_resampler_get_method(resampler) : PA_RESAMPLER_INVALID;
@@ -637,8 +680,8 @@ int pa_sink_input_new(
 
         /* When the 'absolute' bool is not set then we'll treat the volume
          * as relative to the sink volume even in flat volume mode */
-        remapped = data->sink->reference_volume;
-        pa_cvolume_remap(&remapped, &data->sink->channel_map, &data->channel_map);
+        remapped = i->sink->reference_volume;
+        pa_cvolume_remap(&remapped, &i->sink->channel_map, &data->channel_map);
         pa_sw_cvolume_multiply(&i->volume, &data->volume, &remapped);
     } else
         i->volume = data->volume;
@@ -656,7 +699,6 @@ int pa_sink_input_new(
     pa_cvolume_reset(&i->real_ratio, i->sample_spec.channels);
     i->volume_writable = data->volume_writable;
     i->save_volume = data->save_volume;
-    i->save_sink = data->save_sink;
     i->save_muted = data->save_muted;
 
     i->muted = data->muted;
@@ -670,8 +712,6 @@ int pa_sink_input_new(
         data->sync_base->sync_next = i;
     } else
         i->sync_next = i->sync_prev = NULL;
-
-    i->direct_outputs = pa_idxset_new(NULL, NULL);
 
     reset_callbacks(i);
     i->userdata = NULL;
@@ -692,7 +732,6 @@ int pa_sink_input_new(
     i->thread_info.playing_for = 0;
     i->thread_info.direct_outputs = pa_hashmap_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
 
-    pa_assert_se(pa_idxset_put(core->sink_inputs, i, &i->index) == 0);
     pa_assert_se(pa_idxset_put(i->sink->inputs, pa_sink_input_ref(i), NULL) == 0);
 
     if (i->client)
@@ -892,6 +931,9 @@ static void sink_input_free(pa_object *o) {
      * kind of sink input in any state, even those which are
      * "half-moved" or are connected to sinks that have no asyncmsgq
      * and are hence half-destructed themselves! */
+
+    if (i->private_null_sink)
+        pa_null_sink_free(i->private_null_sink);
 
     if (i->node)
         pa_node_free(i->node);
