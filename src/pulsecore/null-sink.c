@@ -52,11 +52,41 @@ void pa_null_sink_new_data_init(pa_null_sink_new_data *data) {
     data->proplist = pa_proplist_new();
 }
 
+void pa_null_sink_new_data_set_module(pa_null_sink_new_data *data, pa_module *module) {
+    pa_assert(data);
+
+    data->module = module;
+}
+
 void pa_null_sink_new_data_set_name(pa_null_sink_new_data *data, const char *name) {
     pa_assert(data);
 
     pa_xfree(data->name);
     data->name = pa_xstrdup(name);
+}
+
+void pa_null_sink_new_data_set_sample_spec(pa_null_sink_new_data *data, pa_sample_spec *spec) {
+    pa_assert(data);
+
+    if (spec) {
+        data->sample_spec = *spec;
+        data->sample_spec_is_set = true;
+    } else {
+        pa_zero(data->sample_spec);
+        data->sample_spec_is_set = false;
+    }
+}
+
+void pa_null_sink_new_data_set_channel_map(pa_null_sink_new_data *data, pa_channel_map *map) {
+    pa_assert(data);
+
+    if (map) {
+        data->channel_map = *map;
+        data->channel_map_is_set = true;
+    } else {
+        pa_zero(data->channel_map);
+        data->channel_map_is_set = false;
+    }
 }
 
 void pa_null_sink_new_data_done(pa_null_sink_new_data *data) {

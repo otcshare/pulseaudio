@@ -38,7 +38,10 @@ struct pa_null_sink_new_data {
 };
 
 void pa_null_sink_new_data_init(pa_null_sink_new_data *data);
+void pa_null_sink_new_data_set_module(pa_null_sink_new_data *data, pa_module *module);
 void pa_null_sink_new_data_set_name(pa_null_sink_new_data *data, const char *name);
+void pa_null_sink_new_data_set_sample_spec(pa_null_sink_new_data *data, pa_sample_spec *spec);
+void pa_null_sink_new_data_set_channel_map(pa_null_sink_new_data *data, pa_channel_map *map);
 void pa_null_sink_new_data_done(pa_null_sink_new_data *data);
 
 pa_null_sink *pa_null_sink_new(pa_core *core, pa_null_sink_new_data *null_sink_data);
