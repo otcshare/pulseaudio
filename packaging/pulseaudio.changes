@@ -1,3 +1,7 @@
+* Thu Sep 12 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- add libcap dependency
+- add key configuration to stream restore
+
 * Fri Aug 16 2013 Vivian Zhang <vivian.zhang@intel.com>
 - remove pulseaudio.service which launch pa in system mode
 
