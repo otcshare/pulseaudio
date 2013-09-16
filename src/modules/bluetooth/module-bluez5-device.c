@@ -1888,6 +1888,7 @@ static int add_card(struct userdata *u) {
     p = PA_CARD_PROFILE_DATA(cp);
     *p = PA_BLUETOOTH_PROFILE_OFF;
     pa_hashmap_put(data.profiles, cp->name, cp);
+    pa_card_new_data_set_profile(&data, "off");
 
     u->card = pa_card_new(u->core, &data);
     pa_card_new_data_done(&data);
