@@ -2295,6 +2295,7 @@ static int add_card(struct userdata *u) {
     d = PA_CARD_PROFILE_DATA(p);
     *d = PA_BLUEZ4_PROFILE_OFF;
     pa_hashmap_put(data.profiles, p->name, p);
+    pa_card_new_data_set_profile(&data, "off");
 
     if ((default_profile = pa_modargs_get_value(u->modargs, "profile", NULL))) {
         if (pa_hashmap_get(data.profiles, default_profile))
