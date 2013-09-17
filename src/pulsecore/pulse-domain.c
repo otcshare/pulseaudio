@@ -65,6 +65,44 @@ static void delete_routing_plan(pa_domain_routing_plan *plan) {
     pa_domain_routing_plan_done(plan);
 }
 
+static void *connect_sink_input_to_port(pa_sink_input *input, pa_device_port *port, bool save) {
+    pa_sink *sink;
+
+    pa_assert(input);
+    pa_assert(port);
+
+    pa_assert_se(sink = port->sink);
+    pa_assert(sink->active_port == port);
+
+    /* FIXME: There should be PA_SINK_INPUT_MOVING state, but there isn't, so
+     * we have to deduce that state from the fact that the input is linked,
+     * but input->sink is NULL. */
+    if (PA_SINK_INPUT_IS_LINKED(input->state) && !input->sink) {
+        if (pa_sink_input_finish_move(input, sink, save) < 0) {
+            pa_log("Failed to move input #%u (\"%s\") to sink %s.",
+                   input->index, pa_sink_input_get_description(input), sink->name);
+            /* FIXME: We should report an error here. */
+        }
+
+        return NULL;
+    }
+
+    if (PA_SINK_INPUT_IS_LINKED(input->state)) {
+        if (pa_sink_input_move_to(input, sink, save) < 0) {
+            pa_log("Failed to move input #%u (\"%s\") to sink %s.",
+                   input->index, pa_sink_input_get_description(input), sink->name);
+            /* FIXME: We should report an error here. */
+        }
+
+        return NULL;
+    }
+
+    pa_assert(input->state == PA_SINK_INPUT_INIT);
+    input->sink = sink;
+
+    return NULL;
+}
+
 static void *create_new_connection(pa_domain_routing_plan *plan, pa_node *input, pa_node *output) {
     static char *foo;
 
@@ -83,6 +121,10 @@ static void *create_new_connection(pa_domain_routing_plan *plan, pa_node *input,
     foo++;
 
     pa_log_debug("create new connection %p in pulse domain for routing plan %u", foo, plan->id);
+
+    if (input->type == PA_NODE_TYPE_SINK_INPUT && output->type == PA_NODE_TYPE_PORT)
+        /* FIXME: The save parameter shouldn't be hardcoded to false. */
+        return connect_sink_input_to_port((pa_sink_input *) input->owner, (pa_device_port *) output->owner, false);
 
     return foo;
 }

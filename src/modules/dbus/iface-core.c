@@ -712,7 +712,11 @@ static void handle_set_fallback_sink(DBusConnection *conn, DBusMessage *msg, DBu
         return;
     }
 
-    pa_namereg_set_default_sink(c->core, pa_dbusiface_device_get_sink(fallback_sink));
+    if (pa_namereg_set_default_sink(c->core, pa_dbusiface_device_get_sink(fallback_sink), true) < 0) {
+        pa_dbus_send_error(conn, msg, DBUS_ERROR_INVALID_ARGS, "Can't set %s as the default sink.",
+                           pa_dbusiface_device_get_sink(fallback_sink)->name);
+        return;
+    }
 
     pa_dbus_send_empty_reply(conn, msg);
 }
@@ -800,7 +804,11 @@ static void handle_set_fallback_source(DBusConnection *conn, DBusMessage *msg, D
         return;
     }
 
-    pa_namereg_set_default_source(c->core, pa_dbusiface_device_get_source(fallback_source));
+    if (pa_namereg_set_default_source(c->core, pa_dbusiface_device_get_source(fallback_source), true) < 0) {
+        pa_dbus_send_error(conn, msg, DBUS_ERROR_INVALID_ARGS, "Can't set %s as the default source.",
+                           pa_dbusiface_device_get_source(fallback_source)->name);
+        return;
+    }
 
     pa_dbus_send_empty_reply(conn, msg);
 }

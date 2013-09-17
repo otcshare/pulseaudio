@@ -107,8 +107,6 @@ pa_core* pa_core_new(pa_mainloop_api *m, bool shared, size_t shm_size) {
     c->default_source = NULL;
     c->default_sink = NULL;
 
-    pa_router_init(c);
-
     c->default_sample_spec.format = PA_SAMPLE_S16NE;
     c->default_sample_spec.rate = 44100;
     c->default_sample_spec.channels = 2;
@@ -155,6 +153,8 @@ pa_core* pa_core_new(pa_mainloop_api *m, bool shared, size_t shm_size) {
     pa_check_signal_is_blocked(SIGPIPE);
 #endif
 
+    pa_router_init(&c->router, c);
+
     pa_core_check_idle(c);
 
     c->state = PA_CORE_RUNNING;
@@ -168,6 +168,8 @@ static void core_free(pa_object *o) {
     pa_assert(c);
 
     c->state = PA_CORE_SHUTDOWN;
+
+    pa_router_done(&c->router);
 
     /* Note: All modules and samples in the cache should be unloaded before
      * we get here */

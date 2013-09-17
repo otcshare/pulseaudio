@@ -23,7 +23,7 @@
   USA.
 ***/
 
-typedef struct pa_router_module_registration_data pa_router_module_registration_data;
+typedef struct pa_router_policy_implementation_data pa_router_policy_implementation_data;
 typedef struct pa_router pa_router;
 typedef struct pa_router_group_new_data pa_router_group_new_data;
 typedef struct pa_router_group pa_router_group;
@@ -31,6 +31,7 @@ typedef struct pa_router_group_entry pa_router_group_entry;
 
 
 #include <pulsecore/core.h>
+#include <pulsecore/fallback-routing-policy.h>
 #include <pulsecore/sequence.h>
 #include <pulsecore/module.h>
 
@@ -41,15 +42,18 @@ typedef bool (*pa_router_group_accept_t)(pa_router_group *routing_group, pa_node
 typedef int (*pa_router_compare_t)(pa_node *node1, pa_node *node2);
 
 
-struct pa_router_module_registration_data {
+struct pa_router_policy_implementation_data {
+    pa_module *module;
     struct {
         pa_router_compare_t compare;
         pa_router_implicit_accept_t accept;
     } implicit_route;
+    void *userdata;
 };
 
 
 struct pa_router {
+    pa_core *core;
     pa_module *module;
     pa_idxset *domains;
     pa_domain *pulse_domain;
@@ -60,6 +64,8 @@ struct pa_router {
         pa_idxset *groups;
     } implicit_route;
     pa_hashmap *connections;
+    pa_fallback_routing_policy *fallback_policy;
+    void *userdata;
 };
 
 
@@ -95,12 +101,13 @@ struct pa_router_group_entry {
 };
 
 
-void pa_router_init(pa_core *core);
-void pa_router_free(pa_router *router);
+void pa_router_init(pa_router *router, pa_core *core);
+void pa_router_done(pa_router *router);
 
-pa_router_module_registration_data *pa_router_module_registration_data_init(pa_router_module_registration_data *data);
-int pa_router_module_register(pa_module *module, pa_router_module_registration_data *data);
-void pa_router_module_unregister(pa_module *module);
+void pa_router_policy_implementation_data_init(pa_router_policy_implementation_data *data);
+void pa_router_policy_implementation_data_done(pa_router_policy_implementation_data *data);
+int pa_router_register_policy_implementation(pa_router *router, pa_router_policy_implementation_data *data);
+void pa_router_unregister_policy_implementation(pa_router *router);
 
 pa_router_group_new_data *pa_router_group_new_data_init(pa_router_group_new_data *data);
 void pa_router_group_new_data_set_name(pa_router_group_new_data *data, const char *name);
@@ -108,6 +115,8 @@ void pa_router_group_new_data_done(pa_router_group_new_data *data);
 
 pa_router_group *pa_router_group_new(pa_core *core, pa_router_group_new_data *data);
 void pa_router_group_free(pa_router_group *node);
+
+void pa_router_group_update_target_ordering(pa_router_group *group);
 
 void pa_router_group_entry_free(pa_router_group_entry *entry);
 

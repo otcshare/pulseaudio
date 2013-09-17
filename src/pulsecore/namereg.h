@@ -41,11 +41,16 @@ const char *pa_namereg_register(pa_core *c, const char *name, pa_namereg_type_t 
 void pa_namereg_unregister(pa_core *c, const char *name);
 void* pa_namereg_get(pa_core *c, const char *name, pa_namereg_type_t type);
 
-pa_sink* pa_namereg_set_default_sink(pa_core*c, pa_sink *s);
-pa_source* pa_namereg_set_default_source(pa_core*c, pa_source *s);
+int pa_namereg_set_default_sink(pa_core*c, pa_sink *s, bool save);
+int pa_namereg_set_default_source(pa_core*c, pa_source *s, bool save);
 
 pa_sink *pa_namereg_get_default_sink(pa_core *c);
 pa_source *pa_namereg_get_default_source(pa_core *c);
+
+/* These two functions should only be called from pa_sink_put() and
+ * pa_sink_unlink(), and likewise for sources. */
+void pa_namereg_update_default_sink(pa_core *c);
+void pa_namereg_update_default_source(pa_core *c);
 
 bool pa_namereg_is_valid_name(const char *name);
 bool pa_namereg_is_valid_name_or_wildcard(const char *name, pa_namereg_type_t type);

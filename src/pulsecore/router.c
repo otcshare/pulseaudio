@@ -89,12 +89,11 @@ static int connection_compare(const void *a, const void *b) {
     return 0;
 }
 
-void pa_router_init(pa_core *core) {
-    pa_router *router;
-
+void pa_router_init(pa_router *router, pa_core *core) {
+    pa_assert(router);
     pa_assert(core);
-    router = &core->router;
 
+    router->core = core;
     router->module = NULL;
 
     router->domains = pa_idxset_new(NULL, NULL);
@@ -106,12 +105,17 @@ void pa_router_init(pa_core *core) {
     PA_SEQUENCE_HEAD_INIT(router->implicit_route.node_list, node_list_compare);
 
     router->connections = pa_hashmap_new(connection_hash, connection_compare);
+
+    router->fallback_policy = pa_fallback_routing_policy_new(core);
+    pa_assert(router->fallback_policy);
 }
 
-void pa_router_free(pa_router *router)
-{
+void pa_router_done(pa_router *router) {
     pa_assert(router);
     pa_assert(!router->module);
+
+    if (router->fallback_policy)
+        pa_fallback_routing_policy_free(router->fallback_policy);
 
     pa_pulse_domain_free(router->pulse_domain);
 
@@ -127,60 +131,72 @@ void pa_router_free(pa_router *router)
     pa_hashmap_free(router->connections, NULL);
 }
 
-pa_router_module_registration_data *pa_router_module_registration_data_init(pa_router_module_registration_data *data) {
+void pa_router_policy_implementation_data_init(pa_router_policy_implementation_data *data) {
     pa_assert(data);
 
     pa_zero(*data);
-
-    return data;
 }
 
-int pa_router_module_register(pa_module *module, pa_router_module_registration_data *data) {
-    pa_router *router;
+void pa_router_policy_implementation_data_done(pa_router_policy_implementation_data *data) {
+    pa_assert(data);
+}
 
-    pa_assert(module);
+int pa_router_register_policy_implementation(pa_router *router, pa_router_policy_implementation_data *data) {
+    pa_assert(router);
     pa_assert(data);
     pa_assert(data->implicit_route.accept);
     pa_assert(data->implicit_route.compare);
 
-    router = &module->core->router;
-
     if (router->module) {
-        pa_log("attempt to register multiple routing modules");
+        pa_log("Attempted to register multiple routing policy implementations.");
         return -1;
+    }
+
+    if (router->fallback_policy) {
+        pa_fallback_routing_policy_free(router->fallback_policy);
+        router->fallback_policy = NULL;
     }
 
     pa_assert(PA_SEQUENCE_IS_EMPTY(router->implicit_route.node_list));
 
-    router->module = module;
-
+    router->module = data->module;
     router->implicit_route.compare = data->implicit_route.compare;
     router->implicit_route.accept = data->implicit_route.accept;
+    router->userdata = data->userdata;
 
-    pa_log_info("router module '%s' registered", module->name);
+    if (router->module)
+        pa_log_info("router module '%s' registered", router->module->name);
+    else
+        pa_log_info("Registered the fallback routing policy implementation.");
 
     return 0;
 }
 
-void pa_router_module_unregister(pa_module *module) {
-    pa_router *router;
+void pa_router_unregister_policy_implementation(pa_router *router) {
     pa_sequence_list *l, *n;
     pa_router_group_entry *entry;
 
-    pa_assert(module);
+    pa_assert(router);
 
-    router = &module->core->router;
-
-    if (module != router->module) {
-        pa_log("attempt to unregister a non-registered routing module");
-        return;
-    }
+    if (router->module)
+        pa_log_info("Unregistering the routing policy implementation of %s.", router->module->name);
+    else
+        pa_log_info("Unregistering the fallback routing policy implementation.");
 
     PA_SEQUENCE_FOREACH_SAFE(l, n, router->implicit_route.node_list) {
         entry = PA_SEQUENCE_LIST_ENTRY(l, pa_router_group_entry, node_list);
         pa_router_group_entry_free(entry);
     }
 
+    if (router->module) {
+        pa_assert(!router->fallback_policy);
+        router->module = NULL;
+        router->fallback_policy = pa_fallback_routing_policy_new(router->core);
+        pa_assert(router->fallback_policy);
+    } else {
+        pa_assert(router->fallback_policy);
+        router->fallback_policy = NULL;
+    }
 }
 
 pa_router_group_new_data *pa_router_group_new_data_init(pa_router_group_new_data *data) {
@@ -283,6 +299,17 @@ void pa_router_group_free(pa_router_group *rtg) {
     }
 
     pa_xfree(rtg);
+}
+
+void pa_router_group_update_target_ordering(pa_router_group *group) {
+    bool changed;
+
+    pa_assert(group);
+
+    changed = pa_sequence_sort(&group->entries);
+
+    if (changed)
+        pa_router_make_routing(group->core);
 }
 
 static void router_group_add_node(pa_router_group *rtg, pa_node *node) {
@@ -448,7 +475,7 @@ static void implement_routes(pa_core *core, uint32_t routing_plan_id) {
 }
 
 void pa_router_make_routing(pa_core *core) {
-    static uint32_t plan_id;
+    static uint32_t plan_id = 0;
 
     pa_router *router;
     pa_domain *domain;

@@ -4351,6 +4351,7 @@ static void command_remove_proplist(pa_pdispatch *pd, uint32_t command, uint32_t
 static void command_set_default_sink_or_source(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_tagstruct *t, void *userdata) {
     pa_native_connection *c = PA_NATIVE_CONNECTION(userdata);
     const char *s;
+    int r;
 
     pa_native_connection_assert_ref(c);
     pa_assert(t);
@@ -4370,7 +4371,7 @@ static void command_set_default_sink_or_source(pa_pdispatch *pd, uint32_t comman
         source = pa_namereg_get(c->protocol->core, s, PA_NAMEREG_SOURCE);
         CHECK_VALIDITY(c->pstream, source, tag, PA_ERR_NOENTITY);
 
-        pa_namereg_set_default_source(c->protocol->core, source);
+        r = pa_namereg_set_default_source(c->protocol->core, source, true);
     } else {
         pa_sink *sink;
         pa_assert(command == PA_COMMAND_SET_DEFAULT_SINK);
@@ -4378,8 +4379,10 @@ static void command_set_default_sink_or_source(pa_pdispatch *pd, uint32_t comman
         sink = pa_namereg_get(c->protocol->core, s, PA_NAMEREG_SINK);
         CHECK_VALIDITY(c->pstream, sink, tag, PA_ERR_NOENTITY);
 
-        pa_namereg_set_default_sink(c->protocol->core, sink);
+        r = pa_namereg_set_default_sink(c->protocol->core, sink, true);
     }
+
+    CHECK_VALIDITY(c->pstream, r >= 0, tag, PA_ERR_INVALID);
 
     pa_pstream_send_simple_ack(c->pstream, tag);
 }

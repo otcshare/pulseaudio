@@ -175,6 +175,8 @@ pa_source* pa_source_new(
     const char *name;
     char st[PA_SAMPLE_SPEC_SNPRINT_MAX], cm[PA_CHANNEL_MAP_SNPRINT_MAX];
     char *pt;
+    pa_device_port *port;
+    void *state;
 
     pa_assert(core);
     pa_assert(data);
@@ -276,6 +278,9 @@ pa_source* pa_source_new(
     s->ports = data->ports;
     data->ports = NULL;
 
+    PA_HASHMAP_FOREACH(port, s->ports, state)
+        port->source = s;
+
     s->active_port = NULL;
     s->save_port = false;
 
@@ -284,12 +289,9 @@ pa_source* pa_source_new(
             s->save_port = data->save_port;
 
     if (!s->active_port) {
-        void *state;
-        pa_device_port *p;
-
-        PA_HASHMAP_FOREACH(p, s->ports, state)
-            if (!s->active_port || p->priority > s->active_port->priority)
-                s->active_port = p;
+        PA_HASHMAP_FOREACH(port, s->ports, state)
+            if (!s->active_port || port->priority > s->active_port->priority)
+                s->active_port = port;
     }
 
     if (s->active_port)
@@ -618,6 +620,8 @@ void pa_source_put(pa_source *s) {
     if (s->node)
         pa_node_put(s->node);
 
+    pa_namereg_update_default_source(s->core);
+
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SOURCE | PA_SUBSCRIPTION_EVENT_NEW, s->index);
     pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SOURCE_PUT], s);
 }
@@ -626,6 +630,8 @@ void pa_source_put(pa_source *s) {
 void pa_source_unlink(pa_source *s) {
     bool linked;
     pa_source_output *o, *j = NULL;
+    pa_device_port *port;
+    void *state;
 
     pa_assert(s);
     pa_assert_ctl_context();
@@ -641,8 +647,8 @@ void pa_source_unlink(pa_source *s) {
     if (s->node)
         pa_node_unlink(s->node);
 
-    if (s->state != PA_SOURCE_UNLINKED && s->name)
-        pa_namereg_unregister(s->core, s->name);
+    PA_HASHMAP_FOREACH(port, s->ports, state)
+        port->source = NULL;
 
     pa_idxset_remove_by_data(s->core->sources, s, NULL);
 
@@ -659,6 +665,14 @@ void pa_source_unlink(pa_source *s) {
         source_set_state(s, PA_SOURCE_UNLINKED);
     else
         s->state = PA_SOURCE_UNLINKED;
+
+    pa_namereg_update_default_source(s->core);
+
+    if (s->name) {
+        pa_namereg_unregister(s->core, s->name);
+        pa_xfree(s->name);
+        s->name = NULL;
+    }
 
     reset_callbacks(s);
 

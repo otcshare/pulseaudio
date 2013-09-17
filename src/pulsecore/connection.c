@@ -171,7 +171,7 @@ static pa_connection *reallocate_connection(pa_connection *conn, pa_node *input,
             return NULL;
         }
 
-        if (!pa_node_available(input, domain) || pa_node_available(output, domain)) {
+        if (!pa_node_available(input, domain) || !pa_node_available(output, domain)) {
             if (conn->type != PA_CONN_TYPE_EXPLICIT)
                 return NULL;
         } else {

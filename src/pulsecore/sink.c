@@ -188,6 +188,8 @@ pa_sink* pa_sink_new(
     pa_source_new_data source_data;
     const char *dn;
     char *pt;
+    pa_device_port *port;
+    void *state;
 
     pa_assert(core);
     pa_assert(data);
@@ -288,6 +290,9 @@ pa_sink* pa_sink_new(
     s->ports = data->ports;
     data->ports = NULL;
 
+    PA_HASHMAP_FOREACH(port, s->ports, state)
+        port->sink = s;
+
     s->active_port = NULL;
     s->save_port = false;
 
@@ -296,12 +301,9 @@ pa_sink* pa_sink_new(
             s->save_port = data->save_port;
 
     if (!s->active_port) {
-        void *state;
-        pa_device_port *p;
-
-        PA_HASHMAP_FOREACH(p, s->ports, state)
-            if (!s->active_port || p->priority > s->active_port->priority)
-                s->active_port = p;
+        PA_HASHMAP_FOREACH(port, s->ports, state)
+            if (!s->active_port || port->priority > s->active_port->priority)
+                s->active_port = port;
     }
 
     if (s->active_port)
@@ -674,6 +676,8 @@ void pa_sink_put(pa_sink* s) {
     if (s->node)
         pa_node_put(s->node);
 
+    pa_namereg_update_default_sink(s->core);
+
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_NEW, s->index);
     pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SINK_PUT], s);
 }
@@ -682,6 +686,8 @@ void pa_sink_put(pa_sink* s) {
 void pa_sink_unlink(pa_sink* s) {
     bool linked;
     pa_sink_input *i, *j = NULL;
+    pa_device_port *port;
+    void *state;
 
     pa_assert(s);
     pa_assert_ctl_context();
@@ -702,8 +708,8 @@ void pa_sink_unlink(pa_sink* s) {
     if (s->node)
         pa_node_unlink(s->node);
 
-    if (s->state != PA_SINK_UNLINKED && s->name)
-        pa_namereg_unregister(s->core, s->name);
+    PA_HASHMAP_FOREACH(port, s->ports, state)
+        port->sink = NULL;
 
     pa_idxset_remove_by_data(s->core->sinks, s, NULL);
 
@@ -720,6 +726,14 @@ void pa_sink_unlink(pa_sink* s) {
         sink_set_state(s, PA_SINK_UNLINKED);
     else
         s->state = PA_SINK_UNLINKED;
+
+    pa_namereg_update_default_sink(s->core);
+
+    if (s->name) {
+        pa_namereg_unregister(s->core, s->name);
+        pa_xfree(s->name);
+        s->name = NULL;
+    }
 
     reset_callbacks(s);
 

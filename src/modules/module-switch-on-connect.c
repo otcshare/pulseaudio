@@ -73,12 +73,18 @@ static pa_hook_result_t sink_put_hook_callback(pa_core *c, pa_sink *sink, void* 
             return PA_HOOK_OK;
     }
 
+    /* Sinks without a node (or sinks whose ports don't have nodes) are
+     * special purpose sinks that don't want random streams to connect to
+     * them. */
+    if (!sink->node && (!sink->active_port || !sink->active_port->node))
+        return PA_HOOK_OK;
+
     def = pa_namereg_get_default_sink(c);
     if (def == sink)
         return PA_HOOK_OK;
 
     /* Actually do the switch to the new sink */
-    pa_namereg_set_default_sink(c, sink);
+    pa_namereg_set_default_sink(c, sink, false);
 
     /* Now move all old inputs over */
     if (pa_idxset_size(def->inputs) <= 0) {
@@ -126,12 +132,18 @@ static pa_hook_result_t source_put_hook_callback(pa_core *c, pa_source *source, 
             return PA_HOOK_OK;
     }
 
+    /* Sources without a node (or sources whose ports don't have nodes) are
+     * special purpose sources that don't want random streams to connect to
+     * them. */
+    if (!source->node && (!source->active_port || !source->active_port->node))
+        return PA_HOOK_OK;
+
     def = pa_namereg_get_default_source(c);
     if (def == source)
         return PA_HOOK_OK;
 
     /* Actually do the switch to the new source */
-    pa_namereg_set_default_source(c, source);
+    pa_namereg_set_default_source(c, source, false);
 
     /* Now move all old outputs over */
     if (pa_idxset_size(def->outputs) <= 0) {

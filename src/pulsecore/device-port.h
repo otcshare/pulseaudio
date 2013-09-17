@@ -43,6 +43,11 @@ struct pa_device_port {
     pa_core *core;
     pa_card *card;
 
+    /* These are NULL when the port is not part of the currently active card
+     * profile. */
+    pa_sink *sink;
+    pa_source *source;
+
     char *name;
     char *description;
 

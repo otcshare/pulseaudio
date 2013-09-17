@@ -1035,10 +1035,15 @@ static int pa_cli_command_sink_default(pa_core *c, pa_tokenizer *t, pa_strbuf *b
         return -1;
     }
 
-    if ((s = pa_namereg_get(c, n, PA_NAMEREG_SINK)))
-        pa_namereg_set_default_sink(c, s);
-    else
+    if (!(s = pa_namereg_get(c, n, PA_NAMEREG_SINK))) {
         pa_strbuf_printf(buf, "Sink %s does not exist.\n", n);
+        return -1;
+    }
+
+    if (pa_namereg_set_default_sink(c, s, true) < 0) {
+        pa_strbuf_printf(buf, "Can't set %s as the default sink.", n);
+        return -1;
+    }
 
     return 0;
 }
@@ -1057,10 +1062,16 @@ static int pa_cli_command_source_default(pa_core *c, pa_tokenizer *t, pa_strbuf 
         return -1;
     }
 
-    if ((s = pa_namereg_get(c, n, PA_NAMEREG_SOURCE)))
-        pa_namereg_set_default_source(c, s);
-    else
+    if (!(s = pa_namereg_get(c, n, PA_NAMEREG_SOURCE))) {
         pa_strbuf_printf(buf, "Source %s does not exist.\n", n);
+        return -1;
+    }
+
+    if (pa_namereg_set_default_source(c, s, true) < 0) {
+        pa_strbuf_printf(buf, "Can't set %s as the default source.", n);
+        return -1;
+    }
+
     return 0;
 }
 

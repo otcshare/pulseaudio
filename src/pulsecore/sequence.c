@@ -24,10 +24,11 @@
 #include <config.h>
 #endif
 
+#include <pulsecore/macro.h>
+
 #include "sequence.h"
 
-void pa_sequence_insert(pa_sequence_head *head, pa_sequence_list *elem)
-{
+void pa_sequence_insert(pa_sequence_head *head, pa_sequence_list *elem) {
     pa_sequence_list *after, *before;
 
     for (after = head->list.prev;  after != &head->list;  after = after->prev) {
@@ -42,4 +43,41 @@ void pa_sequence_insert(pa_sequence_head *head, pa_sequence_list *elem)
 
     elem->next = before;
     elem->prev = after;
+}
+
+bool pa_sequence_sort(pa_sequence_head *head) {
+    pa_sequence_list *elem, *next, *after, *before;
+    bool changed = false;
+
+    pa_assert(head);
+
+    PA_SEQUENCE_FOREACH_SAFE(elem, next, *head) {
+        /* Detach elem temporarily from the list. */
+        next->prev = elem->prev;
+        elem->prev->next = next;
+
+        /* Find the new location for elem. The items before the original
+         * location are sorted, and the items after the original location are
+         * not. We only need to compare elem to the sorted items, so we start
+         * from elem->prev and continue towards the head of the list. */
+        for (after = elem->prev; after != &head->list; after = after->prev) {
+            if (head->compare(elem, after) >= 0) {
+                if (after != elem->prev)
+                    changed = true;
+
+                break;
+            }
+        }
+
+        /* Attach elem back to the list. */
+        before = after->next;
+
+        before->prev = elem;
+        after->next = elem;
+
+        elem->next = before;
+        elem->prev = after;
+    }
+
+    return changed;
 }

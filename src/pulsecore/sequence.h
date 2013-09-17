@@ -76,4 +76,7 @@ struct pa_sequence_head {
 
 void pa_sequence_insert(pa_sequence_head *head, pa_sequence_list *elem);
 
+/* Returns true if there were changes. */
+bool pa_sequence_sort(pa_sequence_head *head);
+
 #endif

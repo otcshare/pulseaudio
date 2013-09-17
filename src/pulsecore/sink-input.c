@@ -479,7 +479,7 @@ int pa_sink_input_new(
             pa_null_sink_new_data_set_name(&null_sink_data, name);
             pa_xfree(name);
             pa_proplist_setf(null_sink_data.proplist,
-                             PA_PROP_DEVICE_DESCRIPTION, _("Private Null Output for Sink Input #%u"), i->index);
+                             PA_PROP_DEVICE_DESCRIPTION, _("Private Null Sink for Sink Input #%u"), i->index);
 
             i->private_null_sink = pa_null_sink_new(core, &null_sink_data);
             pa_null_sink_new_data_done(&null_sink_data);

@@ -68,6 +68,8 @@ typedef enum pa_core_state {
 } pa_core_state_t;
 
 typedef enum pa_core_hook {
+    PA_CORE_HOOK_DEFAULT_SINK_CHANGED,
+    PA_CORE_HOOK_DEFAULT_SOURCE_CHANGED,
     PA_CORE_HOOK_SINK_NEW,
     PA_CORE_HOOK_SINK_FIXATE,
     PA_CORE_HOOK_SINK_PUT,
@@ -146,8 +148,10 @@ struct pa_core {
     pa_hashmap *namereg, *shared;
 
     /* The default sink/source */
-    pa_source *default_source;
     pa_sink *default_sink;
+    pa_source *default_source;
+    bool save_default_sink;
+    bool save_default_source;
 
     /* Router data */
     pa_router router;

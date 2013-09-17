@@ -29,6 +29,7 @@
 #include "module-murphy-symdef.h"
 
 struct userdata {
+    bool policy_registered;
     pa_router_group **groups;
 };
 
@@ -116,7 +117,8 @@ int pa__init(pa_module *m) {
     };
 
     struct userdata *u;
-    pa_router_module_registration_data data;
+    pa_router_policy_implementation_data data;
+    int r;
     pa_router_group **g;
     size_t ngroup, i;
 
@@ -124,11 +126,20 @@ int pa__init(pa_module *m) {
 
     m->userdata = u = pa_xnew0(struct userdata, 1);
 
-    pa_router_module_registration_data_init(&data);
+    pa_router_policy_implementation_data_init(&data);
+    data.module = m;
     data.implicit_route.compare = implicit_route_compare;
     data.implicit_route.accept = implicit_route_accept;
 
-    pa_router_module_register(m, &data);
+    r = pa_router_register_policy_implementation(&m->core->router, &data);
+    pa_router_policy_implementation_data_done(&data);
+
+    if (r < 0) {
+        pa_log("Failed to register the policy implementation.");
+        goto fail;
+    }
+
+    u->policy_registered = true;
 
     ngroup = PA_ELEMENTSOF(groups);
     u->groups = g = pa_xnew0(pa_router_group *, ngroup + 1);
@@ -137,6 +148,11 @@ int pa__init(pa_module *m) {
         g[i] = pa_router_group_new(m->core, groups + i);
 
     return 0;
+
+fail:
+    pa__done(m);
+
+    return -1;
 }
 
 void pa__done(pa_module *m) {
@@ -147,7 +163,8 @@ void pa__done(pa_module *m) {
     if (!(u = m->userdata))
         return;
 
-    pa_router_module_unregister(m);
+    if (u->policy_registered)
+        pa_router_unregister_policy_implementation(&m->core->router);
 
     pa_xfree(u->groups);
     pa_xfree(u);
