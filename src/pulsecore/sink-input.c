@@ -459,11 +459,11 @@ int pa_sink_input_new(
         i->node->reserve_path_to_node = reserve_path_to_node;
         i->node->activate_path_to_node = activate_path_to_node;
 
-        /* TODO: If i->sink is non-NULL prior to calling pa_node_put(), we
-         * should prevent the routing system from overriding the requested
-         * routing. */
-
-        pa_node_put(i->node);
+        if (pa_node_put(i->node) < 0) {
+            pa_log("Failed to route sink input \"%s\".", pa_sink_input_get_description(i));
+            err = -PA_ERR_INVALID;
+            goto fail;
+        }
 
         /* TODO: It's possible that the sink input will need to be routed to
          * the private null sink also at a later time. When support for that is

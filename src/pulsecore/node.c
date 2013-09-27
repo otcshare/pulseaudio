@@ -37,6 +37,7 @@ pa_node_new_data *pa_node_new_data_init(pa_node_new_data *data) {
     pa_domain_list_init(&data->domains);
     data->direction = PA_DIRECTION_OUTPUT;
     data->device_class = PA_DEVICE_CLASS_UNKNOWN;
+    data->implicit_routing_enabled = true;
 
     return data;
 }
@@ -80,11 +81,33 @@ void pa_node_new_data_set_device_class(pa_node_new_data *data, pa_device_class_t
     data->device_class = class;
 }
 
+void pa_node_new_data_set_explicit_connections(pa_node_new_data *data, pa_node * const *nodes, unsigned n_nodes) {
+    pa_assert(data);
+    pa_assert(nodes || n_nodes == 0);
+
+    pa_xfree(data->explicit_connections);
+    data->explicit_connections = pa_xmemdup(nodes, n_nodes * sizeof(*nodes));
+    data->n_explicit_connections = n_nodes;
+}
+
+void pa_node_new_data_set_implicit_routing_enabled(pa_node_new_data *data, bool enabled) {
+    pa_assert(data);
+
+    data->implicit_routing_enabled = enabled;
+}
+
+void pa_node_new_data_set_shared_routing_node(pa_node_new_data *data, pa_node *node) {
+    pa_assert(data);
+    pa_assert(node);
+
+    pa_log("Unimplemented: pa_node_new_data_set_shared_routing_node()");
+}
+
 void pa_node_new_data_done(pa_node_new_data *data) {
     pa_assert(data);
 
+    pa_xfree(data->explicit_connections);
     pa_domain_list_free(&data->domains);
-
     pa_xfree(data->description);
     pa_xfree(data->fallback_name_prefix);
 }
@@ -135,8 +158,13 @@ pa_node *pa_node_new(pa_core *core, pa_node_new_data *data) {
     n->description = pa_xstrdup(data->description);
     n->type = data->type;
     n->direction = data->direction;
-
     pa_domain_list_copy(&n->domains, &data->domains);
+    n->connections = pa_dynarray_new(NULL);
+    n->connected_nodes = pa_dynarray_new(NULL);
+    n->requested_explicit_connections = pa_xmemdup(data->explicit_connections,
+                                                   data->n_explicit_connections * sizeof(pa_node *));
+    n->n_requested_explicit_connections = data->n_explicit_connections;
+    n->explicit_connection_requests = pa_dynarray_new(NULL);
 
     PA_SEQUENCE_LIST_INIT(n->implicit_route.list);
     PA_SEQUENCE_HEAD_INIT(n->implicit_route.member_of, NULL);
@@ -152,8 +180,7 @@ fail:
 }
 
 void pa_node_free(pa_node *node) {
-    pa_sequence_list *l, *n;
-    pa_router_group_entry *entry;
+    pa_router_group_entry *entry, *next;
     pa_assert(node);
 
     if (node->state == PA_NODE_STATE_LINKED)
@@ -161,10 +188,19 @@ void pa_node_free(pa_node *node) {
 
     PA_SEQUENCE_REMOVE(node->implicit_route.list);
 
-    PA_SEQUENCE_FOREACH_SAFE(l, n, node->implicit_route.member_of) {
-        entry = PA_SEQUENCE_LIST_ENTRY(l, pa_router_group_entry, node_list);
+    PA_SEQUENCE_FOREACH_SAFE(entry, next, node->implicit_route.member_of, pa_router_group_entry, node_list)
         pa_router_group_entry_free(entry);
-    }
+
+    if (node->explicit_connection_requests)
+        pa_dynarray_free(node->explicit_connection_requests);
+
+    pa_xfree(node->requested_explicit_connections);
+
+    if (node->connected_nodes)
+        pa_dynarray_free(node->connected_nodes);
+
+    if (node->connections)
+        pa_dynarray_free(node->connections);
 
     pa_xfree(node->description);
 
@@ -177,17 +213,24 @@ void pa_node_free(pa_node *node) {
     pa_xfree(node);
 }
 
-void pa_node_put(pa_node *node) {
+int pa_node_put(pa_node *node) {
     pa_assert(node);
     pa_assert(node->state == PA_NODE_STATE_INIT);
     pa_assert(node->owner);
 
     node->state = PA_NODE_STATE_LINKED;
 
-    pa_router_register_node(node);
-    pa_router_make_routing(node->core);
+    pa_router_register_node(&node->core->router, node);
+    pa_router_make_routing(&node->core->router);
+
+    if (node->state == PA_NODE_STATE_UNLINKED) {
+        pa_log("Failed to route node %s.", node->name);
+        return -1;
+    }
 
     pa_log_debug("Created node %s.", node->name);
+
+    return 0;
 }
 
 void pa_node_unlink(pa_node *node) {
@@ -202,11 +245,17 @@ void pa_node_unlink(pa_node *node) {
 
     pa_log_debug("Unlinking node %s.", node->name);
 
-    pa_router_unregister_node(node);
+    pa_router_unregister_node(&core->router, node);
 
     node->state = PA_NODE_STATE_UNLINKED;
 
-    pa_router_make_routing(core);
+    pa_router_make_routing(&core->router);
+}
+
+const char *pa_node_get_name(pa_node *node) {
+    pa_assert(node);
+
+    return node->name;
 }
 
 void *pa_node_get_owner(pa_node *node, pa_domain *domain) {
@@ -227,6 +276,15 @@ void *pa_node_get_owner(pa_node *node, pa_domain *domain) {
     pa_assert(node->get_owner);
 
     return node->get_owner(node, domain);
+}
+
+pa_node * const *pa_node_get_connected_nodes(pa_node *node, unsigned *n) {
+    pa_assert(node);
+    pa_assert(n);
+
+    *n = pa_dynarray_size(node->connected_nodes);
+
+    return (pa_node * const *) pa_dynarray_get_array(node->connected_nodes);
 }
 
 bool pa_node_available(pa_node *node, pa_domain *domain) {
@@ -308,4 +366,18 @@ bool pa_node_common_features(pa_node_features *f1, pa_node_features *f2, pa_node
     }
 
     return true;
+}
+
+void pa_node_add_explicit_connection_request(pa_node *node, pa_explicit_connection_request *request) {
+    pa_assert(node);
+    pa_assert(request);
+
+    pa_dynarray_append(node->explicit_connection_requests, request);
+}
+
+int pa_node_remove_explicit_connection_request(pa_node *node, pa_explicit_connection_request *request) {
+    pa_assert(node);
+    pa_assert(request);
+
+    return pa_dynarray_remove_by_data_fast(node->explicit_connection_requests, request);
 }

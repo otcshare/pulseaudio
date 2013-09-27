@@ -3096,6 +3096,28 @@ char *pa_unescape(char *p) {
     return p;
 }
 
+char *pa_join_malloc(const char *separator, void **objects, unsigned n_objects, pa_to_string_func_t func) {
+    pa_strbuf *buf;
+    unsigned i;
+    bool first = true;
+
+    pa_assert(separator);
+    pa_assert(objects || n_objects == 0);
+    pa_assert(func);
+
+    buf = pa_strbuf_new();
+
+    for (i = 0; i < n_objects; i++) {
+        if (!first)
+            pa_strbuf_puts(buf, separator);
+
+        pa_strbuf_puts(buf, func(objects[i]));
+        first = false;
+    }
+
+    return pa_strbuf_tostring_free(buf);
+}
+
 char *pa_realpath(const char *path) {
     char *t;
     pa_assert(path);

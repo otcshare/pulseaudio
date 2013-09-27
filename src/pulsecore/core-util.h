@@ -56,6 +56,14 @@ struct timeval;
 #define RLIMIT_RTTIME 15
 #endif
 
+/* Prototype for functions that convert objects into strings. The function
+ * must not allocate a new string, so in practice most functions of this type
+ * will probably return a string that is already contained in the object. (This
+ * prototype was introduced for converting pa_node pointers into node names in
+ * pa_join_malloc(). It's hard to say at this point if this will ever be used
+ * for anything else.) */
+typedef const char *(*pa_to_string_func_t)(const void *object);
+
 void pa_make_fd_nonblock(int fd);
 void pa_make_fd_cloexec(int fd);
 
@@ -248,6 +256,10 @@ char *pa_escape(const char *p, const char *chars);
 
 /* Does regular backslash unescaping. Returns the argument p. */
 char *pa_unescape(char *p);
+
+/* Joins an array of objects into a string with a caller-provided separator.
+ * The objects are converted to strings using the provided function. */
+char *pa_join_malloc(const char *separator, void **objects, unsigned n_objects, pa_to_string_func_t func);
 
 char *pa_realpath(const char *path);
 

@@ -47,7 +47,7 @@ struct pa_connection {
     uint64_t key;
     uint32_t domain_index;
     uint32_t routing_plan_id;
-    void *userdata;  /* domian specific implementation of the connection */
+    void *userdata;  /* domain specific implementation of the connection */
 };
 
 pa_connection_new_data *pa_connection_new_data_init(pa_connection_new_data *data);

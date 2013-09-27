@@ -26,6 +26,12 @@
 typedef struct pa_sequence_list pa_sequence_list;
 typedef struct pa_sequence_head pa_sequence_head;
 
+#include <stdbool.h>
+
+/* Return values:
+ *      less than zero: entry1 should appear earlier than entry2
+ *                zero: entry1 is equal to entry2
+ *   greater than zero: entry1 should appear later than entry2 */
 typedef int (*pa_sequence_compare)(pa_sequence_list *entry1, pa_sequence_list *entry2);
 
 
@@ -54,20 +60,27 @@ struct pa_sequence_head {
 #define PA_SEQUENCE_LIST_ENTRY(ptr,type,member)                 \
     ((type *)((char *)ptr - (ptrdiff_t)((char *)(&((type *)0)->member) - (char *)0)))
 
-#define PA_SEQUENCE_FOREACH(elem,head)                          \
-    for (elem = (head).list.next;  (elem) != &(head).list; elem = (elem)->next)
+#define PA_SEQUENCE_FOREACH(elem, head, type, member)           \
+    for (elem = PA_SEQUENCE_LIST_ENTRY((head).list.next, type, member); \
+         (elem) != PA_SEQUENCE_LIST_ENTRY(&(head).list, type, member); \
+         elem = PA_SEQUENCE_LIST_ENTRY((elem)->member.next, type, member))
 
-#define PA_SEQUENCE_FOREACH_SAFE(elem,n,head)                   \
-    for (elem = (head).list.next, n = (elem)->next;  (elem) != &(head).list; n = (elem = n)->next)
+#define PA_SEQUENCE_FOREACH_SAFE(elem, n, head, type, member)   \
+    for (elem = PA_SEQUENCE_LIST_ENTRY((head).list.next, type, member), n = PA_SEQUENCE_LIST_ENTRY((elem)->member.next, type, member); \
+         (elem) != PA_SEQUENCE_LIST_ENTRY(&(head).list, type, member); \
+         n = PA_SEQUENCE_LIST_ENTRY((elem = n)->member.next, type, member))
+
+#define PA_SEQUENCE_FOREACH_ENTRY_SAFE(elem, n, head)           \
+    for (elem = (head).list.next, n = (elem)->next; (elem) != &(head).list; n = (elem = n)->next)
 
 #define PA_SEQUENCE_INSERT(head,elem) pa_sequence_insert(&(head), &(elem))
 
 #define PA_SEQUENCE_REMOVE(elem)                                \
     do {                                                        \
-        pa_sequence_list *next = (elem).next;                   \
-        pa_sequence_list *prev = (elem).prev;                   \
-        prev->next = next;                                      \
-        next->prev = prev;                                      \
+        pa_sequence_list *_next = (elem).next;                  \
+        pa_sequence_list *_prev = (elem).prev;                  \
+        _prev->next = _next;                                    \
+        _next->prev = _prev;                                    \
         (elem).next = (elem).prev = &(elem);                    \
     } while (0)
 

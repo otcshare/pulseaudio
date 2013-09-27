@@ -137,7 +137,10 @@ int pa_simple_write(pa_simple *s, const void *data, size_t bytes, int *error);
 /** Wait until all data already written is played by the daemon. */
 int pa_simple_drain(pa_simple *s, int *error);
 
-/** Read some data from the server. */
+/** Read some data from the server. This function blocks until \a bytes amount
+ * of data has been received from the server, or until an error occurs.
+ * Returns a negative value on failure. If \a error is non-NULL, the error code
+ * is stored in it. */
 int pa_simple_read(pa_simple *s, void *data, size_t bytes, int *error);
 
 /** Return the playback latency. */

@@ -617,8 +617,28 @@ void pa_source_put(pa_source *s) {
     else
         pa_assert_se(source_set_state(s, PA_SOURCE_IDLE) == 0);
 
-    if (s->node)
-        pa_node_put(s->node);
+    if (s->node) {
+        if (pa_node_put(s->node) < 0) {
+            pa_log("Failed to route source %s.", s->name);
+
+            /* FIXME: I'd like to use "goto fail" here, but pa_source_put() can
+             * never fail. Either pa_source_put() should be changed so that it
+             * can fail, or pa_node_put() should be called already in
+             * pa_source_new(). I like the latter option more, because it would
+             * be consistent with sink inputs (pa_sink_input_new() calls
+             * pa_node_put()), but I don't know if that would result in
+             * horrible hacks when routing streams to a source that is still in
+             * the initialization phase.
+             *
+             * By default sources won't require any connections, and if policy
+             * modules don't add connection requirements either, then the
+             * routing of a source node can never fail. One way to solve the
+             * problem would be to forbid policy modules from ever adding
+             * connection requirements to source nodes. If that is done, then
+             * this assertion could be left here. */
+            pa_assert_not_reached();
+        }
+    }
 
     pa_namereg_update_default_source(s->core);
 

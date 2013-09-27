@@ -51,7 +51,7 @@ bool pa_sequence_sort(pa_sequence_head *head) {
 
     pa_assert(head);
 
-    PA_SEQUENCE_FOREACH_SAFE(elem, next, *head) {
+    PA_SEQUENCE_FOREACH_ENTRY_SAFE(elem, next, *head) {
         /* Detach elem temporarily from the list. */
         next->prev = elem->prev;
         elem->prev->next = next;

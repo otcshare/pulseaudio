@@ -728,8 +728,15 @@ void pa_source_output_put(pa_source_output *o) {
 
     pa_assert_se(pa_asyncmsgq_send(o->source->asyncmsgq, PA_MSGOBJECT(o->source), PA_SOURCE_MESSAGE_ADD_OUTPUT, o, 0, NULL) == 0);
 
-    if (o->node)
-        pa_node_put(o->node);
+    if (o->node) {
+        if (pa_node_put(o->node) < 0) {
+            pa_log("Failed to route source output \"%s\".", pa_source_output_get_description(o));
+
+            /* FIXME: Move the pa_node_put() call to pa_source_output_new()
+             * (see how this is done for sink inputs). */
+            pa_assert_not_reached();
+        }
+    }
 
     pa_subscription_post(o->core, PA_SUBSCRIPTION_EVENT_SOURCE_OUTPUT|PA_SUBSCRIPTION_EVENT_NEW, o->index);
     pa_hook_fire(&o->core->hooks[PA_CORE_HOOK_SOURCE_OUTPUT_PUT], o);

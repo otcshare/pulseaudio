@@ -39,20 +39,45 @@ typedef struct pa_dynarray pa_dynarray;
  * be moved to fill the gap, so it's not efficient with large arrays. If the
  * order of the array is not important, however, functions with "fast" in their
  * name can be used, in which case the gap is filled by moving only the last
- * item(s). XXX: Currently there are no functions with "fast" in their name,
- * but such functions will be added if they are ever needed.
+ * item(s).
  *
  * The array doesn't support storing NULL pointers. */
 
 pa_dynarray* pa_dynarray_new(pa_free_cb_t free_cb);
+pa_dynarray* pa_dynarray_copy(pa_dynarray *array);
 void pa_dynarray_free(pa_dynarray *array);
 
 void pa_dynarray_append(pa_dynarray *array, void *p);
+
+/* If there's no element at index i, this function aborts. */
 void *pa_dynarray_get(pa_dynarray *array, unsigned i);
+
+/* If there's no element at index i, this function returns NULL. */
+void *pa_dynarray_get_safe(pa_dynarray *array, unsigned i);
+
+/* Returns NULL if the array is empty. */
+void *pa_dynarray_get_last(pa_dynarray *array);
+
+void pa_dynarray_remove_fast(pa_dynarray *array, unsigned i);
+
+/* The return value is negative if p can't be found in the array. If p is
+ * stored multiple times, only the first instance is removed. */
+int pa_dynarray_remove_by_data_fast(pa_dynarray *array, void *p);
 
 /* Returns the removed item, or NULL if the array is empty. */
 void *pa_dynarray_steal_last(pa_dynarray *array);
 
+void pa_dynarray_remove_all(pa_dynarray *array);
+
 unsigned pa_dynarray_size(pa_dynarray *array);
+
+/* Returns the internal array. Be careful with it: since it's internal memory
+ * of the dynarray, any modification to the dynarray will also modify the
+ * returned array, or the array may even get freed. So, don't save the array
+ * anywhere. If you have to save the array contents, make a copy. */
+void * const *pa_dynarray_get_array(pa_dynarray *array);
+
+#define PA_DYNARRAY_FOREACH(elem, array, idx) \
+    for ((idx) = 0; ((elem) = pa_dynarray_get_safe(array, idx)); (idx)++)
 
 #endif

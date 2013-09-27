@@ -156,7 +156,11 @@ pa_device_port *pa_device_port_new(pa_core *c, pa_device_port_new_data *data, si
         }
 
         p->node->owner = p;
-        pa_node_put(p->node);
+
+        if (pa_node_put(p->node) < 0) {
+            pa_log("Failed to route port %s.", p->name);
+            goto fail;
+        }
     }
 
     return p;

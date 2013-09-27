@@ -28,12 +28,13 @@ typedef struct pa_router pa_router;
 typedef struct pa_router_group_new_data pa_router_group_new_data;
 typedef struct pa_router_group pa_router_group;
 typedef struct pa_router_group_entry pa_router_group_entry;
-
+typedef struct pa_explicit_connection_request pa_explicit_connection_request;
 
 #include <pulsecore/core.h>
 #include <pulsecore/fallback-routing-policy.h>
-#include <pulsecore/sequence.h>
 #include <pulsecore/module.h>
+#include <pulsecore/routing-plan.h>
+#include <pulsecore/sequence.h>
 
 #include "domain.h"
 
@@ -63,7 +64,11 @@ struct pa_router {
         pa_router_implicit_accept_t accept;
         pa_idxset *groups;
     } implicit_route;
+    pa_routing_plan *routing_plan;
     pa_hashmap *connections;
+    unsigned next_explicit_connection_request_serial;
+    pa_sequence_head explicit_connection_requests;
+    pa_dynarray *nodes_waiting_for_unlinking;
     pa_fallback_routing_policy *fallback_policy;
     void *userdata;
 };
@@ -120,9 +125,9 @@ void pa_router_group_update_target_ordering(pa_router_group *group);
 
 void pa_router_group_entry_free(pa_router_group_entry *entry);
 
-void pa_router_register_node(pa_node *node);
-void pa_router_unregister_node(pa_node *node);
+void pa_router_register_node(pa_router *router, pa_node *node);
+void pa_router_unregister_node(pa_router *router, pa_node *node);
 
-void pa_router_make_routing(pa_core *core);
+void pa_router_make_routing(pa_router *router);
 
 #endif

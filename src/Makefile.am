@@ -897,6 +897,7 @@ libpulsecore_@PA_MAJORMINOR@_la_SOURCES = \
 		pulsecore/remap.c pulsecore/remap.h \
 		pulsecore/remap_mmx.c pulsecore/remap_sse.c \
 		pulsecore/resampler.c pulsecore/resampler.h \
+		pulsecore/routing-plan.c pulsecore/routing-plan.h \
 		pulsecore/rtpoll.c pulsecore/rtpoll.h \
 		pulsecore/mix.c pulsecore/mix.h \
 		pulsecore/cpu.h \

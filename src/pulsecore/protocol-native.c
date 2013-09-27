@@ -1071,10 +1071,67 @@ static void fix_playback_buffer_attr(playback_stream *s) {
 #endif
 }
 
+static int check_sync_routing(pa_node * const *routing_targets, unsigned n_routing_targets, pa_node *base) {
+    pa_node * const *base_routing_targets;
+    unsigned n_base_routing_targets;
+    unsigned i, j;
+
+    base_routing_targets = pa_node_get_connected_nodes(base, &n_base_routing_targets);
+
+    /* We don't support moving synced streams, so it makes no sense to sync
+     * to a stream that isn't currently routed anywhere. */
+    if (n_base_routing_targets == 0) {
+        pa_log("Syncing to a stream that is not routed anywhere is not supported.");
+        return -PA_ERR_NOTSUPPORTED;
+    }
+
+    if (n_routing_targets != n_base_routing_targets) {
+        pa_log("Different number of routing targets for a synced stream compared to the sync base stream (%u vs. %u).",
+               n_routing_targets, n_base_routing_targets);
+        return -PA_ERR_INVALID;
+    }
+
+    /* Check that every routing target in routing_targets can be found also in
+     * base_routing_targets. */
+    for (i = 0; i < n_routing_targets; i++) {
+        bool found = false;
+
+        for (j = 0; j < n_routing_targets; j++) {
+            if (base_routing_targets[j] == routing_targets[i]) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            char *routing_targets_str;
+            char *base_routing_targets_str;
+
+            routing_targets_str = pa_join_malloc(", ", (void **) routing_targets, n_routing_targets,
+                                                 (pa_to_string_func_t) pa_node_get_name);
+            base_routing_targets_str = pa_join_malloc(", ", (void **) base_routing_targets, n_base_routing_targets,
+                                                      (pa_to_string_func_t) pa_node_get_name);
+
+            pa_log("Different routing targets for a synced stream compared to the sync base stream.");
+            pa_log("    Synced stream routing targets: %s", routing_targets_str);
+            pa_log("    Sync base routing targets: %s", base_routing_targets_str);
+
+            pa_xfree(base_routing_targets_str);
+            pa_xfree(routing_targets_str);
+
+            return -PA_ERR_INVALID;
+        }
+    }
+
+    return 0;
+}
+
 /* Called from main context */
 static playback_stream* playback_stream_new(
         pa_native_connection *c,
-        pa_sink *sink,
+        pa_node * const *explicit_connections,
+        unsigned n_explicit_connections,
+        bool enable_implicit_routing,
         pa_sample_spec *ss,
         pa_channel_map *map,
         pa_idxset *formats,
@@ -1104,6 +1161,7 @@ static playback_stream* playback_stream_new(
     char *memblockq_name;
 
     pa_assert(c);
+    pa_assert(explicit_connections || n_explicit_connections == 0);
     pa_assert(ss);
     pa_assert(missing);
     pa_assert(p);
@@ -1119,15 +1177,15 @@ static playback_stream* playback_stream_new(
             break;
     }
 
-    /* Synced streams must connect to the same sink */
+    /* Synced streams must connect to the same sink, which means that they
+     * must be routed exactly the same as the sync base stream.
+     *
+     * FIXME: It would be better to do this checking in pa_node_new(). */
     if (ssync) {
+        *ret = -check_sync_routing(explicit_connections, n_explicit_connections, ssync->sink_input->node);
 
-        if (!sink)
-            sink = ssync->sink_input->sink;
-        else if (sink != ssync->sink_input->sink) {
-            *ret = PA_ERR_INVALID;
-            goto out;
-        }
+        if (*ret != 0)
+            goto finish;
     }
 
     pa_sink_input_new_data_init(&data);
@@ -1136,8 +1194,6 @@ static playback_stream* playback_stream_new(
     data.driver = __FILE__;
     data.module = c->options->module;
     data.client = c->client;
-    if (sink)
-        pa_sink_input_new_data_set_sink(&data, sink, false);
     if (pa_sample_spec_valid(ss))
         pa_sink_input_new_data_set_sample_spec(&data, ss);
     if (pa_channel_map_valid(map))
@@ -1160,13 +1216,18 @@ static playback_stream* playback_stream_new(
     data.flags = flags;
     pa_sink_input_new_data_set_create_node(&data, true);
     pa_node_new_data_set_fallback_name_prefix(&data.node_data, "native-protocol");
+    pa_node_new_data_set_explicit_connections(&data.node_data, explicit_connections, n_explicit_connections);
+    pa_node_new_data_set_implicit_routing_enabled(&data.node_data, !explicit_connections);
+
+    if (ssync)
+        pa_node_new_data_set_shared_routing_node(&data.node_data, ssync->sink_input->node);
 
     *ret = -pa_sink_input_new(&sink_input, c->protocol->core, &data);
 
     pa_sink_input_new_data_done(&data);
 
     if (!sink_input)
-        goto out;
+        goto finish;
 
     s = pa_msgobject_new(playback_stream);
     s->parent.parent.parent.free = playback_stream_free;
@@ -1235,7 +1296,7 @@ static playback_stream* playback_stream_new(
 
     pa_sink_input_put(s->sink_input);
 
-out:
+finish:
     if (formats)
         pa_idxset_free(formats, (pa_free_cb_t) pa_format_info_free);
 
@@ -1976,11 +2037,14 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
     playback_stream *s;
     uint32_t sink_index, syncid, missing = 0;
     pa_buffer_attr attr;
-    const char *name = NULL, *sink_name;
+    const char *name = NULL;
     pa_sample_spec ss;
     pa_channel_map map;
     pa_tagstruct *reply;
-    pa_sink *sink = NULL;
+    const char *explicit_connections_str;
+    pa_node **explicit_connections = NULL;
+    unsigned n_explicit_connections = 0;
+    bool enable_implicit_routing;
     pa_cvolume volume;
     bool
         corked = false,
@@ -2019,7 +2083,7 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
                 PA_TAG_SAMPLE_SPEC, &ss,
                 PA_TAG_CHANNEL_MAP, &map,
                 PA_TAG_U32, &sink_index,
-                PA_TAG_STRING, &sink_name,
+                PA_TAG_STRING, &explicit_connections_str,
                 PA_TAG_U32, &attr.maxlength,
                 PA_TAG_BOOLEAN, &corked,
                 PA_TAG_U32, &attr.tlength,
@@ -2034,9 +2098,8 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
     }
 
     CHECK_VALIDITY_GOTO(c->pstream, c->authorized, tag, PA_ERR_ACCESS, finish);
-    CHECK_VALIDITY_GOTO(c->pstream, !sink_name || pa_namereg_is_valid_name_or_wildcard(sink_name, PA_NAMEREG_SINK), tag, PA_ERR_INVALID, finish);
-    CHECK_VALIDITY_GOTO(c->pstream, sink_index == PA_INVALID_INDEX || !sink_name, tag, PA_ERR_INVALID, finish);
-    CHECK_VALIDITY_GOTO(c->pstream, !sink_name || sink_index == PA_INVALID_INDEX, tag, PA_ERR_INVALID, finish);
+    CHECK_VALIDITY_GOTO(c->pstream, !explicit_connections_str || pa_namereg_is_valid_name_or_wildcard(explicit_connections_str, PA_NAMEREG_SINK), tag, PA_ERR_INVALID, finish);
+    CHECK_VALIDITY_GOTO(c->pstream, sink_index == PA_INVALID_INDEX || !explicit_connections_str, tag, PA_ERR_INVALID, finish);
     CHECK_VALIDITY_GOTO(c->pstream, pa_cvolume_valid(&volume), tag, PA_ERR_INVALID, finish);
 
     p = pa_proplist_new();
@@ -2144,20 +2207,45 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
         goto finish;
     }
 
-    if (sink_index != PA_INVALID_INDEX) {
+    if (explicit_connections_str) {
+        pa_node *node;
 
-        if (!(sink = pa_idxset_get_by_index(c->protocol->core->sinks, sink_index))) {
-            pa_pstream_send_error(c->pstream, tag, PA_ERR_NOENTITY);
-            goto finish;
+        node = pa_namereg_get(c->protocol->core, explicit_connections_str, PA_NAMEREG_NODE);
+
+        if (node && node->direction == PA_DIRECTION_OUTPUT) {
+            explicit_connections = pa_xnew(pa_node *, 1);
+            explicit_connections[0] = node;
+            n_explicit_connections = 1;
+        }
+    }
+
+    if (sink_index != PA_INVALID_INDEX || (explicit_connections_str && !explicit_connections)) {
+        pa_sink *sink = NULL;
+
+        if (sink_index != PA_INVALID_INDEX)
+            sink = pa_idxset_get_by_index(c->protocol->core->sinks, sink_index);
+        else
+            sink = pa_namereg_get(c->protocol->core, explicit_connections_str, PA_NAMEREG_SINK);
+
+        if (sink && sink->node) {
+            explicit_connections = pa_xnew(pa_node *, 1);
+            explicit_connections[0] = sink->node;
+            n_explicit_connections = 1;
+        } else if (sink && sink->active_port && sink->active_port->node) {
+            explicit_connections = pa_xnew(pa_node *, 1);
+            explicit_connections[0] = sink->active_port->node;
+            n_explicit_connections = 1;
         }
 
-    } else if (sink_name) {
-
-        if (!(sink = pa_namereg_get(c->protocol->core, sink_name, PA_NAMEREG_SINK))) {
+        if (!explicit_connections) {
             pa_pstream_send_error(c->pstream, tag, PA_ERR_NOENTITY);
             goto finish;
         }
     }
+
+    /* TODO: Allow the client to explicitly set whether implicit routing
+     * should be enabled. */
+    enable_implicit_routing = !explicit_connections;
 
     flags =
         (corked ? PA_SINK_INPUT_START_CORKED : 0) |
@@ -2176,7 +2264,9 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
      * flag. For older versions we synthesize it here */
     muted_set = muted_set || muted;
 
-    s = playback_stream_new(c, sink, &ss, &map, formats, &attr, volume_set ? &volume : NULL, muted, muted_set, flags, p, adjust_latency, early_requests, relative_volume, syncid, &missing, &ret);
+    s = playback_stream_new(c, explicit_connections, n_explicit_connections, enable_implicit_routing, &ss, &map, formats,
+                            &attr, volume_set ? &volume : NULL, muted, muted_set, flags, p, adjust_latency, early_requests,
+                            relative_volume, syncid, &missing, &ret);
     /* We no longer own the formats idxset */
     formats = NULL;
 
@@ -2239,6 +2329,8 @@ static void command_create_playback_stream(pa_pdispatch *pd, uint32_t command, u
     pa_pstream_send_tagstruct(c->pstream, reply);
 
 finish:
+    if (explicit_connections)
+        pa_xfree(explicit_connections);
     if (p)
         pa_proplist_free(p);
     if (formats)

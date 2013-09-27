@@ -37,13 +37,25 @@ struct pa_dynarray {
     pa_free_cb_t free_cb;
 };
 
-pa_dynarray* pa_dynarray_new(pa_free_cb_t free_cb) {
+pa_dynarray *pa_dynarray_new(pa_free_cb_t free_cb) {
     pa_dynarray *array;
 
     array = pa_xnew0(pa_dynarray, 1);
     array->free_cb = free_cb;
 
     return array;
+}
+
+pa_dynarray *pa_dynarray_copy(pa_dynarray *array) {
+    pa_dynarray *copy;
+
+    copy = pa_xnew0(pa_dynarray, 1);
+    copy->data = pa_xmemdup(array->data, array->n_allocated * sizeof(void *));
+    copy->n_allocated = array->n_allocated;
+    copy->n_entries = array->n_entries;
+    copy->free_cb = NULL;
+
+    return copy;
 }
 
 void pa_dynarray_free(pa_dynarray *array) {
@@ -79,6 +91,53 @@ void *pa_dynarray_get(pa_dynarray *array, unsigned i) {
     return array->data[i];
 }
 
+void *pa_dynarray_get_safe(pa_dynarray *array, unsigned i) {
+    pa_assert(array);
+
+    if (i >= array->n_entries)
+        return NULL;
+
+    return array->data[i];
+}
+
+void *pa_dynarray_get_last(pa_dynarray *array) {
+    pa_assert(array);
+
+    if (array->n_entries == 0)
+        return NULL;
+
+    return array->data[array->n_entries - 1];
+}
+
+void pa_dynarray_remove_fast(pa_dynarray *array, unsigned i) {
+    pa_assert(array);
+    pa_assert(i < array->n_entries);
+
+    if (array->free_cb)
+        array->free_cb(array->data[i]);
+
+    if (i != array->n_entries - 1)
+        array->data[i] = array->data[array->n_entries - 1];
+
+    array->n_entries--;
+}
+
+int pa_dynarray_remove_by_data_fast(pa_dynarray *array, void *p) {
+    unsigned i;
+
+    pa_assert(array);
+    pa_assert(p);
+
+    for (i = 0; i < array->n_entries; i++) {
+        if (array->data[i] == p) {
+            pa_dynarray_remove_fast(array, i);
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
 void *pa_dynarray_steal_last(pa_dynarray *array) {
     pa_assert(array);
 
@@ -88,8 +147,27 @@ void *pa_dynarray_steal_last(pa_dynarray *array) {
         return NULL;
 }
 
+void pa_dynarray_remove_all(pa_dynarray *array) {
+    unsigned i;
+
+    pa_assert(array);
+
+    if (array->free_cb) {
+        for (i = 0; i < array->n_entries; i++)
+            array->free_cb(array->data[i]);
+    }
+
+    array->n_entries = 0;
+}
+
 unsigned pa_dynarray_size(pa_dynarray *array) {
     pa_assert(array);
 
     return array->n_entries;
+}
+
+void * const *pa_dynarray_get_array(pa_dynarray *array) {
+    pa_assert(array);
+
+    return array->data;
 }

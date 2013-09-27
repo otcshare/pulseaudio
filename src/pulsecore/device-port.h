@@ -33,10 +33,12 @@ typedef struct pa_device_port pa_device_port;
 #include <inttypes.h>
 
 #include <pulse/def.h>
-#include <pulsecore/object.h>
-#include <pulsecore/hashmap.h>
-#include <pulsecore/core.h>
+
 #include <pulsecore/card.h>
+#include <pulsecore/core.h>
+#include <pulsecore/hashmap.h>
+#include <pulsecore/node.h>
+#include <pulsecore/object.h>
 
 struct pa_device_port {
     pa_object parent; /* Needed for reference counting */
