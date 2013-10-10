@@ -83,7 +83,8 @@ pa_domain_routing_plan *pa_domain_routing_plan_new(pa_domain *domain, uint32_t r
 void pa_domain_routing_plan_done(pa_domain_routing_plan *routing_plan);
 pa_domain_routing_plan *pa_domain_get_routing_plan(pa_domain *domain, uint32_t routing_plan_id);
 
-void *pa_domain_create_new_connection(pa_domain_routing_plan *plan, pa_node *input, pa_node *output);
+int pa_domain_routing_plan_allocate_connection(pa_domain_routing_plan *plan, pa_node *input, pa_node *output);
+
 void pa_domain_update_existing_connection(pa_domain_routing_plan *plan, void *connection);
 void pa_domain_implement_connection(pa_domain_routing_plan *plan, void *connection);
 void pa_domain_delete_connection(pa_domain_routing_plan *plan, void *connection);

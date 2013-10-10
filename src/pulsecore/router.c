@@ -185,39 +185,6 @@ static int node_list_compare(pa_sequence_list *entry1, pa_sequence_list *entry2)
     return result;
 }
 
-static unsigned connection_hash(const void *p) {
-    static uint32_t mask1[16] = {
-        0x00, 0x02, 0x08, 0x0A, 0x20, 0x22, 0x28, 0x2A, 0x80, 0x82, 0x88, 0x8A, 0xA0, 0xA2, 0xA8, 0xAA
-    };
-    static uint32_t mask2[16] = {
-        0x00, 0x01, 0x04, 0x05, 0x10, 0x11, 0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55
-    };
-
-    uint64_t conn = *(uint64_t *)p;
-    uint32_t n1 = (uint32_t)((conn >> 32) & 0xffff);
-    uint32_t n2 = (uint32_t)(conn & 0xffff);
-    uint32_t hash;
-    int i;
-
-    for (i = 0, hash = 0;   i < 4;  i++, n1 >>= 4, n2 >>= 4)
-        hash = (hash << 8) | (mask1[n1&15] | mask2[n2&15]);
-
-    return (unsigned)hash;
-}
-
-static int connection_compare(const void *a, const void *b) {
-    uint64_t conn1 = *(uint64_t *)a;
-    uint64_t conn2 = *(uint64_t *)b;
-
-    if (conn1 > conn2)
-        return 1;
-
-    if (conn1 < conn2)
-        return -1;
-
-    return 0;
-}
-
 void pa_router_init(pa_router *router, pa_core *core) {
     pa_assert(router);
     pa_assert(core);
@@ -234,7 +201,7 @@ void pa_router_init(pa_router *router, pa_core *core) {
     PA_SEQUENCE_HEAD_INIT(router->implicit_route.node_list, node_list_compare);
 
     router->routing_plan = NULL;
-    router->connections = pa_hashmap_new(connection_hash, connection_compare);
+    router->connections = pa_hashmap_new(pa_connection_key_hash_func, pa_connection_key_compare_func);
     PA_SEQUENCE_HEAD_INIT(router->explicit_connection_requests, explicit_connection_request_compare);
     router->nodes_waiting_for_unlinking = pa_dynarray_new(NULL);
     router->fallback_policy = pa_fallback_routing_policy_new(core);
@@ -258,9 +225,7 @@ void pa_router_done(pa_router *router) {
     PA_SEQUENCE_FOREACH_SAFE(request, next, router->explicit_connection_requests, pa_explicit_connection_request, list)
         remove_explicit_connection_request(router, request);
 
-    if (router->routing_plan)
-        pa_routing_plan_free(router->routing_plan);
-
+    pa_assert(!router->routing_plan);
     pa_pulse_domain_free(router->pulse_domain);
 
     pa_assert(pa_idxset_isempty(router->domains));
@@ -548,6 +513,9 @@ void pa_router_unregister_node(pa_router *router, pa_node *node) {
     pa_assert(node);
     pa_assert(node->direction == PA_DIRECTION_INPUT || node->direction == PA_DIRECTION_OUTPUT);
 
+    if (router->routing_plan)
+        pa_routing_plan_deallocate_connections_of_node(router->routing_plan, node);
+
     PA_SEQUENCE_REMOVE(node->implicit_route.list);
 
     PA_SEQUENCE_FOREACH_SAFE(entry, next, node->implicit_route.member_of, pa_router_group_entry, node_list)
@@ -675,11 +643,9 @@ void pa_router_make_routing(pa_router *router) {
     uint32_t domidx;
 
     pa_assert(router);
+    pa_assert(!router->routing_plan);
 
     plan_id++;
-
-    if (router->routing_plan)
-        pa_routing_plan_free(router->routing_plan);
 
     router->routing_plan = pa_routing_plan_new(router->core);
 
@@ -693,6 +659,9 @@ void pa_router_make_routing(pa_router *router) {
 
     PA_IDXSET_FOREACH(domain, router->domains, domidx)
         pa_domain_delete_routing_plan(domain, plan_id);
+
+    pa_routing_plan_free(router->routing_plan);
+    router->routing_plan = NULL;
 
     if (pa_dynarray_size(router->nodes_waiting_for_unlinking) > 0) {
         pa_dynarray *copy;

@@ -64,7 +64,7 @@ struct pa_router {
         pa_router_implicit_accept_t accept;
         pa_idxset *groups;
     } implicit_route;
-    pa_routing_plan *routing_plan;
+    pa_routing_plan *routing_plan; /* Valid only during pa_router_make_routing(). */
     pa_hashmap *connections;
     unsigned next_explicit_connection_request_serial;
     pa_sequence_head explicit_connection_requests;

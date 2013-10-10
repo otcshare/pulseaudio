@@ -161,6 +161,9 @@ void pa_node_unlink(pa_node *node);
 const char *pa_node_get_name(pa_node *node);
 void *pa_node_get_owner(pa_node *node, pa_domain *domain);
 
+/* Returns NULL if there are no common domains. */
+pa_domain *pa_node_get_common_domain(pa_node *node1, pa_node *node2);
+
 /* Returns an array of nodes. The returned array is internal memory of
  * node->connected_nodes, so the caller must not free the returned array. Also,
  * the returned array will likely become invalid at any time the node

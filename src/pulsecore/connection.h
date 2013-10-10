@@ -50,6 +50,10 @@ struct pa_connection {
     void *userdata;  /* domain specific implementation of the connection */
 };
 
+unsigned pa_connection_key_hash_func(const void *p);
+int pa_connection_key_compare_func(const void *a, const void *b);
+uint64_t pa_connection_key(uint32_t input_index, uint32_t output_index);
+
 pa_connection_new_data *pa_connection_new_data_init(pa_connection_new_data *data);
 pa_connection *pa_connection_new(pa_core *core, pa_connection_new_data *data);
 void pa_connection_free(pa_connection *connection);

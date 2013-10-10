@@ -31,9 +31,10 @@ typedef struct pa_node pa_node;
 pa_routing_plan *pa_routing_plan_new(pa_core *core);
 void pa_routing_plan_free(pa_routing_plan *plan);
 
-int pa_routing_plan_allocate_explicit_connection(pa_routing_plan *plan, pa_node *input_node, pa_node *output_node,
-                                                 pa_explicit_connection_request *request) PA_GCC_NORETURN;
-void pa_routing_plan_deallocate_explicit_connection(pa_routing_plan *plan, pa_node *input_node, pa_node *output_node,
-                                                    pa_explicit_connection_request *request) PA_GCC_NORETURN;
+int pa_routing_plan_allocate_explicit_connection(pa_routing_plan *plan, pa_node *input, pa_node *output,
+                                                 pa_explicit_connection_request *request);
+void pa_routing_plan_deallocate_explicit_connection(pa_routing_plan *plan, pa_node *input, pa_node *output,
+                                                    pa_explicit_connection_request *request);
+void pa_routing_plan_deallocate_connections_of_node(pa_routing_plan *plan, pa_node *node);
 
 #endif
