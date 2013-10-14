@@ -23,18 +23,25 @@
 ***/
 
 typedef struct pa_routing_plan pa_routing_plan;
+typedef struct pa_routing_plan_node_data pa_routing_plan_node_data;
 
-/* Typedefs for external structs. */
+/* Forward declarations for external structs. */
 typedef struct pa_explicit_connection_request pa_explicit_connection_request;
 typedef struct pa_node pa_node;
 
 pa_routing_plan *pa_routing_plan_new(pa_core *core);
 void pa_routing_plan_free(pa_routing_plan *plan);
 
+void pa_routing_plan_clear(pa_routing_plan *plan, bool clear_temporary_constraints);
 int pa_routing_plan_allocate_explicit_connection(pa_routing_plan *plan, pa_node *input, pa_node *output,
                                                  pa_explicit_connection_request *request);
+int pa_routing_plan_allocate_implicit_connection(pa_routing_plan *plan, pa_node *input, pa_node *output);
 void pa_routing_plan_deallocate_explicit_connection(pa_routing_plan *plan, pa_node *input, pa_node *output,
                                                     pa_explicit_connection_request *request);
 void pa_routing_plan_deallocate_connections_of_node(pa_routing_plan *plan, pa_node *node);
+int pa_routing_plan_execute(pa_routing_plan *plan);
+
+pa_routing_plan_node_data *pa_routing_plan_node_data_new(void);
+void pa_routing_plan_node_data_free(pa_routing_plan_node_data *data);
 
 #endif

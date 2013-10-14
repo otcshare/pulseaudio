@@ -38,6 +38,7 @@
 #include <pulse/internal.h>
 
 #include <pulsecore/i18n.h>
+#include <pulsecore/pulse-domain.h>
 #include <pulsecore/sink-input.h>
 #include <pulsecore/namereg.h>
 #include <pulsecore/core-util.h>
@@ -84,7 +85,6 @@ pa_sink_new_data* pa_sink_new_data_init(pa_sink_new_data *data) {
     data->proplist = pa_proplist_new();
     data->ports = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     pa_node_new_data_init(&data->node_data);
-    pa_node_new_data_set_type(&data->node_data, PA_NODE_TYPE_SINK);
     pa_node_new_data_set_direction(&data->node_data, PA_DIRECTION_OUTPUT);
 
     return data;
@@ -380,7 +380,11 @@ pa_sink* pa_sink_new(
     pa_source_set_max_rewind(s->monitor_source, s->thread_info.max_rewind);
 
     if (data->create_node) {
-        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+        pa_pulse_domain_node_data *domain_data;
+
+        domain_data = pa_pulse_domain_node_data_new(PA_PULSE_DOMAIN_NODE_TYPE_SINK, s);
+        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain->domain, domain_data,
+                                    (pa_free_cb_t) pa_pulse_domain_node_data_free);
 
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, pa_sink_get_description(s));
@@ -389,8 +393,6 @@ pa_sink* pa_sink_new(
             pa_log("Failed to create a node for sink %s.", s->name);
             goto fail;
         }
-
-        s->node->owner = s;
     }
 
     pt = pa_proplist_to_string_sep(s->proplist, "\n    ");

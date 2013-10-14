@@ -23,20 +23,18 @@
   USA.
 ***/
 
-#include <pulsecore/core.h>
-#include <pulsecore/ipacl.h>
-#include <pulsecore/auth-cookie.h>
-#include <pulsecore/iochannel.h>
-#include <pulsecore/module.h>
-#include <pulsecore/modargs.h>
-#include <pulsecore/strlist.h>
-#include <pulsecore/hook-list.h>
-#include <pulsecore/pstream.h>
-#include <pulsecore/tagstruct.h>
-
 typedef struct pa_native_protocol pa_native_protocol;
-
 typedef struct pa_native_connection pa_native_connection;
+
+/* Forward declarations for external structs. */
+typedef struct pa_auth_cookie pa_auth_cookie;
+typedef struct pa_client pa_client;
+typedef struct pa_iochannel pa_iochannel;
+typedef struct pa_ip_acl pa_ip_acl;
+typedef struct pa_modargs pa_modargs;
+typedef struct pa_pstream pa_pstream;
+typedef struct pa_strlist pa_strlist;
+typedef struct pa_tagstruct pa_tagstruct;
 
 typedef struct pa_native_options {
     PA_REFCNT_DECLARE;

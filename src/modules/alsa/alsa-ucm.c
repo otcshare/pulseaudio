@@ -40,6 +40,9 @@
 #include <pulse/timeval.h>
 #include <pulse/util.h>
 
+#include <pulsecore/device-port.h>
+#include <pulsecore/hashmap.h>
+#include <pulsecore/idxset.h>
 #include <pulsecore/log.h>
 #include <pulsecore/macro.h>
 #include <pulsecore/core-util.h>

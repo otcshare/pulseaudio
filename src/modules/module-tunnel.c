@@ -38,6 +38,7 @@
 #include <pulse/xmalloc.h>
 
 #include <pulsecore/module.h>
+#include <pulsecore/sink.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/modargs.h>
 #include <pulsecore/log.h>

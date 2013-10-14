@@ -23,30 +23,26 @@
   USA.
 ***/
 
+#include <inttypes.h>
+
 typedef struct pa_connection pa_connection;
 typedef struct pa_connection_new_data pa_connection_new_data;
 
-#include <pulsecore/core.h>
-#include <pulsecore/device-class.h>
-
-typedef enum {
-    PA_CONN_TYPE_IMPLICIT,
-    PA_CONN_TYPE_EXPLICIT
-} pa_connection_type_t;
+/* Forward declarations for external structs. */
+typedef struct pa_core pa_core;
+typedef struct pa_domain pa_domain;
+typedef struct pa_node pa_node;
 
 struct pa_connection_new_data {
-    pa_connection_type_t type;
-    uint32_t node1_index, node2_index;
-    uint32_t routing_plan_id;
 };
 
 struct pa_connection {
     pa_core *core;
-    pa_connection_type_t type;
-    uint32_t input_index, output_index;
+    uint32_t index;
+    pa_node *input_node;
+    pa_node *output_node;
     uint64_t key;
-    uint32_t domain_index;
-    uint32_t routing_plan_id;
+    pa_domain *domain;
     void *userdata;  /* domain specific implementation of the connection */
 };
 
@@ -55,13 +51,9 @@ int pa_connection_key_compare_func(const void *a, const void *b);
 uint64_t pa_connection_key(uint32_t input_index, uint32_t output_index);
 
 pa_connection_new_data *pa_connection_new_data_init(pa_connection_new_data *data);
+
 pa_connection *pa_connection_new(pa_core *core, pa_connection_new_data *data);
 void pa_connection_free(pa_connection *connection);
-
-pa_connection *pa_connection_update(pa_connection *connection, uint32_t routing_plan_id);
-
-bool pa_connection_isvalid(pa_connection *connection);
-pa_domain_routing_plan *pa_connection_get_routing_plan(pa_connection *connection);
 
 #define PA_CONNECTION_FOREACH(conn, core, state) \
     for ((state) = NULL, (conn) = pa_hashmap_iterate_backwards(core->router.connections, &(state), NULL); (conn); (conn) = pa_hashmap_iterate_backwards(core->router.connections, &(state), NULL))

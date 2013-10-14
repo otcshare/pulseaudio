@@ -34,6 +34,8 @@
 
 #include <pulsecore/core-util.h>
 #include <pulsecore/ioline.h>
+#include <pulsecore/memblockq.h>
+#include <pulsecore/source-output.h>
 #include <pulsecore/thread-mq.h>
 #include <pulsecore/macro.h>
 #include <pulsecore/log.h>

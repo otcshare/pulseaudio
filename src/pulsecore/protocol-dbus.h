@@ -27,6 +27,9 @@
 #include <pulsecore/core.h>
 #include <pulsecore/macro.h>
 
+/* Forward declarations for external structs. */
+typedef struct pa_client pa_client;
+
 #define PA_DBUS_DEFAULT_PORT 24883
 #define PA_DBUS_SOCKET_NAME "dbus-socket"
 

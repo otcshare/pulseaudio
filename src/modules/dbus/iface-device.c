@@ -23,6 +23,7 @@
 #include <config.h>
 #endif
 
+#include <pulsecore/core-subscribe.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/dbus-util.h>
 #include <pulsecore/protocol-dbus.h>

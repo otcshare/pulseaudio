@@ -30,6 +30,7 @@
 #include <pulse/utf8.h>
 #include <pulse/xmalloc.h>
 
+#include <pulsecore/core-subscribe.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/dbus-util.h>
 #include <pulsecore/macro.h>

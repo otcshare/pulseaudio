@@ -40,9 +40,13 @@
 #include <pulse/xmalloc.h>
 #include <pulse/utf8.h>
 
+#include <pulsecore/device-port.h>
+#include <pulsecore/hashmap.h>
 #include <pulsecore/i18n.h>
+#include <pulsecore/idxset.h>
 #include <pulsecore/log.h>
 #include <pulsecore/macro.h>
+#include <pulsecore/sink.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/conf-parser.h>
 #include <pulsecore/strbuf.h>

@@ -24,32 +24,39 @@
 #endif
 
 #include <pulsecore/namereg.h>
+#include <pulsecore/node.h>
+#include <pulsecore/pulse-domain.h>
+#include <pulsecore/sink.h>
 
 #include "fallback-routing-policy.h"
 
 struct pa_fallback_routing_policy {
     pa_router *router;
     bool registered;
-    pa_router_group *input_routing_group;
-    pa_router_group *output_routing_group;
+    pa_routing_group *input_routing_group;
+    pa_routing_group *output_routing_group;
     pa_hook_slot *default_sink_changed_slot;
     pa_hook_slot *default_source_changed_slot;
 };
 
-static bool routee_accept_func(pa_router *router, pa_node *node) {
+static pa_routing_group *routee_accept_func(pa_router *router, pa_node *node) {
+    pa_pulse_domain_node_data *data;
+
+    pa_assert(router);
     pa_assert(node);
 
-    if (node->type == PA_NODE_TYPE_SINK_INPUT) {
-        node->implicit_route.group = ((pa_fallback_routing_policy *) router->userdata)->input_routing_group;
-        return true;
-    }
+    data = pa_node_get_domain_data(node, router->pulse_domain->domain);
 
-    if (node->type == PA_NODE_TYPE_SOURCE_OUTPUT) {
-        node->implicit_route.group = ((pa_fallback_routing_policy *) router->userdata)->output_routing_group;
-        return true;
-    }
+    if (!data)
+        return NULL;
 
-    return false;
+    if (data->type == PA_PULSE_DOMAIN_NODE_TYPE_SINK_INPUT)
+        return ((pa_fallback_routing_policy *) router->userdata)->input_routing_group;
+
+    if (data->type == PA_PULSE_DOMAIN_NODE_TYPE_SOURCE_OUTPUT)
+        return ((pa_fallback_routing_policy *) router->userdata)->output_routing_group;
+
+    return NULL;
 }
 
 static int routee_compare_func(pa_node *node1, pa_node *node2) {
@@ -66,11 +73,20 @@ static int routee_compare_func(pa_node *node1, pa_node *node2) {
     return 0;
 }
 
-static bool routing_target_accept_func(pa_router_group *group, pa_node *node) {
+static bool routing_target_accept_func(pa_routing_group *group, pa_node *node) {
+    pa_pulse_domain_node_data *data;
+
     pa_assert(group);
     pa_assert(node);
 
-    if (node->type == PA_NODE_TYPE_PORT || node->type == PA_NODE_TYPE_SINK || node->type == PA_NODE_TYPE_SOURCE)
+    data = pa_node_get_domain_data(node, group->core->router.pulse_domain->domain);
+
+    if (!data)
+        return false;
+
+    if (data->type == PA_PULSE_DOMAIN_NODE_TYPE_PORT
+            || data->type == PA_PULSE_DOMAIN_NODE_TYPE_SINK
+            || data->type == PA_PULSE_DOMAIN_NODE_TYPE_SOURCE)
         return true;
 
     return false;
@@ -114,19 +130,31 @@ static pa_node *get_node_for_default_source(pa_core *core) {
     return NULL;
 }
 
-static bool is_monitor_source(pa_node *node) {
-    pa_assert(node);
+static bool is_monitor_source(pa_pulse_domain_node_data *data) {
+    pa_assert(data);
 
-    return node->type == PA_NODE_TYPE_SOURCE && ((pa_source *) node->owner)->monitor_of;
+    return data->type == PA_PULSE_DOMAIN_NODE_TYPE_SOURCE && ((pa_source *) data->owner)->monitor_of;
 }
 
 static int routing_target_compare_func(pa_node *node1, pa_node *node2) {
+    pa_pulse_domain_node_data *data1;
+    pa_pulse_domain_node_data *data2;
+    pa_domain *domain;
     pa_node *default_node;
 
     pa_assert(node1);
     pa_assert(node2);
-    pa_assert(node1->type == PA_NODE_TYPE_SINK || node1->type == PA_NODE_TYPE_SOURCE || node1->type == PA_NODE_TYPE_PORT);
-    pa_assert(node2->type == PA_NODE_TYPE_SINK || node2->type == PA_NODE_TYPE_SOURCE || node2->type == PA_NODE_TYPE_PORT);
+
+    pa_assert_se(domain = node1->core->router.pulse_domain->domain);
+    pa_assert_se(data1 = pa_node_get_domain_data(node1, domain));
+    pa_assert_se(data2 = pa_node_get_domain_data(node2, domain));
+
+    pa_assert(data1->type == PA_PULSE_DOMAIN_NODE_TYPE_SINK
+                  || data1->type == PA_PULSE_DOMAIN_NODE_TYPE_SOURCE
+                  || data1->type == PA_PULSE_DOMAIN_NODE_TYPE_PORT);
+    pa_assert(data2->type == PA_PULSE_DOMAIN_NODE_TYPE_SINK
+                  || data2->type == PA_PULSE_DOMAIN_NODE_TYPE_SOURCE
+                  || data2->type == PA_PULSE_DOMAIN_NODE_TYPE_PORT);
 
     if (node1 == node2)
         return 0;
@@ -148,10 +176,10 @@ static int routing_target_compare_func(pa_node *node1, pa_node *node2) {
 
     /* Monitor sources always lose to non-monitor source nodes. */
 
-    if (is_monitor_source(node1) && !is_monitor_source(node2))
+    if (is_monitor_source(data1) && !is_monitor_source(data2))
         return 1;
 
-    if (is_monitor_source(node2) && !is_monitor_source(node1))
+    if (is_monitor_source(data2) && !is_monitor_source(data1))
         return -1;
 
     /* Finally, let's prefer the node that is newer (bigger index). We could
@@ -174,7 +202,7 @@ static pa_hook_result_t default_sink_changed_cb(void *hook_data, void *call_data
 
     pa_assert(policy);
 
-    pa_router_group_update_target_ordering(policy->input_routing_group);
+    pa_routing_group_update_target_ordering(policy->input_routing_group);
 
     return PA_HOOK_OK;
 }
@@ -184,7 +212,7 @@ static pa_hook_result_t default_source_changed_cb(void *hook_data, void *call_da
 
     pa_assert(policy);
 
-    pa_router_group_update_target_ordering(policy->output_routing_group);
+    pa_routing_group_update_target_ordering(policy->output_routing_group);
 
     return PA_HOOK_OK;
 }
@@ -193,7 +221,7 @@ pa_fallback_routing_policy *pa_fallback_routing_policy_new(pa_core *core) {
     pa_fallback_routing_policy *policy;
     pa_router_policy_implementation_data policy_data;
     int r;
-    pa_router_group_new_data group_data;
+    pa_routing_group_new_data group_data;
 
     pa_assert(core);
 
@@ -215,26 +243,26 @@ pa_fallback_routing_policy *pa_fallback_routing_policy_new(pa_core *core) {
 
     policy->registered = true;
 
-    pa_router_group_new_data_init(&group_data);
-    pa_router_group_new_data_set_name(&group_data, "input");
+    pa_routing_group_new_data_init(&group_data);
+    pa_routing_group_new_data_set_name(&group_data, "input");
     group_data.direction = PA_DIRECTION_INPUT;
     group_data.accept = routing_target_accept_func;
     group_data.compare = routing_target_compare_func;
-    policy->input_routing_group = pa_router_group_new(core, &group_data);
-    pa_router_group_new_data_done(&group_data);
+    policy->input_routing_group = pa_routing_group_new(core, &group_data);
+    pa_routing_group_new_data_done(&group_data);
 
     if (!policy->input_routing_group) {
         pa_log("Failed to create the input routing group.");
         goto fail;
     }
 
-    pa_router_group_new_data_init(&group_data);
-    pa_router_group_new_data_set_name(&group_data, "output");
+    pa_routing_group_new_data_init(&group_data);
+    pa_routing_group_new_data_set_name(&group_data, "output");
     group_data.direction = PA_DIRECTION_OUTPUT;
     group_data.accept = routing_target_accept_func;
     group_data.compare = routing_target_compare_func;
-    policy->output_routing_group = pa_router_group_new(core, &group_data);
-    pa_router_group_new_data_done(&group_data);
+    policy->output_routing_group = pa_routing_group_new(core, &group_data);
+    pa_routing_group_new_data_done(&group_data);
 
     if (!policy->output_routing_group) {
         pa_log("Failed to create the output routing group.");
@@ -268,10 +296,10 @@ void pa_fallback_routing_policy_free(pa_fallback_routing_policy *policy) {
         pa_hook_slot_free(policy->default_sink_changed_slot);
 
     if (policy->output_routing_group)
-        pa_router_group_free(policy->output_routing_group);
+        pa_routing_group_free(policy->output_routing_group);
 
     if (policy->input_routing_group)
-        pa_router_group_free(policy->input_routing_group);
+        pa_routing_group_free(policy->input_routing_group);
 
     if (policy->registered)
         pa_router_unregister_policy_implementation(policy->router);

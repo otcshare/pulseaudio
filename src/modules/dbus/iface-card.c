@@ -25,8 +25,11 @@
 
 #include <dbus/dbus.h>
 
+#include <pulsecore/core-subscribe.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/dbus-util.h>
+#include <pulsecore/hashmap.h>
+#include <pulsecore/idxset.h>
 #include <pulsecore/protocol-dbus.h>
 
 #include "iface-card-profile.h"

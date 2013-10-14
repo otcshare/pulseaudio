@@ -32,6 +32,7 @@
 #include <pulse/util.h>
 
 #include <pulsecore/core-subscribe.h>
+#include <pulsecore/idxset.h>
 #include <pulsecore/log.h>
 #include <pulsecore/macro.h>
 #include <pulsecore/core-util.h>

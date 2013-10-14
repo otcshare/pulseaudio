@@ -35,9 +35,11 @@
 #include <pulse/timeval.h>
 #include <pulse/xmalloc.h>
 
+#include <pulsecore/card.h>
 #include <pulsecore/i18n.h>
 #include <pulsecore/module.h>
 #include <pulsecore/modargs.h>
+#include <pulsecore/sink.h>
 #include <pulsecore/core-rtclock.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/core-error.h>

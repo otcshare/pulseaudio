@@ -32,6 +32,7 @@
 
 #include <pulse/xmalloc.h>
 
+#include <pulsecore/client.h>
 #include <pulsecore/module.h>
 #include <pulsecore/log.h>
 #include <pulsecore/hashmap.h>

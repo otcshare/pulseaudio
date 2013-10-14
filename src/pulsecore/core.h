@@ -24,9 +24,28 @@
 
 #include <pulse/mainloop-api.h>
 #include <pulse/sample.h>
+
 #include <pulsecore/cpu.h>
+#include <pulsecore/hook-list.h>
+#include <pulsecore/llist.h>
+#include <pulsecore/msgobject.h>
+#include <pulsecore/resampler.h>
+#include <pulsecore/router.h>
+#include <pulsecore/sample-util.h>
 
 typedef struct pa_core pa_core;
+
+/* Forward declarations for external structs. */
+typedef struct pa_hashmap pa_hashmap;
+typedef struct pa_hook pa_hook;
+typedef struct pa_idxset pa_idxset;
+typedef struct pa_msgobject pa_msgobject;
+typedef struct pa_router pa_router;
+typedef struct pa_silence_cache pa_silence_cache;
+typedef struct pa_sink pa_sink;
+typedef struct pa_source pa_source;
+typedef struct pa_subscription pa_subscription;
+typedef struct pa_subscription_event pa_subscription_event;
 
 /* This is a bitmask that encodes the cause why a sink/source is
  * suspended. */
@@ -39,20 +58,6 @@ typedef enum pa_suspend_cause {
     PA_SUSPEND_INTERNAL = 32,    /* This is used for short period server-internal suspends, such as for sample rate updates */
     PA_SUSPEND_ALL = 0xFFFF      /* Magic cause that can be used to resume forcibly */
 } pa_suspend_cause_t;
-
-#include <pulsecore/idxset.h>
-#include <pulsecore/hashmap.h>
-#include <pulsecore/memblock.h>
-#include <pulsecore/resampler.h>
-#include <pulsecore/llist.h>
-#include <pulsecore/hook-list.h>
-#include <pulsecore/asyncmsgq.h>
-#include <pulsecore/sample-util.h>
-#include <pulsecore/node.h>
-#include <pulsecore/sink.h>
-#include <pulsecore/source.h>
-#include <pulsecore/core-subscribe.h>
-#include <pulsecore/msgobject.h>
 
 typedef enum pa_server_type {
     PA_SERVER_TYPE_UNSET,
@@ -142,7 +147,7 @@ struct pa_core {
     pa_mainloop_api *mainloop;
 
     /* idxset of all kinds of entities */
-    pa_idxset *clients, *cards, *sinks, *sources, *sink_inputs, *source_outputs, *modules, *scache, *nodes;
+    pa_idxset *clients, *cards, *sinks, *sources, *sink_inputs, *source_outputs, *modules, *scache, *nodes, *connections;
 
     /* Some hashmaps for all sorts of entities */
     pa_hashmap *namereg, *shared;

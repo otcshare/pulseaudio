@@ -36,6 +36,8 @@
 #include <pulse/rtclock.h>
 
 #include <pulsecore/core-error.h>
+#include <pulsecore/device-port.h>
+#include <pulsecore/hashmap.h>
 #include <pulsecore/module.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/modargs.h>

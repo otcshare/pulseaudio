@@ -31,6 +31,7 @@
 #include <pulsecore/i18n.h>
 #include <pulsecore/macro.h>
 #include <pulsecore/namereg.h>
+#include <pulsecore/source-output.h>
 #include <pulsecore/module.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/modargs.h>

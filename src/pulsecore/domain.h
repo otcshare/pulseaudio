@@ -23,12 +23,17 @@
   USA.
 ***/
 
-#include <pulsecore/core.h>
+#include <pulsecore/sequence.h>
 
 typedef struct pa_domain pa_domain;
 typedef struct pa_domain_new_data pa_domain_new_data;
 typedef uint32_t pa_domain_list;
-typedef struct pa_domain_routing_plan pa_domain_routing_plan;
+
+/* Forward declarations for external structs. */
+typedef struct pa_connection pa_connection;
+typedef struct pa_core pa_core;
+typedef struct pa_node pa_node;
+typedef struct pa_sequence_list pa_sequence_list;
 
 struct pa_domain_new_data {
     char *name;
@@ -36,34 +41,24 @@ struct pa_domain_new_data {
 
 struct pa_domain {
     pa_core *core;
-
     uint32_t index;
     char *name;
 
-    pa_hashmap *routing_plans;
-    uint32_t routing_plan_id;
-
-    pa_domain_routing_plan *(*create_new_routing_plan)(pa_domain *domain, uint32_t routing_plan_id);
-    void (*delete_routing_plan)(pa_domain_routing_plan *routing_plan);
-
-    void *(*create_new_connection)(pa_domain_routing_plan *routing_plan, pa_node *input, pa_node *output);
-    void (*update_existing_connection)(pa_domain_routing_plan *routing_plan, void *connection);
-    void (*implement_connection)(pa_domain_routing_plan *routing_plan, void *connection);
-    void (*delete_connection)(pa_domain_routing_plan *routing_plan, void *connection);
+    void (*clear_temporary_constraints)(pa_domain *domain);
+    int (*allocate_connection)(pa_domain *domain, pa_node *input, pa_node *output);
+    void (*deallocate_connection)(pa_domain *domain, pa_node *input, pa_node *output);
+    int (*implement_connection)(pa_domain *domain, pa_node *input, pa_node *output);
+    void (*delete_connection)(pa_domain *domain, pa_connection *connection);
 
     void *userdata; /* domain implementation specific data */
 };
 
 #define PA_DOMAIN_ROUTING_PLAN_DATA(d) ((void*) ((uint8_t*)d + PA_ALIGN(sizeof(pa_domain_routing_plan))))
 
-struct pa_domain_routing_plan {
-    pa_domain *domain;
-    uint32_t id;  /* routing plan id */
+void pa_domain_new_data_init(pa_domain_new_data *data);
+void pa_domain_new_data_set_name(pa_domain_new_data *data, const char *name);
+void pa_domain_new_data_done(pa_domain_new_data *data);
 
-    /* followed by domain specific data */
-};
-
-pa_domain_new_data *pa_domain_new_data_init(pa_domain_new_data *data);
 pa_domain *pa_domain_new(pa_core *core, pa_domain_new_data *data);
 void pa_domain_free(pa_domain *domain);
 
@@ -74,19 +69,11 @@ void pa_domain_list_copy(pa_domain_list *to, pa_domain_list *from);
 bool pa_domain_list_is_empty(pa_domain_list *list);
 bool pa_domain_list_includes(pa_domain_list *list, pa_domain *domain);
 bool pa_domain_list_is_valid(pa_core *core, pa_domain_list *list);
-pa_domain *pa_domain_list_common(pa_core *core, pa_domain_list *list1, pa_domain_list *list2);
 
-pa_domain_routing_plan *pa_domain_create_routing_plan(pa_domain *domain, uint32_t routing_plan_id);
-void pa_domain_delete_routing_plan(pa_domain *domain, uint32_t routing_plan_id);
-
-pa_domain_routing_plan *pa_domain_routing_plan_new(pa_domain *domain, uint32_t routing_plan_id, size_t extra);
-void pa_domain_routing_plan_done(pa_domain_routing_plan *routing_plan);
-pa_domain_routing_plan *pa_domain_get_routing_plan(pa_domain *domain, uint32_t routing_plan_id);
-
-int pa_domain_routing_plan_allocate_connection(pa_domain_routing_plan *plan, pa_node *input, pa_node *output);
-
-void pa_domain_update_existing_connection(pa_domain_routing_plan *plan, void *connection);
-void pa_domain_implement_connection(pa_domain_routing_plan *plan, void *connection);
-void pa_domain_delete_connection(pa_domain_routing_plan *plan, void *connection);
+void pa_domain_clear_temporary_constraints(pa_domain *domain);
+int pa_domain_allocate_connection(pa_domain *domain, pa_node *input, pa_node *output);
+void pa_domain_deallocate_connection(pa_domain *domain, pa_node *input, pa_node *output);
+int pa_domain_implement_connection(pa_domain *domain, pa_node *input, pa_node *output);
+void pa_domain_delete_connection(pa_domain *domain, pa_connection *connection);
 
 #endif

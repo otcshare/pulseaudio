@@ -27,6 +27,7 @@ typedef struct pa_sequence_list pa_sequence_list;
 typedef struct pa_sequence_head pa_sequence_head;
 
 #include <stdbool.h>
+#include <stddef.h>
 
 /* Return values:
  *      less than zero: entry1 should appear earlier than entry2

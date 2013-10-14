@@ -34,6 +34,7 @@
 
 #include <pulsecore/i18n.h>
 #include <pulsecore/mix.h>
+#include <pulsecore/pulse-domain.h>
 #include <pulsecore/core-subscribe.h>
 #include <pulsecore/log.h>
 #include <pulsecore/play-memblockq.h>
@@ -112,7 +113,6 @@ pa_sink_input_new_data* pa_sink_input_new_data_init(pa_sink_input_new_data *data
     data->volume_factor_items = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     data->volume_factor_sink_items = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     pa_node_new_data_init(&data->node_data);
-    pa_node_new_data_set_type(&data->node_data, PA_NODE_TYPE_SINK_INPUT);
     pa_node_new_data_set_direction(&data->node_data, PA_DIRECTION_INPUT);
 
     return data;
@@ -301,80 +301,49 @@ static char *get_description_from_properties(pa_proplist *pl) {
 
 static bool available(pa_node *node, pa_domain *domain) {
     pa_assert(node);
-    pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
     pa_assert(domain);
     pa_assert(domain->core);
 
-    return (domain == domain->core->router.pulse_domain);
+    return (domain == domain->core->router.pulse_domain->domain);
 }
 
 static pa_node_features *get_features(pa_node *node, pa_domain *domain, pa_node_features *buf) {
+    pa_pulse_domain_node_data *data;
     pa_sink_input *i;
     const char *role;
 
     pa_assert(node);
-    pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
-    pa_assert(node->owner);
     pa_assert(domain);
     pa_assert(domain->core);
     pa_assert(buf);
-    pa_assert_se(i = node->owner);
 
-    if (domain != domain->core->router.pulse_domain)
+    if (domain != domain->core->router.pulse_domain->domain) {
         pa_zero(*buf);
-    else {
-        if (!(role = pa_proplist_gets(i->proplist, PA_PROP_MEDIA_ROLE)))
-            role = "<unknown>";
+        return buf;
+    }
 
-        buf->channels_min = 1;
-        buf->channels_max = 7;
+    data = pa_node_get_domain_data(node, domain);
+    pa_assert(data->type == PA_PULSE_DOMAIN_NODE_TYPE_SINK_INPUT);
+    i = data->owner;
 
-        buf->latency_min = PA_NODE_LATENCY_LOW;
-        buf->rate_min = 8000;
+    if (!(role = pa_proplist_gets(i->proplist, PA_PROP_MEDIA_ROLE)))
+        role = "<unknown>";
 
-        if (pa_streq(role, "phone")) {
-            buf->latency_max = PA_NODE_LATENCY_LOW;
-            buf->rate_max = 16000;
-        } else {
-            buf->latency_max = PA_NODE_LATENCY_HIGH;
-            buf->rate_max = 128000;
-        }
+    buf->channels_min = 1;
+    buf->channels_max = 7;
+
+    buf->latency_min = PA_NODE_LATENCY_LOW;
+    buf->rate_min = 8000;
+
+    if (pa_streq(role, "phone")) {
+        buf->latency_max = PA_NODE_LATENCY_LOW;
+        buf->rate_max = 16000;
+    } else {
+        buf->latency_max = PA_NODE_LATENCY_HIGH;
+        buf->rate_max = 128000;
     }
 
     return buf;
-}
-
-static bool reserve_path_to_node(pa_node *node, pa_domain_routing_plan *plan, pa_node_features *features) {
-    pa_domain *domain;
-    pa_core *core;
-    pa_router *router;
-
-    pa_assert(node);
-    pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
-    pa_assert(plan);
-    pa_assert(features);
-
-    pa_assert_se((domain = plan->domain));
-    pa_assert_se((core = domain->core));
-    router = &core->router;
-
-    return (domain == router->pulse_domain);
-}
-
-static bool activate_path_to_node(pa_node *node, pa_domain_routing_plan *plan) {
-    pa_domain *domain;
-    pa_core *core;
-    pa_router *router;
-
-    pa_assert(node);
-    pa_assert(node->type == PA_NODE_TYPE_SINK_INPUT);
-    pa_assert(plan);
-
-    pa_assert_se((domain = plan->domain));
-    pa_assert_se((core = domain->core));
-    router = &core->router;
-
-    return (domain == router->pulse_domain);
 }
 
 /* Called from main context */
@@ -442,7 +411,11 @@ int pa_sink_input_new(
     pa_return_val_if_fail(!data->driver || pa_utf8_valid(data->driver), -PA_ERR_INVALID);
 
     if (data->create_node) {
-        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+        pa_pulse_domain_node_data *domain_data;
+
+        domain_data = pa_pulse_domain_node_data_new(PA_PULSE_DOMAIN_NODE_TYPE_SINK_INPUT, i);
+        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain->domain, domain_data,
+                                    (pa_free_cb_t) pa_pulse_domain_node_data_free);
 
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, pa_sink_input_get_description(i));
@@ -453,11 +426,8 @@ int pa_sink_input_new(
             goto fail;
         }
 
-        i->node->owner = i;
         i->node->available = available;
         i->node->get_features = get_features;
-        i->node->reserve_path_to_node = reserve_path_to_node;
-        i->node->activate_path_to_node = activate_path_to_node;
 
         if (pa_node_put(i->node) < 0) {
             pa_log("Failed to route sink input \"%s\".", pa_sink_input_get_description(i));

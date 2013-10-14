@@ -100,6 +100,7 @@ pa_core* pa_core_new(pa_mainloop_api *m, bool shared, size_t shm_size) {
     c->modules = pa_idxset_new(NULL, NULL);
     c->scache = pa_idxset_new(NULL, NULL);
     c->nodes = pa_idxset_new(NULL, NULL);
+    c->connections = pa_idxset_new(NULL, NULL);
 
     c->namereg = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     c->shared = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
@@ -173,6 +174,12 @@ static void core_free(pa_object *o) {
 
     /* Note: All modules and samples in the cache should be unloaded before
      * we get here */
+
+    pa_assert(pa_idxset_isempty(c->connections));
+    pa_idxset_free(c->connections, NULL);
+
+    pa_assert(pa_idxset_isempty(c->nodes));
+    pa_idxset_free(c->nodes, NULL);
 
     pa_assert(pa_idxset_isempty(c->scache));
     pa_idxset_free(c->scache, NULL);

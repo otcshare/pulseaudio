@@ -25,18 +25,22 @@
 #endif
 
 #include <pulsecore/core.h>
+#include <pulsecore/node.h>
+#include <pulsecore/pulse-domain.h>
+#include <pulsecore/sink.h>
 
 #include "module-murphy-symdef.h"
 
 struct userdata {
     bool policy_registered;
-    pa_router_group **groups;
+    pa_routing_group **groups;
 };
 
-static bool implicit_route_accept(pa_router *router, pa_node *node) {
+static pa_routing_group *implicit_route_accept(pa_router *router, pa_node *node) {
     pa_module *m;
     struct userdata *u;
-    pa_router_group *g;
+    pa_pulse_domain_node_data *data;
+    pa_routing_group *g;
     size_t i;
 
     pa_assert(router);
@@ -45,16 +49,19 @@ static bool implicit_route_accept(pa_router *router, pa_node *node) {
     pa_assert_se((u = m->userdata));
     pa_assert(u->groups);
 
-    if (node->type == PA_NODE_TYPE_SINK_INPUT || node->type == PA_NODE_TYPE_SOURCE_OUTPUT) {
+    data = pa_node_get_domain_data(node, router->pulse_domain->domain);
+
+    if (!data)
+        return NULL;
+
+    if (data->type == PA_PULSE_DOMAIN_NODE_TYPE_SINK_INPUT || data->type == PA_PULSE_DOMAIN_NODE_TYPE_SOURCE_OUTPUT) {
         for (i = 0;  (g = u->groups[i]);  i++) {
-            if (g->direction == node->direction) {
-                node->implicit_route.group = g;
-                return true;
-            }
+            if (g->direction == node->direction)
+                return g;
         }
     }
 
-    return false;
+    return NULL;
 }
 
 static int implicit_route_compare(pa_node *n1, pa_node *n2) {
@@ -65,34 +72,51 @@ static int implicit_route_compare(pa_node *n1, pa_node *n2) {
 
 
 static unsigned get_node_priority(pa_node *node) {
+    pa_pulse_domain_node_data *data;
     void *owner;
     int pri;
 
     pa_assert(node);
-    pa_assert_se((owner = node->owner));
 
-    switch (node->type) {
-    case PA_NODE_TYPE_SINK:    pri = ((pa_sink *)owner)->priority;         break;
-    case PA_NODE_TYPE_SOURCE:  pri = ((pa_source *)owner)->priority;       break;
-    case PA_NODE_TYPE_PORT:    pri = ((pa_device_port *)owner)->priority;  break;
-    default:                   pri = 0;                                    break;
+    pa_assert_se(data = pa_node_get_domain_data(node, node->core->router.pulse_domain->domain));
+    pa_assert_se((owner = data->owner));
+
+    switch (data->type) {
+        case PA_PULSE_DOMAIN_NODE_TYPE_SINK:    pri = ((pa_sink *)owner)->priority;         break;
+        case PA_PULSE_DOMAIN_NODE_TYPE_SOURCE:  pri = ((pa_source *)owner)->priority;       break;
+        case PA_PULSE_DOMAIN_NODE_TYPE_PORT:    pri = ((pa_device_port *)owner)->priority;  break;
+        default:                                pri = 0;                                    break;
     }
 
     return pri;
 }
 
-static bool default_output_accept(pa_router_group *group, pa_node *node) {
+static bool default_output_accept(pa_routing_group *group, pa_node *node) {
+    pa_pulse_domain_node_data *data;
+
     pa_assert(group);
     pa_assert(node);
 
-    return (node->type == PA_NODE_TYPE_PORT || node->type == PA_NODE_TYPE_SINK);
+    data = pa_node_get_domain_data(node, node->core->router.pulse_domain->domain);
+
+    if (!data)
+        return false;
+
+    return (data->type == PA_PULSE_DOMAIN_NODE_TYPE_PORT || data->type == PA_PULSE_DOMAIN_NODE_TYPE_SINK);
 }
 
-static bool default_input_accept(pa_router_group *group, pa_node *node) {
+static bool default_input_accept(pa_routing_group *group, pa_node *node) {
+    pa_pulse_domain_node_data *data;
+
     pa_assert(group);
     pa_assert(node);
 
-    return (node->type == PA_NODE_TYPE_PORT || node->type == PA_NODE_TYPE_SOURCE);
+    data = pa_node_get_domain_data(node, node->core->router.pulse_domain->domain);
+
+    if (!data)
+        return false;
+
+    return (data->type == PA_PULSE_DOMAIN_NODE_TYPE_PORT || data->type == PA_PULSE_DOMAIN_NODE_TYPE_SOURCE);
 }
 
 static int routing_group_compare(pa_node *n1, pa_node *n2) {
@@ -111,7 +135,7 @@ static int routing_group_compare(pa_node *n1, pa_node *n2) {
 }
 
 int pa__init(pa_module *m) {
-    static pa_router_group_new_data groups[] = {
+    static pa_routing_group_new_data groups[] = {
         { (char *)"default_output", PA_DIRECTION_OUTPUT, default_output_accept, routing_group_compare },
         { (char *)"default_input", PA_DIRECTION_INPUT , default_input_accept, routing_group_compare },
     };
@@ -119,7 +143,7 @@ int pa__init(pa_module *m) {
     struct userdata *u;
     pa_router_policy_implementation_data data;
     int r;
-    pa_router_group **g;
+    pa_routing_group **g;
     size_t ngroup, i;
 
     pa_assert(m);
@@ -142,10 +166,10 @@ int pa__init(pa_module *m) {
     u->policy_registered = true;
 
     ngroup = PA_ELEMENTSOF(groups);
-    u->groups = g = pa_xnew0(pa_router_group *, ngroup + 1);
+    u->groups = g = pa_xnew0(pa_routing_group *, ngroup + 1);
 
     for (i = 0;  i < ngroup;  i++)
-        g[i] = pa_router_group_new(m->core, groups + i);
+        g[i] = pa_routing_group_new(m->core, groups + i);
 
     return 0;
 

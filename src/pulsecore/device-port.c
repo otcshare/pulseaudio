@@ -21,8 +21,18 @@
   USA.
 ***/
 
-#include "device-port.h"
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+#include <pulse/proplist.h>
+
 #include <pulsecore/card.h>
+#include <pulsecore/core-subscribe.h>
+#include <pulsecore/pulse-domain.h>
+#include <pulsecore/sink.h>
+
+#include "device-port.h"
 
 PA_DEFINE_PUBLIC_CLASS(pa_device_port, pa_object);
 
@@ -32,7 +42,6 @@ pa_device_port_new_data *pa_device_port_new_data_init(pa_device_port_new_data *d
     pa_zero(*data);
     data->available = PA_AVAILABLE_UNKNOWN;
     pa_node_new_data_init(&data->node_data);
-    pa_node_new_data_set_type(&data->node_data, PA_NODE_TYPE_PORT);
 
     return data;
 }
@@ -145,7 +154,11 @@ pa_device_port *pa_device_port_new(pa_core *c, pa_device_port_new_data *data, si
     p->proplist = pa_proplist_new();
 
     if (data->create_node) {
-        pa_node_new_data_add_domain(&data->node_data, c->router.pulse_domain);
+        pa_pulse_domain_node_data *domain_data;
+
+        domain_data = pa_pulse_domain_node_data_new(PA_PULSE_DOMAIN_NODE_TYPE_PORT, p);
+        pa_node_new_data_add_domain(&data->node_data, c->router.pulse_domain->domain, domain_data,
+                                    (pa_free_cb_t) pa_pulse_domain_node_data_free);
 
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, p->description);
@@ -154,8 +167,6 @@ pa_device_port *pa_device_port_new(pa_core *c, pa_device_port_new_data *data, si
             pa_log("Failed to create a node for port %s.", p->name);
             goto fail;
         }
-
-        p->node->owner = p;
 
         if (pa_node_put(p->node) < 0) {
             pa_log("Failed to route port %s.", p->name);

@@ -26,6 +26,7 @@
 #include <pulse/xmalloc.h>
 
 #include <pulsecore/core-util.h>
+#include <pulsecore/hashmap.h>
 #include <pulsecore/shared.h>
 #include <pulsecore/dbus-shared.h>
 

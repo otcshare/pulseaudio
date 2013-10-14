@@ -27,11 +27,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <pulse/proplist.h>
 #include <pulse/xmalloc.h>
 #include <pulse/util.h>
 
+#include <pulsecore/core-subscribe.h>
 #include <pulsecore/log.h>
 #include <pulsecore/macro.h>
+#include <pulsecore/sink.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/namereg.h>
 #include <pulsecore/device-port.h>

@@ -25,6 +25,7 @@
 
 #include <pulse/xmalloc.h>
 
+#include <pulsecore/core-subscribe.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/i18n.h>
 #include <pulsecore/modargs.h>

@@ -36,11 +36,13 @@
 #include <pulse/internal.h>
 
 #include <pulsecore/core-util.h>
+#include <pulsecore/pulse-domain.h>
 #include <pulsecore/source-output.h>
 #include <pulsecore/namereg.h>
 #include <pulsecore/core-subscribe.h>
 #include <pulsecore/log.h>
 #include <pulsecore/mix.h>
+#include <pulsecore/node.h>
 #include <pulsecore/flist.h>
 
 #include "source.h"
@@ -75,7 +77,6 @@ pa_source_new_data* pa_source_new_data_init(pa_source_new_data *data) {
     data->proplist = pa_proplist_new();
     data->ports = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     pa_node_new_data_init(&data->node_data);
-    pa_node_new_data_set_type(&data->node_data, PA_NODE_TYPE_SOURCE);
     pa_node_new_data_set_direction(&data->node_data, PA_DIRECTION_INPUT);
 
     return data;
@@ -335,7 +336,11 @@ pa_source* pa_source_new(
         pa_assert_se(pa_idxset_put(s->card->sources, s, NULL) >= 0);
 
     if (data->create_node) {
-        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+        pa_pulse_domain_node_data *domain_data;
+
+        domain_data = pa_pulse_domain_node_data_new(PA_PULSE_DOMAIN_NODE_TYPE_SOURCE, s);
+        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain->domain, domain_data,
+                                    (pa_free_cb_t) pa_pulse_domain_node_data_free);
 
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, pa_source_get_description(s));
@@ -344,8 +349,6 @@ pa_source* pa_source_new(
             pa_log("Failed to create a node for source %s.", s->name);
             goto fail;
         }
-
-        s->node->owner = s;
     }
 
     pt = pa_proplist_to_string_sep(s->proplist, "\n    ");

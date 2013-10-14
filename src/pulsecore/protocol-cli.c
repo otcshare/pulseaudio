@@ -28,6 +28,7 @@
 #include <pulse/xmalloc.h>
 
 #include <pulsecore/cli.h>
+#include <pulsecore/idxset.h>
 #include <pulsecore/log.h>
 #include <pulsecore/macro.h>
 #include <pulsecore/shared.h>

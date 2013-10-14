@@ -34,6 +34,8 @@
 
 #include <pulsecore/i18n.h>
 #include <pulsecore/mix.h>
+#include <pulsecore/node.h>
+#include <pulsecore/pulse-domain.h>
 #include <pulsecore/core-subscribe.h>
 #include <pulsecore/log.h>
 #include <pulsecore/namereg.h>
@@ -56,7 +58,6 @@ pa_source_output_new_data* pa_source_output_new_data_init(pa_source_output_new_d
     data->proplist = pa_proplist_new();
     data->volume_writable = true;
     pa_node_new_data_init(&data->node_data);
-    pa_node_new_data_set_type(&data->node_data, PA_NODE_TYPE_SOURCE_OUTPUT);
     pa_node_new_data_set_direction(&data->node_data, PA_DIRECTION_OUTPUT);
 
     return data;
@@ -510,7 +511,11 @@ int pa_source_output_new(
         pa_assert_se(pa_idxset_put(o->direct_on_input->direct_outputs, o, NULL) == 0);
 
     if (data->create_node) {
-        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain);
+        pa_pulse_domain_node_data *domain_data;
+
+        domain_data = pa_pulse_domain_node_data_new(PA_PULSE_DOMAIN_NODE_TYPE_SOURCE_OUTPUT, o);
+        pa_node_new_data_add_domain(&data->node_data, core->router.pulse_domain->domain, domain_data,
+                                    (pa_free_cb_t) pa_pulse_domain_node_data_free);
 
         if (!data->node_data.description)
             pa_node_new_data_set_description(&data->node_data, pa_source_output_get_description(o));
@@ -520,8 +525,6 @@ int pa_source_output_new(
             ret = -PA_ERR_INTERNAL;
             goto fail;
         }
-
-        o->node->owner = o;
     }
 
     pt = pa_proplist_to_string_sep(o->proplist, "\n    ");

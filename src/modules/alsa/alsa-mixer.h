@@ -25,13 +25,10 @@
 
 #include <asoundlib.h>
 
-#include <pulse/sample.h>
-#include <pulse/mainloop-api.h>
-#include <pulse/channelmap.h>
-#include <pulse/volume.h>
+#include <pulsecore/card.h>
+#include <pulsecore/device-class.h>
 
-#include <pulsecore/llist.h>
-#include <pulsecore/rtpoll.h>
+#include "alsa-ucm.h"
 
 typedef struct pa_alsa_fdlist pa_alsa_fdlist;
 typedef struct pa_alsa_mixer_pdata pa_alsa_mixer_pdata;
@@ -47,8 +44,10 @@ typedef struct pa_alsa_decibel_fix pa_alsa_decibel_fix;
 typedef struct pa_alsa_profile_set pa_alsa_profile_set;
 typedef struct pa_alsa_port_data pa_alsa_port_data;
 
-#include "alsa-util.h"
-#include "alsa-ucm.h"
+/* Forward declarations for external structs. */
+typedef struct pa_alsa_ucm_mapping_context pa_alsa_ucm_mapping_context;
+typedef struct pa_device_port pa_device_port;
+typedef struct pa_rtpoll pa_rtpoll;
 
 typedef enum pa_alsa_switch_use {
     PA_ALSA_SWITCH_IGNORE,

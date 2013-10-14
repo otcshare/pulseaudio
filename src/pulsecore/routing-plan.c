@@ -28,7 +28,11 @@
 
 #include <pulsecore/connection.h>
 #include <pulsecore/core.h>
+#include <pulsecore/domain.h>
+#include <pulsecore/dynarray.h>
+#include <pulsecore/hashmap.h>
 #include <pulsecore/macro.h>
+#include <pulsecore/node.h>
 
 #include "routing-plan.h"
 
@@ -37,15 +41,30 @@ struct pa_routing_plan {
     pa_hashmap *connections; /* Connection key -> planned connection */
 };
 
+struct pa_routing_plan_node_data {
+    pa_dynarray *planned_connections;
+};
+
+typedef enum {
+    PLANNED_CONNECTION_STATE_INIT,
+    PLANNED_CONNECTION_STATE_LINKED,
+    PLANNED_CONNECTION_STATE_UNLINKED
+} planned_connection_state_t;
+
 struct planned_connection {
+    pa_routing_plan *plan;
+    planned_connection_state_t state;
     uint64_t key;
     pa_node *input_node;
     pa_node *output_node;
+    pa_domain *domain;
     pa_dynarray *explicit_connection_requests;
+    bool implicit;
 };
 
-static struct planned_connection *planned_connection_new(pa_node *input, pa_node *output) {
-    pa_domain *domain;
+static void planned_connection_free(struct planned_connection *connection);
+
+static struct planned_connection *planned_connection_new(pa_routing_plan *plan, pa_node *input, pa_node *output) {
     struct planned_connection *connection;
 
     pa_assert(input);
@@ -53,36 +72,73 @@ static struct planned_connection *planned_connection_new(pa_node *input, pa_node
     pa_assert(output);
     pa_assert(output->direction == PA_DIRECTION_OUTPUT);
 
+    connection = pa_xnew0(struct planned_connection, 1);
+    connection->plan = plan;
+    connection->state = PLANNED_CONNECTION_STATE_INIT;
+    connection->key = pa_connection_key(input->index, output->index);
+    connection->input_node = input;
+    connection->output_node = output;
+
     /* XXX: There may be multiple common domains, and it would be good to avoid
      * choosing one too early, because it's good to keep all options open as
      * long as possible. I'm not aware of any real-world problems with choosing
      * the domain early, however, so changing this might just add unnecessary
      * complexity. */
-    domain = pa_node_get_common_domain(input, output);
+    connection->domain = pa_node_get_common_domain(input, output);
 
-    if (!domain) {
+    if (!connection->domain) {
         pa_log("Failed to allocate connection from %s to %s: no common domains.", input->name, output->name);
-        return NULL;
+        goto fail;
     }
 
-    if (pa_domain_routing_plan_allocate_connection(pa_domain_get_routing_plan(domain), input, output) < 0)
-        return NULL;
-
-    connection = pa_xnew0(struct planned_connection, 1);
-    connection->key = pa_connection_key(input->index, output->index);
-    connection->input_node = input;
-    connection->output_node = output;
-    connection->domain = domain;
     connection->explicit_connection_requests = pa_dynarray_new(NULL);
 
     return connection;
+
+fail:
+    planned_connection_free(connection);
+
+    return NULL;
+}
+
+static int planned_connection_put(struct planned_connection *connection) {
+    pa_assert(connection);
+    pa_assert(connection->state == PLANNED_CONNECTION_STATE_INIT);
+
+    pa_assert_se(pa_hashmap_put(connection->plan->connections, &connection->key, connection) >= 0);
+
+    if (pa_domain_allocate_connection(connection->domain, connection->input_node, connection->output_node) < 0)
+        return -1;
+
+    pa_dynarray_append(connection->input_node->routing_plan_data->planned_connections, connection);
+    pa_dynarray_append(connection->output_node->routing_plan_data->planned_connections, connection);
+
+    connection->state = PLANNED_CONNECTION_STATE_LINKED;
+
+    return 0;
+}
+
+static void planned_connection_unlink(struct planned_connection *connection) {
+    pa_assert(connection);
+
+    if (connection->state != PLANNED_CONNECTION_STATE_LINKED)
+        return;
+
+    connection->state = PLANNED_CONNECTION_STATE_UNLINKED;
+
+    pa_assert_se(pa_dynarray_remove_by_data_fast(connection->output_node->routing_plan_data->planned_connections,
+                                                 connection) >= 0);
+    pa_assert_se(pa_dynarray_remove_by_data_fast(connection->input_node->routing_plan_data->planned_connections,
+                                                 connection) >= 0);
+    pa_domain_deallocate_connection(connection->domain, connection->input_node, connection->output_node);
+    pa_assert_se(pa_hashmap_remove(connection->plan->connections, &connection->key));
 }
 
 static void planned_connection_free(struct planned_connection *connection) {
     pa_assert(connection);
 
-    pa_domain_routing_plan_deallocate_connection(pa_domain_get_routing_plan(connection->domain), connection->input_node,
-                                                 connection->output_node);
+    if (connection->state == PLANNED_CONNECTION_STATE_LINKED)
+        planned_connection_unlink(connection);
 
     if (connection->explicit_connection_requests)
         pa_dynarray_free(connection->explicit_connection_requests);
@@ -93,7 +149,7 @@ static void planned_connection_free(struct planned_connection *connection) {
 static bool planned_connection_is_valid(struct planned_connection *connection) {
     pa_assert(connection);
 
-    return pa_dynarray_size(connection->explicit_connection_requests) > 0;
+    return connection->implicit || pa_dynarray_size(connection->explicit_connection_requests) > 0;
 }
 
 static void planned_connection_add_explicit_connection_request(struct planned_connection *connection,
@@ -110,6 +166,12 @@ static void planned_connection_remove_explicit_connection_request(struct planned
     pa_assert(request);
 
     pa_assert_se(pa_dynarray_remove_by_data_fast(connection->explicit_connection_requests, request) >= 0);
+}
+
+static void planned_connection_set_implicit(struct planned_connection *connection, bool implicit) {
+    pa_assert(connection);
+
+    connection->implicit = implicit;
 }
 
 pa_routing_plan *pa_routing_plan_new(pa_core *core) {
@@ -131,9 +193,48 @@ void pa_routing_plan_free(pa_routing_plan *plan) {
     pa_xfree(plan);
 }
 
+void pa_routing_plan_clear(pa_routing_plan *plan, bool clear_temporary_constraints) {
+    pa_domain *domain;
+    uint32_t idx;
+
+    pa_assert(plan);
+
+    pa_hashmap_remove_all(plan->connections, (pa_free_cb_t) planned_connection_free);
+
+    if (clear_temporary_constraints) {
+        PA_IDXSET_FOREACH(domain, plan->core->router.domains, idx)
+            pa_domain_clear_temporary_constraints(domain);
+    }
+}
+
+static struct planned_connection *allocate_connection(pa_routing_plan *plan, pa_node *input, pa_node *output) {
+    uint64_t key;
+    struct planned_connection *connection;
+
+    pa_assert(plan);
+    pa_assert(input);
+    pa_assert(output);
+
+    key = pa_connection_key(input->index, output->index);
+    connection = pa_hashmap_get(plan->connections, &key);
+
+    if (!connection) {
+        connection = planned_connection_new(plan, input, output);
+
+        if (!connection)
+            return NULL;
+
+        if (planned_connection_put(connection) < 0) {
+            planned_connection_free(connection);
+            return NULL;
+        }
+    }
+
+    return connection;
+}
+
 int pa_routing_plan_allocate_explicit_connection(pa_routing_plan *plan, pa_node *input, pa_node *output,
                                                  pa_explicit_connection_request *request) {
-    uint64_t key;
     struct planned_connection *connection;
 
     pa_assert(plan);
@@ -141,29 +242,31 @@ int pa_routing_plan_allocate_explicit_connection(pa_routing_plan *plan, pa_node 
     pa_assert(output);
     pa_assert(request);
 
-    key = pa_connection_key(input->index, output->index);
-    connection = pa_hashmap_get(plan->connections, &key);
+    connection = allocate_connection(plan, input, output);
 
-    if (!connection) {
-        connection = planned_connection_new(input, output);
-
-        if (connection)
-            pa_hashmap_put(plan->connections, &connection->key, connection);
-        else
-            return -1;
-    }
+    if (!connection)
+        return -1;
 
     planned_connection_add_explicit_connection_request(connection, request);
 
     return 0;
 }
 
-static void remove_planned_connection(pa_routing_plan *plan, struct planned_connection *connection) {
-    pa_assert(plan);
-    pa_assert(connection);
+int pa_routing_plan_allocate_implicit_connection(pa_routing_plan *plan, pa_node *input, pa_node *output) {
+    struct planned_connection *connection;
 
-    pa_assert_se(pa_hashmap_remove(plan->connections, &connection->key));
-    planned_connection_free(connection);
+    pa_assert(plan);
+    pa_assert(input);
+    pa_assert(output);
+
+    connection = allocate_connection(plan, input, output);
+
+    if (!connection)
+        return -1;
+
+    planned_connection_set_implicit(connection, true);
+
+    return 0;
 }
 
 void pa_routing_plan_deallocate_explicit_connection(pa_routing_plan *plan, pa_node *input_node, pa_node *output_node,
@@ -182,5 +285,55 @@ void pa_routing_plan_deallocate_explicit_connection(pa_routing_plan *plan, pa_no
     planned_connection_remove_explicit_connection_request(connection, request);
 
     if (!planned_connection_is_valid(connection))
-        remove_planned_connection(plan, connection);
+        planned_connection_free(connection);
+}
+
+void pa_routing_plan_deallocate_connections_of_node(pa_routing_plan *plan, pa_node *node) {
+    struct planned_connection *connection;
+
+    pa_assert(plan);
+    pa_assert(node);
+
+    while ((connection = pa_dynarray_get_last(node->routing_plan_data->planned_connections)))
+        planned_connection_free(connection);
+}
+
+int pa_routing_plan_execute(pa_routing_plan *plan) {
+    pa_connection *real_connection;
+    uint32_t idx;
+    struct planned_connection *planned_connection;
+    void *state;
+
+    pa_assert(plan);
+
+    PA_IDXSET_FOREACH(real_connection, plan->core->connections, idx) {
+        planned_connection = pa_hashmap_get(plan->connections, &real_connection->key);
+
+        if (!planned_connection || real_connection->domain != planned_connection->domain)
+            pa_domain_delete_connection(real_connection->domain, real_connection);
+    }
+
+    PA_HASHMAP_FOREACH(planned_connection, plan->connections, state) {
+        if (pa_domain_implement_connection(planned_connection->domain, planned_connection->input_node,
+                                           planned_connection->output_node) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+pa_routing_plan_node_data *pa_routing_plan_node_data_new(void) {
+    pa_routing_plan_node_data *data;
+
+    data = pa_xnew0(pa_routing_plan_node_data, 1);
+    data->planned_connections = pa_dynarray_new(NULL);
+
+    return data;
+}
+
+void pa_routing_plan_node_data_free(pa_routing_plan_node_data *data) {
+    pa_assert(data);
+
+    if (data->planned_connections)
+        pa_dynarray_free(data->planned_connections);
 }

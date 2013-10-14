@@ -24,6 +24,8 @@
 #endif
 
 #include <pulse/xmalloc.h>
+
+#include <pulsecore/hashmap.h>
 #include <pulsecore/macro.h>
 
 #include "shared.h"

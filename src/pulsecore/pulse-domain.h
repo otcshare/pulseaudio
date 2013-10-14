@@ -25,9 +25,36 @@
 
 #define PA_PULSE_DOMAIN_NAME "Pulse"
 
-#include "domain.h"
+typedef struct pa_pulse_domain pa_pulse_domain;
+typedef struct pa_pulse_domain_node_data pa_pulse_domain_node_data;
 
-pa_domain *pa_pulse_domain_new(pa_core *core);
-void pa_pulse_domain_free(pa_domain *dom);
+/* Forward declarations for external structs. */
+typedef struct pa_core pa_core;
+typedef struct pa_domain pa_domain;
+
+struct pa_pulse_domain {
+    pa_domain *domain;
+};
+
+typedef enum {
+    PA_PULSE_DOMAIN_NODE_TYPE_PORT,
+    PA_PULSE_DOMAIN_NODE_TYPE_SINK,
+    PA_PULSE_DOMAIN_NODE_TYPE_SOURCE,
+    PA_PULSE_DOMAIN_NODE_TYPE_SINK_INPUT,
+    PA_PULSE_DOMAIN_NODE_TYPE_SOURCE_OUTPUT
+} pa_pulse_domain_node_type_t;
+
+struct pa_pulse_domain_node_data {
+    pa_pulse_domain_node_type_t type;
+    void *owner;
+};
+
+const char *pa_pulse_domain_node_type_to_string(pa_pulse_domain_node_type_t type);
+
+pa_pulse_domain *pa_pulse_domain_new(pa_core *core);
+void pa_pulse_domain_free(pa_pulse_domain *pulse_domain);
+
+pa_pulse_domain_node_data *pa_pulse_domain_node_data_new(pa_pulse_domain_node_type_t type, void *owner);
+void pa_pulse_domain_node_data_free(pa_pulse_domain_node_data *data);
 
 #endif

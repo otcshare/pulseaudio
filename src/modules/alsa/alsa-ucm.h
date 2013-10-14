@@ -30,7 +30,15 @@
 typedef void snd_use_case_mgr_t;
 #endif
 
-#include "alsa-mixer.h"
+#include <pulsecore/card.h>
+
+/* Forward declarations for external structs. */
+typedef struct pa_alsa_jack pa_alsa_jack;
+typedef struct pa_alsa_mapping pa_alsa_mapping;
+typedef struct pa_alsa_profile_set pa_alsa_profile_set;
+typedef struct pa_card pa_card;
+typedef struct pa_card_profile pa_card_profile;
+typedef struct pa_device_port pa_device_port;
 
 /** For devices: List of verbs, devices or modifiers available */
 #define PA_ALSA_PROP_UCM_NAME                       "alsa.ucm.name"

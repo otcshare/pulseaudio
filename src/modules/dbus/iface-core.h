@@ -28,9 +28,12 @@
  * documentation.
  */
 
-#include <pulsecore/core.h>
-
 typedef struct pa_dbusiface_core pa_dbusiface_core;
+
+/* Forward declarations for external structs. */
+typedef struct pa_card pa_card;
+typedef struct pa_sink_input pa_sink_input;
+typedef struct pa_source_output pa_source_output;
 
 pa_dbusiface_core *pa_dbusiface_core_new(pa_core *core);
 void pa_dbusiface_core_free(pa_dbusiface_core *c);

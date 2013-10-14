@@ -31,6 +31,8 @@
 
 #include <pulse/timeval.h>
 
+#include <pulsecore/card.h>
+#include <pulsecore/hashmap.h>
 #include <pulsecore/modargs.h>
 #include <pulsecore/core-error.h>
 #include <pulsecore/core-util.h>

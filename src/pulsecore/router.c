@@ -25,7 +25,13 @@
 #endif
 
 #include <pulsecore/core.h>
+#include <pulsecore/dynarray.h>
+#include <pulsecore/fallback-routing-policy.h>
+#include <pulsecore/hashmap.h>
+#include <pulsecore/idxset.h>
+#include <pulsecore/module.h>
 #include <pulsecore/namereg.h>
+#include <pulsecore/node.h>
 #include <pulsecore/routing-plan.h>
 #include <pulsecore/strbuf.h>
 
@@ -190,6 +196,7 @@ void pa_router_init(pa_router *router, pa_core *core) {
     pa_assert(core);
 
     router->core = core;
+    router->state = PA_ROUTER_STATE_READY;
     router->module = NULL;
 
     router->domains = pa_idxset_new(NULL, NULL);
@@ -200,7 +207,7 @@ void pa_router_init(pa_router *router, pa_core *core) {
     router->implicit_route.groups = pa_idxset_new(NULL, NULL);
     PA_SEQUENCE_HEAD_INIT(router->implicit_route.node_list, node_list_compare);
 
-    router->routing_plan = NULL;
+    router->routing_plan = pa_routing_plan_new(core);
     router->connections = pa_hashmap_new(pa_connection_key_hash_func, pa_connection_key_compare_func);
     PA_SEQUENCE_HEAD_INIT(router->explicit_connection_requests, explicit_connection_request_compare);
     router->nodes_waiting_for_unlinking = pa_dynarray_new(NULL);
@@ -225,7 +232,9 @@ void pa_router_done(pa_router *router) {
     PA_SEQUENCE_FOREACH_SAFE(request, next, router->explicit_connection_requests, pa_explicit_connection_request, list)
         remove_explicit_connection_request(router, request);
 
-    pa_assert(!router->routing_plan);
+    if (router->routing_plan)
+        pa_routing_plan_free(router->routing_plan);
+
     pa_pulse_domain_free(router->pulse_domain);
 
     pa_assert(pa_idxset_isempty(router->domains));
@@ -282,7 +291,7 @@ int pa_router_register_policy_implementation(pa_router *router, pa_router_policy
 }
 
 void pa_router_unregister_policy_implementation(pa_router *router) {
-    pa_router_group_entry *entry, *next;
+    pa_routing_group_entry *entry, *next;
 
     pa_assert(router);
 
@@ -291,8 +300,8 @@ void pa_router_unregister_policy_implementation(pa_router *router) {
     else
         pa_log_info("Unregistering the fallback routing policy implementation.");
 
-    PA_SEQUENCE_FOREACH_SAFE(entry, next, router->implicit_route.node_list, pa_router_group_entry, node_list)
-        pa_router_group_entry_free(entry);
+    PA_SEQUENCE_FOREACH_SAFE(entry, next, router->implicit_route.node_list, pa_routing_group_entry, node_list)
+        pa_routing_group_entry_free(entry);
 
     if (router->module) {
         pa_assert(!router->fallback_policy);
@@ -305,7 +314,7 @@ void pa_router_unregister_policy_implementation(pa_router *router) {
     }
 }
 
-pa_router_group_new_data *pa_router_group_new_data_init(pa_router_group_new_data *data) {
+pa_routing_group_new_data *pa_routing_group_new_data_init(pa_routing_group_new_data *data) {
     pa_assert(data);
 
     pa_zero(*data);
@@ -313,7 +322,7 @@ pa_router_group_new_data *pa_router_group_new_data_init(pa_router_group_new_data
     return data;
 }
 
-void pa_router_group_new_data_set_name(pa_router_group_new_data *data, const char *name) {
+void pa_routing_group_new_data_set_name(pa_routing_group_new_data *data, const char *name) {
     pa_assert(data);
     pa_assert(name);
 
@@ -321,23 +330,23 @@ void pa_router_group_new_data_set_name(pa_router_group_new_data *data, const cha
     data->name = pa_xstrdup(name);
 }
 
-void pa_router_group_new_data_done(pa_router_group_new_data *data) {
+void pa_routing_group_new_data_done(pa_routing_group_new_data *data) {
     pa_assert(data);
 
     pa_xfree(data->name);
 }
 
 static int routing_group_compare(pa_sequence_list *l1, pa_sequence_list *l2) {
-    pa_router_group_entry *entry1, *entry2;
-    pa_router_group *rtg;
+    pa_routing_group_entry *entry1, *entry2;
+    pa_routing_group *rtg;
     pa_router_compare_t node_compare;
     int result;
 
     pa_assert(l1);
     pa_assert(l2);
 
-    entry1 = PA_SEQUENCE_LIST_ENTRY(l1, pa_router_group_entry, group_list);
-    entry2 = PA_SEQUENCE_LIST_ENTRY(l2, pa_router_group_entry, group_list);
+    entry1 = PA_SEQUENCE_LIST_ENTRY(l1, pa_routing_group_entry, group_list);
+    entry2 = PA_SEQUENCE_LIST_ENTRY(l2, pa_routing_group_entry, group_list);
 
     pa_assert(entry1->group == entry2->group);
     pa_assert_se((rtg = entry1->group));
@@ -350,9 +359,9 @@ static int routing_group_compare(pa_sequence_list *l1, pa_sequence_list *l2) {
     return result;
 }
 
-pa_router_group *pa_router_group_new(pa_core *core, pa_router_group_new_data *data) {
+pa_routing_group *pa_routing_group_new(pa_core *core, pa_routing_group_new_data *data) {
     const char *registered_name = NULL;
-    pa_router_group *rtg = NULL;
+    pa_routing_group *rtg = NULL;
     pa_router *router;
 
     pa_assert(core);
@@ -364,7 +373,7 @@ pa_router_group *pa_router_group_new(pa_core *core, pa_router_group_new_data *da
 
     router = &core->router;
 
-    rtg = pa_xnew0(pa_router_group, 1);
+    rtg = pa_xnew0(pa_routing_group, 1);
 
     if (!(registered_name = pa_namereg_register(core, data->name, PA_NAMEREG_ROUTING_GROUP, rtg, false))) {
         pa_log("Failed to register name %s.", data->name);
@@ -387,13 +396,13 @@ pa_router_group *pa_router_group_new(pa_core *core, pa_router_group_new_data *da
     return rtg;
 }
 
-void pa_router_group_free(pa_router_group *rtg) {
-    pa_router_group_entry *entry, *next;
+void pa_routing_group_free(pa_routing_group *rtg) {
+    pa_routing_group_entry *entry, *next;
 
     pa_assert(rtg);
 
-    PA_SEQUENCE_FOREACH_SAFE(entry, next, rtg->entries, pa_router_group_entry, group_list)
-        pa_router_group_entry_free(entry);
+    PA_SEQUENCE_FOREACH_SAFE(entry, next, rtg->entries, pa_routing_group_entry, group_list)
+        pa_routing_group_entry_free(entry);
 
     if (rtg->name) {
         pa_namereg_unregister(rtg->core, rtg->name);
@@ -403,7 +412,7 @@ void pa_router_group_free(pa_router_group *rtg) {
     pa_xfree(rtg);
 }
 
-void pa_router_group_update_target_ordering(pa_router_group *group) {
+void pa_routing_group_update_target_ordering(pa_routing_group *group) {
     bool changed;
 
     pa_assert(group);
@@ -414,10 +423,10 @@ void pa_router_group_update_target_ordering(pa_router_group *group) {
         pa_router_make_routing(&group->core->router);
 }
 
-static void router_group_add_node(pa_router_group *rtg, pa_node *node) {
-    pa_router_group_entry *entry;
+static void routing_group_add_node(pa_routing_group *rtg, pa_node *node) {
+    pa_routing_group_entry *entry;
 
-    entry = pa_xnew0(pa_router_group_entry, 1);
+    entry = pa_xnew0(pa_routing_group_entry, 1);
 
     PA_SEQUENCE_LIST_INIT(entry->group_list);
     PA_SEQUENCE_LIST_INIT(entry->node_list);
@@ -431,10 +440,10 @@ static void router_group_add_node(pa_router_group *rtg, pa_node *node) {
     pa_log_debug("node '%s' added to routing group '%s'", node->name, rtg->name);
 }
 
-void pa_router_group_entry_free(pa_router_group_entry *entry) {
+void pa_routing_group_entry_free(pa_routing_group_entry *entry) {
     pa_assert(entry);
 
-    entry->node->implicit_route.group = NULL;
+    pa_node_set_routing_group(entry->node, NULL);
 
     PA_SEQUENCE_REMOVE(entry->group_list);
     PA_SEQUENCE_REMOVE(entry->node_list);
@@ -443,7 +452,7 @@ void pa_router_group_entry_free(pa_router_group_entry *entry) {
 }
 
 void pa_router_register_node(pa_router *router, pa_node *node) {
-    pa_router_group *rtg;
+    pa_routing_group *rtg;
     uint32_t idx;
 
     pa_assert(router);
@@ -480,13 +489,20 @@ void pa_router_register_node(pa_router *router, pa_node *node) {
             pa_node_add_explicit_connection_request(node->requested_explicit_connections[i], request);
     }
 
-    if (router->implicit_route.accept && router->implicit_route.accept(router, node) && node->implicit_route.group) {
-        PA_SEQUENCE_INSERT(router->implicit_route.node_list, node->implicit_route.list);
+    if (router->implicit_route.accept) {
+        pa_routing_group *group;
+
+        group = router->implicit_route.accept(router, node);
+
+        if (group) {
+            pa_node_set_routing_group(node, group);
+            PA_SEQUENCE_INSERT(router->implicit_route.node_list, node->implicit_route.list);
+        }
     }
 
     PA_IDXSET_FOREACH(rtg, router->implicit_route.groups, idx) {
         if ((rtg->direction ^ node->direction) && rtg->accept(rtg, node))
-            router_group_add_node(rtg, node);
+            routing_group_add_node(rtg, node);
     }
 }
 
@@ -506,7 +522,7 @@ static void remove_explicit_connection_request(pa_router *router, pa_explicit_co
 }
 
 void pa_router_unregister_node(pa_router *router, pa_node *node) {
-    pa_router_group_entry *entry, *next;
+    pa_routing_group_entry *entry, *next;
     pa_explicit_connection_request *request;
 
     pa_assert(router);
@@ -518,21 +534,21 @@ void pa_router_unregister_node(pa_router *router, pa_node *node) {
 
     PA_SEQUENCE_REMOVE(node->implicit_route.list);
 
-    PA_SEQUENCE_FOREACH_SAFE(entry, next, node->implicit_route.member_of, pa_router_group_entry, node_list)
-        pa_router_group_entry_free(entry);
+    PA_SEQUENCE_FOREACH_SAFE(entry, next, node->implicit_route.member_of, pa_routing_group_entry, node_list)
+        pa_routing_group_entry_free(entry);
 
     while ((request = pa_dynarray_get_last(node->explicit_connection_requests)))
         remove_explicit_connection_request(router, request);
 }
 
-static void make_explicit_routing(pa_core *core) {
+static void make_explicit_routing(pa_router *router) {
     pa_explicit_connection_request *request, *next;
 
-    pa_assert(core);
+    pa_assert(router);
 
     pa_log_debug("start making explicit routes");
 
-    PA_SEQUENCE_FOREACH_SAFE(request, next, core->router.explicit_connection_requests, pa_explicit_connection_request, list) {
+    PA_SEQUENCE_FOREACH_SAFE(request, next, router->explicit_connection_requests, pa_explicit_connection_request, list) {
         unsigned i;
 
         request->times_routed++;
@@ -543,7 +559,7 @@ static void make_explicit_routing(pa_core *core) {
         for (i = 0; i < request->n_connection_entries; i++) {
             struct explicit_connection_request_connection_entry *entry = request->connection_entries[i];
 
-            if (pa_routing_plan_allocate_explicit_connection(core->router.routing_plan, entry->input_node, entry->output_node,
+            if (pa_routing_plan_allocate_explicit_connection(router->routing_plan, entry->input_node, entry->output_node,
                                                              request) < 0) {
                 explicit_connection_request_allocation_failed(request);
                 break;
@@ -565,16 +581,12 @@ static void make_explicit_routing(pa_core *core) {
     pa_log_debug("explicit routing is done");
 }
 
-static void make_implicit_routing(pa_core *core, uint32_t routing_plan_id) {
-    pa_router *router;
+static void make_implicit_routing(pa_router *router) {
     pa_node *node1, *next, *node2;
-    pa_router_group *group;
-    pa_router_group_entry *rte, *next_rte;
-    pa_connection_new_data data;
+    pa_routing_group *group;
+    pa_routing_group_entry *rte, *next_rte;
 
-    pa_assert(core);
-
-    router = &core->router;
+    pa_assert(router);
 
     pa_log_debug("start making implicit routes");
 
@@ -583,85 +595,50 @@ static void make_implicit_routing(pa_core *core, uint32_t routing_plan_id) {
 
         pa_log_debug("  route '%s' using routing group '%s'", node1->name, group->name);
 
-        PA_SEQUENCE_FOREACH_SAFE(rte, next_rte, group->entries, pa_router_group_entry, group_list) {
+        PA_SEQUENCE_FOREACH_SAFE(rte, next_rte, group->entries, pa_routing_group_entry, group_list) {
+            pa_node *input;
+            pa_node *output;
+
             pa_assert_se((node2 = rte->node));
 
-            pa_connection_new_data_init(&data);
-            data.type = PA_CONN_TYPE_IMPLICIT;
-            data.node1_index = node1->index;
-            data.node2_index = node2->index;
-            data.routing_plan_id = routing_plan_id;
-
-            if (pa_connection_new(core, &data)) {
-                pa_log_debug("      '%s' => '%s'", node1->name, node2->name);
-                break;
+            if (group->direction == PA_DIRECTION_OUTPUT) {
+                input = node1;
+                output = node2;
+            } else {
+                input = node2;
+                output = node1;
             }
+
+            if (pa_routing_plan_allocate_implicit_connection(router->routing_plan, input, output) >= 0)
+                break;
         }
     }
 
     pa_log_debug("implicit routing is done");
 }
 
-static void implement_routes(pa_core *core, uint32_t routing_plan_id) {
-    pa_connection *conn;
-    void *state;
-    pa_node *input, *output;
-    pa_domain_routing_plan *plan;
-
-    pa_log_debug("implement routes");
-
-
-    PA_CONNECTION_FOREACH(conn, core, state) {
-        input = pa_idxset_get_by_index(core->nodes, conn->input_index);
-        output = pa_idxset_get_by_index(core->nodes, conn->output_index);
-
-        if (conn->routing_plan_id != routing_plan_id) {
-            pa_log_debug("     removing unused connection '%s'(%d) => '%s' (%d)",
-                         input ? input->name : "<nonexistent>", conn->input_index,
-                         output ? output->name : "<nonexistent>", conn->output_index);
-
-            pa_connection_free(conn);
-        }
-        else {
-            pa_assert(input);
-            pa_assert(output);
-            pa_assert_se((plan = pa_connection_get_routing_plan(conn)));
-
-            pa_log_debug("     implementing connection '%s'(%d) => '%s' (%d)", input->name, input->index, output->name, output->index);
-
-            pa_domain_implement_connection(plan, conn->userdata);
-        }
-    }
-
-    pa_log_debug("routing implementation done");
-}
-
 void pa_router_make_routing(pa_router *router) {
-    static uint32_t plan_id = 0;
-
-    pa_domain *domain;
-    uint32_t domidx;
+    bool success = false;
+    bool first = true;
 
     pa_assert(router);
-    pa_assert(!router->routing_plan);
 
-    plan_id++;
+    if (router->state == PA_ROUTER_STATE_BUSY)
+        return;
 
-    router->routing_plan = pa_routing_plan_new(router->core);
+    router->state = PA_ROUTER_STATE_BUSY;
 
-    PA_IDXSET_FOREACH(domain, router->domains, domidx)
-        pa_domain_create_routing_plan(domain, plan_id);
+    while (!success) {
+        pa_routing_plan_clear(router->routing_plan, first);
+        first = false;
 
-    make_explicit_routing(router->core);
-    make_implicit_routing(router->core, plan_id);
+        make_explicit_routing(router);
+        make_implicit_routing(router);
 
-    implement_routes(router->core, plan_id);
+        success = pa_routing_plan_execute(router->routing_plan) >= 0;
+    }
 
-    PA_IDXSET_FOREACH(domain, router->domains, domidx)
-        pa_domain_delete_routing_plan(domain, plan_id);
-
-    pa_routing_plan_free(router->routing_plan);
-    router->routing_plan = NULL;
+    router->state = PA_ROUTER_STATE_READY;
 
     if (pa_dynarray_size(router->nodes_waiting_for_unlinking) > 0) {
         pa_dynarray *copy;

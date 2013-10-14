@@ -27,6 +27,7 @@
 #include <pulsecore/core.h>
 #include <pulsecore/device-port.h>
 #include <pulsecore/hashmap.h>
+#include <pulsecore/sink.h>
 
 #include "module-switch-on-port-available-symdef.h"
 

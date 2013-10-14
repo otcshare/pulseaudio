@@ -33,9 +33,11 @@
 #include <pulse/util.h>
 #include <pulse/utf8.h>
 
+#include <pulsecore/hashmap.h>
 #include <pulsecore/i18n.h>
 #include <pulsecore/log.h>
 #include <pulsecore/macro.h>
+#include <pulsecore/sink.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/atomic.h>
 #include <pulsecore/core-error.h>

@@ -24,10 +24,18 @@
 
 typedef struct pa_card pa_card;
 
-#include <pulse/proplist.h>
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stddef.h>
+
 #include <pulsecore/core.h>
-#include <pulsecore/module.h>
-#include <pulsecore/idxset.h>
+
+/* Forward declarations for external structs. */
+typedef struct pa_core pa_core;
+typedef struct pa_idxset pa_idxset;
+typedef struct pa_hashmap pa_hashmap;
+typedef struct pa_module pa_module;
+typedef struct pa_proplist pa_proplist;
 
 /* This enum replaces pa_port_available_t (defined in pulse/def.h) for
  * internal use, so make sure both enum types stay in sync. */

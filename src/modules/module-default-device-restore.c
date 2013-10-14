@@ -30,8 +30,10 @@
 #include <pulse/timeval.h>
 #include <pulse/xmalloc.h>
 
+#include <pulsecore/core-subscribe.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/module.h>
+#include <pulsecore/sink.h>
 #include <pulsecore/log.h>
 #include <pulsecore/namereg.h>
 #include <pulsecore/core-error.h>

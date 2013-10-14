@@ -25,10 +25,43 @@
 #endif
 
 #include <pulsecore/core-util.h>
+#include <pulsecore/dynarray.h>
+#include <pulsecore/hashmap.h>
+#include <pulsecore/idxset.h>
 #include <pulsecore/namereg.h>
+#include <pulsecore/node.h>
+#include <pulsecore/routing-plan.h>
 #include <pulsecore/strbuf.h>
 
 #include "node.h"
+
+struct domain_data_entry {
+    pa_domain *domain;
+    void *data;
+    pa_free_cb_t data_free_cb;
+};
+
+static struct domain_data_entry *domain_data_entry_new(pa_domain *domain, void *data, pa_free_cb_t data_free_cb) {
+    struct domain_data_entry *entry;
+
+    pa_assert(domain);
+
+    entry = pa_xnew0(struct domain_data_entry, 1);
+    entry->domain = domain;
+    entry->data = data;
+    entry->data_free_cb = data_free_cb;
+
+    return entry;
+}
+
+static void domain_data_entry_free(struct domain_data_entry *entry) {
+    pa_assert(entry);
+
+    if (entry->data_free_cb)
+        entry->data_free_cb(entry->data);
+
+    pa_xfree(entry);
+}
 
 pa_node_new_data *pa_node_new_data_init(pa_node_new_data *data) {
     pa_assert(data);
@@ -38,6 +71,7 @@ pa_node_new_data *pa_node_new_data_init(pa_node_new_data *data) {
     data->direction = PA_DIRECTION_OUTPUT;
     data->device_class = PA_DEVICE_CLASS_UNKNOWN;
     data->implicit_routing_enabled = true;
+    data->domain_data = pa_hashmap_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
 
     return data;
 }
@@ -56,23 +90,25 @@ void pa_node_new_data_set_description(pa_node_new_data *data, const char *descri
     data->description = pa_xstrdup(description);
 }
 
-void pa_node_new_data_set_type(pa_node_new_data *data, pa_node_type_t type) {
-    pa_assert(data);
-
-    data->type = type;
-}
-
 void pa_node_new_data_set_direction(pa_node_new_data *data, pa_direction_t direction) {
     pa_assert(data);
 
     data->direction = direction;
 }
 
-void pa_node_new_data_add_domain(pa_node_new_data *data, pa_domain *domain) {
+void pa_node_new_data_add_domain(pa_node_new_data *data, pa_domain *domain, void *domain_data,
+                                 pa_free_cb_t domain_data_free_cb) {
     pa_assert(data);
     pa_assert(domain);
 
     pa_assert_se(pa_domain_list_add(&data->domains, domain) == 0);
+
+    if (domain_data) {
+        struct domain_data_entry *entry;
+
+        entry = domain_data_entry_new(domain, domain_data, domain_data_free_cb);
+        pa_assert_se(pa_hashmap_put(data->domain_data, entry->domain, entry) >= 0);
+    }
 }
 
 void pa_node_new_data_set_device_class(pa_node_new_data *data, pa_device_class_t class) {
@@ -105,6 +141,9 @@ void pa_node_new_data_set_shared_routing_node(pa_node_new_data *data, pa_node *n
 
 void pa_node_new_data_done(pa_node_new_data *data) {
     pa_assert(data);
+
+    if (data->domain_data)
+        pa_hashmap_free(data->domain_data, (pa_free_cb_t) domain_data_entry_free);
 
     pa_xfree(data->explicit_connections);
     pa_domain_list_free(&data->domains);
@@ -156,7 +195,6 @@ pa_node *pa_node_new(pa_core *core, pa_node_new_data *data) {
 
     n->name = pa_xstrdup(registered_name);
     n->description = pa_xstrdup(data->description);
-    n->type = data->type;
     n->direction = data->direction;
     pa_domain_list_copy(&n->domains, &data->domains);
     n->connections = pa_dynarray_new(NULL);
@@ -169,6 +207,9 @@ pa_node *pa_node_new(pa_core *core, pa_node_new_data *data) {
     PA_SEQUENCE_LIST_INIT(n->implicit_route.list);
     PA_SEQUENCE_HEAD_INIT(n->implicit_route.member_of, NULL);
     n->implicit_route.group = NULL;
+    n->domain_data = data->domain_data;
+    data->domain_data = NULL;
+    n->routing_plan_data = pa_routing_plan_node_data_new();
 
     return n;
 
@@ -180,16 +221,22 @@ fail:
 }
 
 void pa_node_free(pa_node *node) {
-    pa_router_group_entry *entry, *next;
+    pa_routing_group_entry *entry, *next;
     pa_assert(node);
 
     if (node->state == PA_NODE_STATE_LINKED)
         pa_node_unlink(node);
 
+    if (node->routing_plan_data)
+        pa_routing_plan_node_data_free(node->routing_plan_data);
+
+    if (node->domain_data)
+        pa_hashmap_free(node->domain_data, (pa_free_cb_t) domain_data_entry_free);
+
     PA_SEQUENCE_REMOVE(node->implicit_route.list);
 
-    PA_SEQUENCE_FOREACH_SAFE(entry, next, node->implicit_route.member_of, pa_router_group_entry, node_list)
-        pa_router_group_entry_free(entry);
+    PA_SEQUENCE_FOREACH_SAFE(entry, next, node->implicit_route.member_of, pa_routing_group_entry, node_list)
+        pa_routing_group_entry_free(entry);
 
     if (node->explicit_connection_requests)
         pa_dynarray_free(node->explicit_connection_requests);
@@ -216,7 +263,6 @@ void pa_node_free(pa_node *node) {
 int pa_node_put(pa_node *node) {
     pa_assert(node);
     pa_assert(node->state == PA_NODE_STATE_INIT);
-    pa_assert(node->owner);
 
     node->state = PA_NODE_STATE_LINKED;
 
@@ -258,24 +304,30 @@ const char *pa_node_get_name(pa_node *node) {
     return node->name;
 }
 
-void *pa_node_get_owner(pa_node *node, pa_domain *domain) {
-    pa_domain *pulse_domain;
+pa_domain *pa_node_get_common_domain(pa_node *node1, pa_node *node2) {
+    pa_domain_list common;
+    uint32_t idx;
 
-    pa_assert(node);
-    pa_assert(node->core);
+    pa_assert(node1);
+    pa_assert(node2);
 
-    pa_assert_se((pulse_domain = node->core->router.pulse_domain));
+    common = node1->domains & node2->domains;
 
-    if (!domain || domain == pulse_domain) {
-        pa_assert(node->type == PA_NODE_TYPE_PORT || node->type == PA_NODE_TYPE_SINK || node->type == PA_NODE_TYPE_SOURCE ||
-                  node->type == PA_NODE_TYPE_SINK_INPUT || node->type == PA_NODE_TYPE_SOURCE_OUTPUT);
-        return node->owner;
+    /* this result that the earlier registered domain has higher priority,
+       which makes pulse_domain the highest priority of all */
+    for (idx = 0; common; idx++, common >>= 1) {
+        if ((common & 1))
+            return pa_idxset_get_by_index(node1->core->router.domains, idx);
     }
 
-    pa_assert(node->type == PA_NODE_TYPE_NONPULSE);
-    pa_assert(node->get_owner);
+    return NULL;
+}
 
-    return node->get_owner(node, domain);
+void pa_node_set_routing_group(pa_node *node, pa_routing_group *group) {
+    pa_assert(node);
+    pa_assert(group);
+
+    node->implicit_route.group = group;
 }
 
 pa_node * const *pa_node_get_connected_nodes(pa_node *node, unsigned *n) {
@@ -316,21 +368,6 @@ pa_node_features *pa_node_get_features(pa_node *node, pa_domain *domain, pa_node
     return features;
 }
 
-bool pa_node_reserve_path_to_node(pa_node *node, pa_domain_routing_plan *plan, pa_node_features *features) {
-    pa_assert(node);
-    pa_assert(plan);
-    pa_assert(features);
-
-    return node->reserve_path_to_node ? node->reserve_path_to_node(node, plan, features) : true;
-}
-
-bool pa_node_activate_path_to_node(pa_node *node, pa_domain_routing_plan *plan) {
-    pa_assert(node);
-    pa_assert(plan);
-
-    return node->activate_path_to_node ? node->activate_path_to_node(node, plan) : true;
-}
-
 bool pa_node_common_features(pa_node_features *f1, pa_node_features *f2, pa_node_features *common) {
     uint8_t channels_min, channels_max;
     pa_node_latency_t latency_min, latency_max;
@@ -366,6 +403,20 @@ bool pa_node_common_features(pa_node_features *f1, pa_node_features *f2, pa_node
     }
 
     return true;
+}
+
+void *pa_node_get_domain_data(pa_node *node, pa_domain *domain) {
+    struct domain_data_entry *entry;
+
+    pa_assert(node);
+    pa_assert(domain);
+
+    entry = pa_hashmap_get(node->domain_data, domain);
+
+    if (!entry)
+        return NULL;
+
+    return entry->data;
 }
 
 void pa_node_add_explicit_connection_request(pa_node *node, pa_explicit_connection_request *request) {

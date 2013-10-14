@@ -36,6 +36,9 @@
 #include <pulse/xmalloc.h>
 #include <pulse/internal.h>
 
+#include <pulsecore/auth-cookie.h>
+#include <pulsecore/ipacl.h>
+#include <pulsecore/modargs.h>
 #include <pulsecore/native-common.h>
 #include <pulsecore/packet.h>
 #include <pulsecore/client.h>
