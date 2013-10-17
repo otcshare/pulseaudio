@@ -320,6 +320,7 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %{_libdir}/pulse-%{version}/modules/module-tunnel-sink.so
 %{_libdir}/pulse-%{version}/modules/module-tunnel-sink-new.so
 %{_libdir}/pulse-%{version}/modules/module-tunnel-source.so
+%{_libdir}/pulse-%{version}/modules/module-tunnel-source-new.so
 %{_libdir}/pulse-%{version}/modules/module-suspend-on-idle.so
 %{_libdir}/pulse-%{version}/modules/module-volume-restore.so
 %{_libdir}/pulse-%{version}/modules/module-alsa-card.so
