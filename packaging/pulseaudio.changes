@@ -1,3 +1,6 @@
+* Wed Oct 22 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- update pulseaudio to 4.0+ with bluez5 enabling patches
+
 * Wed Oct 2 2013 Jaska Uimonen <jaska.uimonen@intel.com>
 - add tcp client module loading with murphy
 
