@@ -216,6 +216,9 @@ export LD_AS_NEEDED=0
 %if %{with pulseaudio_udev_with_usb_only}
         --enable-udev-with-usb-only \
 %endif
+%if %{with pulseaudio_samsung_policy}
+        --enable-samsung-policy \
+%endif
         --with-udev-rules-dir=%{_libdir}/udev/rules.d \
         --with-system-user=pulse \
         --with-system-group=pulse \
