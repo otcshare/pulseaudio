@@ -208,7 +208,10 @@ static int pm_unlock_state(unsigned int s_bits, unsigned int flag)
 
 static void timeout_cb(pa_mainloop_api*a, pa_time_event* e, const struct timeval *t, void *userdata) {
     struct device_info *d = userdata;
+
+#ifdef USE_PM_LOCK
     int ret = -1;
+#endif
 
     pa_assert(d);
 
@@ -264,7 +267,9 @@ static void restart(struct device_info *d) {
 }
 
 static void resume(struct device_info *d) {
+#ifdef USE_PM_LOCK
     int ret = -1;
+#endif
 
     pa_assert(d);
 
