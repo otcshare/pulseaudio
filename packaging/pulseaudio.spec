@@ -3,6 +3,7 @@
 %bcond_with pulseaudio_bt_profile_set
 %bcond_with pulseaudio_udev_with_usb_only
 %bcond_with pulseaudio_with_bluez5
+%bcond_with pulseaudio_samsung_policy
 
 Name:             pulseaudio
 Summary:          Improved Linux sound server
@@ -342,9 +343,11 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %{_libdir}/pulse-%{version}/modules/module-role-cork.so
 %{_libdir}/pulse-%{version}/modules/module-switch-on-port-available.so
 %{_libdir}/pulse-%{version}/modules/module-virtual-surround-sink.so
-%{_libdir}/pulse-%{version}/modules/module-policy.so
 %{_libdir}/pulse-%{version}/modules/module-role-ducking.so
 %{_libdir}/pulse-%{version}/modules/module-systemd-login.so
+%if %{with pulseaudio_samsung_policy}
+%{_libdir}/pulse-%{version}/modules/module-policy.so
+%endif
 %config(noreplace) /etc/bash_completion.d/pulseaudio-bash-completion.sh
 
 %files -n libpulse
