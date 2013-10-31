@@ -1615,14 +1615,11 @@ static pa_echo_canceller_method_t get_ec_method_from_string(const char *method) 
 static int extension_cb(pa_native_protocol *p, pa_module *m, pa_native_connection *c, uint32_t tag, pa_tagstruct *t) {
 	uint32_t command;
 	uint32_t value;
-	struct userdata *u = NULL;
 	pa_tagstruct *reply = NULL;
 	pa_assert(p);
 	pa_assert(m);
 	pa_assert(c);
 	pa_assert(t);
-
-	u = m->userdata;
 
 	if (pa_tagstruct_getu32(t, &command) < 0)
 	goto fail;
