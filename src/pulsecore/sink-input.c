@@ -547,9 +547,9 @@ int pa_sink_input_new(
     i->userdata = NULL;
 
     if (data->flags & PA_SINK_INPUT_START_RAMP_MUTED)
-        pa_cvolume_ramp_int_init(&i->ramp, PA_VOLUME_MUTED, data->sample_spec.channels);
+        pa_cvolume_ramp_int_init(&i->ramp, PA_VOLUME_MUTED, data->sink->sample_spec.channels);
     else
-        pa_cvolume_ramp_int_init(&i->ramp, PA_VOLUME_NORM, data->sample_spec.channels);
+        pa_cvolume_ramp_int_init(&i->ramp, PA_VOLUME_NORM, data->sink->sample_spec.channels);
 
     i->thread_info.state = i->state;
     i->thread_info.attached = false;
@@ -2067,12 +2067,10 @@ int pa_sink_input_process_msg(pa_msgobject *o, int code, void *userdata, int64_t
             return 0;
 
         case PA_SINK_INPUT_MESSAGE_SET_VOLUME_RAMP:
-            if (!pa_cvolume_ramp_equal(&i->thread_info.ramp, &i->ramp)) {
-                /* we have ongoing ramp where we take current start values */
-                pa_cvolume_ramp_start_from(&i->thread_info.ramp, &i->ramp);
-                i->thread_info.ramp = i->ramp;
-                pa_sink_input_request_rewind(i, 0, TRUE, FALSE, FALSE);
-            }
+            /* we have ongoing ramp where we take current start values */
+            pa_cvolume_ramp_start_from(&i->thread_info.ramp, &i->ramp);
+            i->thread_info.ramp = i->ramp;
+            pa_sink_input_request_rewind(i, 0, TRUE, FALSE, FALSE);
             return 0;
 
         case PA_SINK_INPUT_MESSAGE_SET_SOFT_MUTE:

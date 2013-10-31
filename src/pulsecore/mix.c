@@ -915,10 +915,20 @@ void pa_volume_ramp_memchunk(
 }
 
 pa_cvolume_ramp_int* pa_cvolume_ramp_convert(const pa_cvolume_ramp *src, pa_cvolume_ramp_int *dst, int sample_rate) {
-    int i;
+
+    int i, j, channels, remaining_channels;
     float temp;
 
-    for (i = 0; i < dst->channels; i++) {
+    if (dst->channels < src->channels) {
+        channels = dst->channels;
+        remaining_channels = 0;
+    }
+    else {
+        channels = src->channels;
+        remaining_channels = dst->channels;
+    }
+
+    for (i = 0; i < channels; i++) {
         dst->ramps[i].type = src->ramps[i].type;
         /* ms to samples */
         dst->ramps[i].length = src->ramps[i].length * sample_rate / 1000;
@@ -928,6 +938,17 @@ pa_cvolume_ramp_int* pa_cvolume_ramp_convert(const pa_cvolume_ramp *src, pa_cvol
         /* scale to pulse internal mapping so that when ramp is over there's no glitch in volume */
         temp = src->ramps[i].target / (float)0x10000U;
         dst->ramps[i].end = temp * temp * temp;
+    }
+
+    j = i;
+
+    for (i--; j < remaining_channels; j++) {
+        dst->ramps[j].type = dst->ramps[i].type;
+        dst->ramps[j].length = dst->ramps[i].length;
+        dst->ramps[j].left = dst->ramps[i].left;
+        dst->ramps[j].start = dst->ramps[i].start;
+        dst->ramps[j].target = dst->ramps[i].target;
+        dst->ramps[j].end = dst->ramps[i].end;
     }
 
     return dst;

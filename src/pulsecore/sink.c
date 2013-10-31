@@ -2812,12 +2812,10 @@ int pa_sink_process_msg(pa_msgobject *o, int code, void *userdata, int64_t offse
             return 0;
 
         case PA_SINK_MESSAGE_SET_VOLUME_RAMP:
-            if (!pa_cvolume_ramp_equal(&s->thread_info.ramp, &s->ramp)) {
-                /* if we have ongoing ramp where we take current start values */
-                pa_cvolume_ramp_start_from(&s->thread_info.ramp, &s->ramp);
-                s->thread_info.ramp = s->ramp;
-                pa_sink_request_rewind(s, (size_t) -1);
-            }
+            /* if we have ongoing ramp where we take current start values */
+            pa_cvolume_ramp_start_from(&s->thread_info.ramp, &s->ramp);
+            s->thread_info.ramp = s->ramp;
+            pa_sink_request_rewind(s, (size_t) -1);
             return 0;
 
         case PA_SINK_MESSAGE_GET_VOLUME:
