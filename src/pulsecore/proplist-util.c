@@ -300,7 +300,7 @@ char *pa_proplist_get_stream_group_extended(pa_proplist *p, const char *prefix, 
                 r = NULL;
 	    }
 	}
-	else if (r = pa_proplist_gets(p, preferred_stream_group)) {
+	else if ((r = pa_proplist_gets(p, preferred_stream_group))) {
             if (!strcmp(preferred_stream_group, PA_PROP_MEDIA_ROLE))
                 t = pa_sprintf_malloc("%s-by-media-role:%s", prefix, r);
 	    else if (!strcmp(preferred_stream_group, PA_PROP_APPLICATION_ID))
