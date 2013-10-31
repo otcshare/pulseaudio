@@ -1527,6 +1527,11 @@ AS_IF([test "x$HAVE_ESOUND" = "x1" -a "x$USE_PER_USER_ESOUND_SOCKET" = "x1"], EN
 AS_IF([test "x$HAVE_GCOV" = "x1"], ENABLE_GCOV=yes, ENABLE_GCOV=no)
 AS_IF([test "x$HAVE_LIBCHECK" = "x1"], ENABLE_TESTS=yes, ENABLE_TESTS=no)
 AS_IF([test "x$enable_legacy_database_entry_format" != "xno"], ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=yes, ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=no)
+AS_IF([test "x$USE_SAMSUNG_POLICY" = "x1"], ENABLE_SAMSUNG_POLICY=yes, ENABLE_SAMSUNG_POLICY=no)
+AS_IF([test "x$USE_DLOG" = "x1"], ENABLE_DLOG=yes, ENABLE_DLOG=no)
+AS_IF([test "x$USE_PM_LOCK" = "x1"], ENABLE_PM_LOCK=yes, ENABLE_PM_LOCK=no)
+AS_IF([test "x$USE_BT_PROFILE_SET" = "x1"], ENABLE_BT_PROFILE_SET=yes, ENABLE_BT_PROFILE_SET=no)
+AS_IF([test "x$HAVE_BT_A2DP_APTX" = "x1"], HAVE_BT_A2DP_APTX=yes, HAVE_BT_A2DP_APTX=no)
 
 echo "
  ---{ $PACKAGE_NAME $VERSION }---
@@ -1565,7 +1570,6 @@ echo "
         headset backed:            ${BLUETOOTH_HEADSET_BACKEND}
     Enable udev:                   ${ENABLE_UDEV}
       Enable HAL->udev compat:     ${ENABLE_HAL_COMPAT}
-      Enable udev usb only:        ${ENABLE_UDEV_ONLY_USB}
     Enable systemd login:          ${ENABLE_SYSTEMD}
     Enable TCP Wrappers:           ${ENABLE_TCPWRAP}
     Enable libsamplerate:          ${ENABLE_LIBSAMPLERATE}
@@ -1591,6 +1595,14 @@ echo "
     Preopened modules:             ${PREOPEN_MODS}
 
     Legacy Database Entry Support: ${ENABLE_LEGACY_DATABASE_ENTRY_FORMAT}
+
+    Tizen
+      samsung policy:              ${ENABLE_SAMSUNG_POLICY}
+      dlog:                        ${ENABLE_DLOG}
+      pmapi:                       ${ENABLE_PM_LOCK}
+      bluetooth profile set:       ${ENABLE_BT_PROFILE_SET}
+      bluetooth aptx codec:        ${HAVE_BT_A2DP_APTX}
+      udev with usb only:          ${ENABLE_UDEV_ONLY_USB}
 "
 
 if test "${ENABLE_SPEEX}" = "no" && test "${ENABLE_WEBRTC}" = "no" && test "${ENABLE_ADRIAN_EC}" = "no" ; then
