@@ -104,6 +104,15 @@ static void context_state_cb(pa_context *c, void *userdata) {
     }
 }
 
+static void stream_success_context_cb(pa_stream *s, int success, void *userdata) {
+	pa_simple *p = userdata;
+	pa_assert(s);
+	pa_assert(p);
+
+    p->operation_success = success;
+    pa_threaded_mainloop_signal(p->mainloop, 0);
+}
+
 static void success_context_cb(pa_context *c, int success, void *userdata) {
 	pa_simple *p = userdata;
 	pa_assert(c);
@@ -112,6 +121,7 @@ static void success_context_cb(pa_context *c, int success, void *userdata) {
     p->operation_success = success;
     pa_threaded_mainloop_signal(p->mainloop, 0);
 }
+
 static void stream_state_cb(pa_stream *s, void * userdata) {
     pa_simple *p = userdata;
     pa_assert(s);
@@ -643,7 +653,7 @@ int pa_simple_set_volume(pa_simple *p, int volume, int *rerror) {
     pa_stream *s = NULL;
     uint32_t idx;
     pa_cvolume cv;
-    pa_volume_t v;
+
 
     pa_assert(p);
 
@@ -723,7 +733,7 @@ int pa_simple_cork(pa_simple *p, int cork, int *rerror) {
     pa_threaded_mainloop_lock(p->mainloop);
     CHECK_DEAD_GOTO(p, rerror, unlock_and_fail);
 
-    o = pa_stream_cork(p->stream, cork, success_context_cb, p);
+    o = pa_stream_cork(p->stream, cork, stream_success_context_cb, p);
     CHECK_SUCCESS_GOTO(p, rerror, o, unlock_and_fail);
 
     p->operation_success = 0;
