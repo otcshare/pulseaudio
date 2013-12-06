@@ -1,3 +1,6 @@
+* Fri Dec 06 2013 Rusty Lynch <rusty.lynch@intel.com> accepted/tizen/20131112.015302@01340f9
+- Explicitly setting User execute label on pulseaudio binary
+
 * Wed Oct 22 2013 Jaska Uimonen <jaska.uimonen@intel.com>
 - update pulseaudio to 4.0+ with bluez5 enabling patches
 
