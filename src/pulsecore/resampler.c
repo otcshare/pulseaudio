@@ -1310,6 +1310,7 @@ static pa_memchunk *convert_from_work_format(pa_resampler *r, pa_memchunk *input
     return &r->from_work_format_buf;
 }
 
+#if 0
 void pa_resampler_run(pa_resampler *r, const pa_memchunk *in, pa_memchunk *out) {
     pa_memchunk *buf;
 
@@ -1336,6 +1337,46 @@ void pa_resampler_run(pa_resampler *r, const pa_memchunk *in, pa_memchunk *out) 
     } else
         pa_memchunk_reset(out);
 }
+#else
+void pa_resampler_run(pa_resampler *r, const pa_memchunk *in, pa_memchunk *out) {
+    pa_memchunk *buf;
+
+    pa_assert(r);
+    pa_assert(in);
+    pa_assert(out);
+    pa_assert(in->length);
+    pa_assert(in->memblock);
+    pa_assert(in->length % r->i_fz == 0);
+
+    buf = (pa_memchunk*) in;
+
+    if (r->map_required || r->o_ss.rate != r->i_ss.rate) {
+        buf = convert_to_work_format(r, buf);
+        buf = remap_channels(r, buf);
+
+        if (r->o_ss.rate != r->i_ss.rate)
+            buf = resample(r, buf);
+
+        if (buf->length) {
+            buf = convert_from_work_format(r, buf);
+            *out = *buf;
+
+            if (buf == in)
+                pa_memblock_ref(buf->memblock);
+            else
+                pa_memchunk_reset(buf);
+        } else
+            pa_memchunk_reset(out);
+    }
+    else {
+        *out = *in;
+        if(out->length)
+            pa_memblock_ref(out->memblock);
+        else
+            pa_memchunk_reset(out);
+    }
+}
+#endif
 
 static void save_leftover(pa_resampler *r, void *buf, size_t len) {
     void *dst;
