@@ -48,6 +48,8 @@ pa_dynarray* pa_dynarray_new(pa_free_cb_t free_cb);
 void pa_dynarray_free(pa_dynarray *array);
 
 void pa_dynarray_append(pa_dynarray *array, void *p);
+
+/* Returns NULL if i is out of bounds. */
 void *pa_dynarray_get(pa_dynarray *array, unsigned i);
 
 /* Returns the removed item, or NULL if the array is empty. */
@@ -55,5 +57,8 @@ void *pa_dynarray_steal_last(pa_dynarray *array);
 
 unsigned pa_dynarray_size(pa_dynarray *array);
 void * const *pa_dynarray_get_raw_array(pa_dynarray *array);
+
+#define PA_DYNARRAY_FOREACH(elem, array, idx) \
+    for ((idx) = 0; ((elem) = pa_dynarray_get(array, idx)); (idx)++)
 
 #endif
