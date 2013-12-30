@@ -381,7 +381,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
     pa_assert(hfdata);
 
     sender = dbus_message_get_sender(m);
-    if (!pa_safe_streq(hfdata->ofono_bus_id, sender) && !pa_streq("org.freedesktop.DBus", sender))
+    if (!pa_safe_streq(hfdata->ofono_bus_id, sender) && !pa_safe_streq("org.freedesktop.DBus", sender))
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
     dbus_error_init(&err);
