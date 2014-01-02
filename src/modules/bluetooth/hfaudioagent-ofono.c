@@ -403,10 +403,8 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
             if (old_owner && *old_owner) {
                 pa_log_debug("oFono disappeared");
 
-                if (hfdata->hf_audio_cards) {
-                    pa_hashmap_free(hfdata->hf_audio_cards);
-                    hfdata->hf_audio_cards = NULL;
-                }
+                if (hfdata->hf_audio_cards)
+                    pa_hashmap_remove_all(hfdata->hf_audio_cards);
 
                 if(hfdata->ofono_bus_id) {
                     pa_xfree(hfdata->ofono_bus_id);
