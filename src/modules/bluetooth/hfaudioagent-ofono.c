@@ -416,6 +416,10 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
 
             if (new_owner && *new_owner) {
                 pa_log_debug("oFono appeared");
+                if (hfdata->hf_audio_cards == NULL)
+                    hfdata->hf_audio_cards = pa_hashmap_new_full(pa_idxset_string_hash_func,
+                                                                 pa_idxset_string_compare_func,
+                                                                 NULL, hf_audio_card_free);
                 hf_audio_agent_register(hfdata);
             }
         }
