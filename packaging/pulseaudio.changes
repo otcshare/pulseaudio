@@ -1,3 +1,9 @@
+* Mon Jan 20 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- make things compile for common pc distros
+- fix a lot of warnings
+- fix a bug in volume ramp
+- make samsung policy compilation optional
+
 * Tue Jan 7 2014 Jaska Uimonen <jaska.uimonen@intel.com>
 - fix crash in ofono communication with NULL sender TIVI-2489
 - fix assert if ofono is started after pulseaudio
