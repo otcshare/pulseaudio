@@ -188,7 +188,11 @@ static const struct command commands[] = {
     { "kill-client",             pa_cli_command_kill_client,        "Kill a client (args: index)", 2},
     { "kill-sink-input",         pa_cli_command_kill_sink_input,    "Kill a sink input (args: index)", 2},
     { "kill-source-output",      pa_cli_command_kill_source_output, "Kill a source output (args: index)", 2},
+#ifdef USE_DLOG
+    { "set-log-target",          pa_cli_command_log_target,         "Change the log target (args: null|auto|syslog|stderr|file:PATH|newfile:PATH|dlog|dlog-color)", 2},
+#else
     { "set-log-target",          pa_cli_command_log_target,         "Change the log target (args: null|auto|syslog|stderr|file:PATH|newfile:PATH)", 2},
+#endif
     { "set-log-level",           pa_cli_command_log_level,          "Change the log level (args: numeric level)", 2},
     { "set-log-meta",            pa_cli_command_log_meta,           "Show source code location in log messages (args: bool)", 2},
     { "set-log-time",            pa_cli_command_log_time,           "Show timestamps in log messages (args: bool)", 2},
@@ -1508,7 +1512,11 @@ static int pa_cli_command_log_target(pa_core *c, pa_tokenizer *t, pa_strbuf *buf
     pa_assert(fail);
 
     if (!(m = pa_tokenizer_get(t, 1))) {
+#ifdef USE_DLOG
+        pa_strbuf_puts(buf, "You need to specify a log target (null|auto|syslog|stderr|file:PATH|newfile:PATH|dlog|dlog-color).\n");
+#else
         pa_strbuf_puts(buf, "You need to specify a log target (null|auto|syslog|stderr|file:PATH|newfile:PATH).\n");
+#endif
         return -1;
     }
 

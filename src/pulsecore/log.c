@@ -665,6 +665,12 @@ pa_log_target *pa_log_parse_target(const char *string) {
         t = pa_log_target_new(PA_LOG_FILE, string + 5);
     else if (pa_startswith(string, "newfile:"))
         t = pa_log_target_new(PA_LOG_NEWFILE, string + 8);
+#ifdef USE_DLOG
+    else if (pa_streq(string, "dlog"))
+        t = pa_log_target_new(PA_LOG_DLOG, NULL);
+    else if (pa_streq(string, "dlog-color"))
+        t = pa_log_target_new(PA_LOG_DLOG_COLOR, NULL);
+#endif
     else
         pa_log(_("Invalid log target."));
 
