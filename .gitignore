@@ -34,3 +34,4 @@ missing
 mkinstalldirs
 stamp-*
 .dirstamp
+pulsecore-config.h
