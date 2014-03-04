@@ -183,13 +183,19 @@ pa_context *pa_context_new_with_proplist(pa_mainloop_api *mainloop, const char *
         }
     }
 
+    c->extensions = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+
     return c;
 }
 
 static void context_unlink(pa_context *c) {
+    pa_extension *extension;
     pa_stream *s;
 
     pa_assert(c);
+
+    while ((extension = pa_hashmap_first(c->extensions)))
+        pa_extension_kill(extension);
 
     s = c->streams ? pa_stream_ref(c->streams) : NULL;
     while (s) {
@@ -282,6 +288,9 @@ void pa_context_unref(pa_context *c) {
 }
 
 void pa_context_set_state(pa_context *c, pa_context_state_t st) {
+    pa_extension *extension;
+    void *state;
+
     pa_assert(c);
     pa_assert(PA_REFCNT_VALUE(c) >= 1);
 
@@ -291,6 +300,12 @@ void pa_context_set_state(pa_context *c, pa_context_state_t st) {
     pa_context_ref(c);
 
     c->state = st;
+
+    PA_HASHMAP_FOREACH(extension, c->extensions, state)
+        pa_extension_context_state_changed(extension, 1);
+
+    PA_HASHMAP_FOREACH(extension, c->extensions, state)
+        pa_extension_context_state_changed(extension, 2);
 
     if (c->state_callback)
         c->state_callback(c, c->state_userdata);
@@ -1384,6 +1399,7 @@ void pa_command_extension(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_t
     pa_context *c = userdata;
     uint32_t idx;
     const char *name;
+    pa_extension *extension;
 
     pa_assert(pd);
     pa_assert(command == PA_COMMAND_EXTENSION);
@@ -1410,7 +1426,16 @@ void pa_command_extension(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_t
         pa_ext_device_restore_command(c, tag, t);
     else if (pa_streq(name, "module-stream-restore"))
         pa_ext_stream_restore_command(c, tag, t);
-    else
+    else if ((extension = pa_context_get_extension(c, name))) {
+        uint32_t subcommand;
+
+        if (pa_tagstruct_getu32(t, &subcommand) < 0) {
+            pa_context_fail(c, PA_ERR_PROTOCOL);
+            goto finish;
+        }
+
+        pa_extension_process_command(extension, subcommand, tag, t);
+    } else
         pa_log(_("Received message for unknown extension '%s'"), name);
 
 finish:
@@ -1575,4 +1600,25 @@ int pa_context_load_cookie_from_file(pa_context *c, const char *cookie_file_path
     pa_client_conf_set_cookie_file_from_application(c->conf, cookie_file_path);
 
     return 0;
+}
+
+pa_extension *pa_context_get_extension(pa_context *context, const char *name) {
+    pa_assert(context);
+    pa_assert(name);
+
+    return pa_hashmap_get(context->extensions, name);
+}
+
+void pa_context_add_extension(pa_context *context, pa_extension *extension) {
+    pa_assert(context);
+    pa_assert(extension);
+
+    pa_assert_se(pa_hashmap_put(context->extensions, extension->name, extension) >= 0);
+}
+
+int pa_context_remove_extension(pa_context *context, pa_extension *extension) {
+    pa_assert(context);
+    pa_assert(extension);
+
+    return pa_hashmap_remove(context->extensions, extension->name) ? 0 : -1;
 }
