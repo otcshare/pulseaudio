@@ -829,6 +829,7 @@ libpulse_la_SOURCES = \
 		pulse/def.h \
 		pulse/direction.c pulse/direction.h \
 		pulse/error.c pulse/error.h \
+		pulse/extension.c pulse/extension.h \
 		pulse/ext-device-manager.c pulse/ext-device-manager.h \
 		pulse/ext-device-restore.c pulse/ext-device-restore.h \
 		pulse/ext-stream-restore.c pulse/ext-stream-restore.h \
