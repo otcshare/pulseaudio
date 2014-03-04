@@ -23,6 +23,7 @@
   USA.
 ***/
 
+#include <pulse/extension.h>
 #include <pulse/mainloop-api.h>
 #include <pulse/context.h>
 #include <pulse/stream.h>
@@ -102,6 +103,8 @@ struct pa_context {
     pa_client_conf *conf;
 
     uint32_t client_index;
+
+    pa_hashmap *extensions; /* extension name -> pa_extension */
 
     /* Extension specific data */
     struct {
@@ -269,6 +272,9 @@ int pa_context_set_error(pa_context *c, int error);
 void pa_context_set_state(pa_context *c, pa_context_state_t st);
 int pa_context_handle_error(pa_context *c, uint32_t command, pa_tagstruct *t, bool fail);
 pa_operation* pa_context_send_simple_command(pa_context *c, uint32_t command, void (*internal_callback)(pa_pdispatch *pd, uint32_t command, uint32_t tag, pa_tagstruct *t, void *userdata), void (*cb)(void), void *userdata);
+pa_extension *pa_context_get_extension(pa_context *context, const char *name);
+void pa_context_add_extension(pa_context *context, pa_extension *extension);
+int pa_context_remove_extension(pa_context *context, pa_extension *extension);
 
 void pa_stream_set_state(pa_stream *s, pa_stream_state_t st);
 
