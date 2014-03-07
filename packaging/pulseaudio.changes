@@ -1,3 +1,39 @@
+* Mon May 22 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- update to pulseaudio 5.0
+- clean tizen patch set
+- add volume api patches
+
+* Fri Feb 14 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- disable bluez4 to get rid of extra logging spam
+- enable build without X
+
+* Mon Jan 20 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- make things compile for common pc distros
+- fix a lot of warnings
+- fix a bug in volume ramp
+- make samsung policy compilation optional
+
+* Tue Jan 7 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- fix crash in ofono communication with NULL sender TIVI-2489
+- fix assert if ofono is started after pulseaudio
+
+* Fri Dec 06 2013 Rusty Lynch <rusty.lynch@intel.com> accepted/tizen/20131112.015302@01340f9
+- Explicitly setting User execute label on pulseaudio binary
+
+* Wed Oct 22 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- update pulseaudio to 4.0+ with bluez5 enabling patches
+
+* Wed Oct 2 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- add tcp client module loading with murphy
+
+* Thu Sep 12 2013 Jaska Uimonen <jaska.uimonen@intel.com>
+- add libcap dependency
+- add key configuration to stream restore
+
+* Fri Aug 16 2013 Vivian Zhang <vivian.zhang@intel.com>
+- remove pulseaudio.service which launch pa in system mode
+- check module-fileter-xx.so exists before loading them to avoid module load failure
+
 * Thu Aug 15 2013 Jaska Uimonen <jaska.uimonen@intel.com> - 4.0
 - upgrade to 4.0 version
 
