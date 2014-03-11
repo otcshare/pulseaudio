@@ -2014,7 +2014,7 @@ static int device_process_msg(pa_msgobject *obj, int code, void *data, int64_t o
                 break;
 
             pa_log_debug("Switching the profile to off due to IO thread failure.");
-            pa_assert_se(pa_card_set_profile(b->card, "off", false) >= 0);
+            pa_assert_se(pa_card_set_profile(b->card, pa_hashmap_get(u->card->profiles, "off"), false) >= 0);
             break;
     }
 
