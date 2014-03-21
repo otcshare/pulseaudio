@@ -191,3 +191,30 @@ void pa_device_port_active_changed(pa_device_port *port, bool new_active) {
     pa_log_debug("Port %s %s.", port->name, new_active ? "activated" : "deactivated");
     pa_hook_fire(&port->core->hooks[PA_CORE_HOOK_PORT_ACTIVE_CHANGED], port);
 }
+
+pa_device_port *pa_device_port_find_best(pa_hashmap *ports)
+{
+    void *state;
+    pa_device_port *p, *best = NULL;
+
+    if (!ports)
+        return NULL;
+
+    /* First run: skip unavailable ports */
+    PA_HASHMAP_FOREACH(p, ports, state) {
+        if (p->available == PA_AVAILABLE_NO)
+            continue;
+
+        if (!best || p->priority > best->priority)
+            best = p;
+    }
+
+    /* Second run: if only unavailable ports exist, still suggest a port */
+    if (!best) {
+        PA_HASHMAP_FOREACH(p, ports, state)
+            if (!best || p->priority > best->priority)
+                best = p;
+    }
+
+    return best;
+}

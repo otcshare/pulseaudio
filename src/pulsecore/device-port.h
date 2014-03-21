@@ -87,4 +87,6 @@ void pa_device_port_set_latency_offset(pa_device_port *p, int64_t offset);
 /* Called from sink.c and source.c only. */
 void pa_device_port_active_changed(pa_device_port *port, bool new_active);
 
+pa_device_port *pa_device_port_find_best(pa_hashmap *ports);
+
 #endif
