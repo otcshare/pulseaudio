@@ -758,6 +758,7 @@ pulseinclude_HEADERS = \
 		pulse/channelmap.h \
 		pulse/context.h \
 		pulse/def.h \
+		pulse/direction.h \
 		pulse/error.h \
 		pulse/ext-device-manager.h \
 		pulse/ext-device-restore.h \
@@ -810,6 +811,7 @@ libpulse_la_SOURCES = \
 		pulse/channelmap.c pulse/channelmap.h \
 		pulse/context.c pulse/context.h \
 		pulse/def.h \
+		pulse/direction.c pulse/direction.h \
 		pulse/error.c pulse/error.h \
 		pulse/ext-device-manager.c pulse/ext-device-manager.h \
 		pulse/ext-device-restore.c pulse/ext-device-restore.h \
