@@ -203,3 +203,18 @@ pa_device_port *pa_device_port_find_best(pa_hashmap *ports)
 
     return best;
 }
+
+void pa_device_port_active_changed(pa_device_port *port, bool new_active) {
+    bool old_active;
+
+    pa_assert(port);
+
+    old_active = port->active;
+
+    if (new_active == old_active)
+        return;
+
+    port->active = new_active;
+    pa_log_debug("Port %s %s.", port->name, new_active ? "activated" : "deactivated");
+    pa_hook_fire(&port->core->hooks[PA_CORE_HOOK_PORT_ACTIVE_CHANGED], port);
+}
