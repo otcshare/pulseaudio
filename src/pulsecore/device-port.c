@@ -176,3 +176,18 @@ void pa_device_port_set_latency_offset(pa_device_port *p, int64_t offset) {
     pa_subscription_post(core, PA_SUBSCRIPTION_EVENT_CARD|PA_SUBSCRIPTION_EVENT_CHANGE, p->card->index);
     pa_hook_fire(&core->hooks[PA_CORE_HOOK_PORT_LATENCY_OFFSET_CHANGED], p);
 }
+
+void pa_device_port_active_changed(pa_device_port *port, bool new_active) {
+    bool old_active;
+
+    pa_assert(port);
+
+    old_active = port->active;
+
+    if (new_active == old_active)
+        return;
+
+    port->active = new_active;
+    pa_log_debug("Port %s %s.", port->name, new_active ? "activated" : "deactivated");
+    pa_hook_fire(&port->core->hooks[PA_CORE_HOOK_PORT_ACTIVE_CHANGED], port);
+}
