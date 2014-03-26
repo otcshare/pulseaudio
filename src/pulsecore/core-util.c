@@ -1106,6 +1106,24 @@ char *pa_split_spaces(const char *c, const char **state) {
     return pa_xstrndup(current, l);
 }
 
+char *pa_join(const char * const *strings, unsigned n_strings, const char *delimiter) {
+    pa_strbuf *buf;
+    unsigned i;
+
+    pa_assert(strings || n_strings == 0);
+
+    buf = pa_strbuf_new();
+
+    for (i = 0; i < n_strings; i++) {
+        if (i > 0 && delimiter)
+            pa_strbuf_puts(buf, delimiter);
+
+        pa_strbuf_puts(buf, strings[i]);
+    }
+
+    return pa_strbuf_tostring_free(buf);
+}
+
 PA_STATIC_TLS_DECLARE(signame, pa_xfree);
 
 /* Return the name of an UNIX signal. Similar to Solaris sig2str() */
