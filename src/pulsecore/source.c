@@ -605,6 +605,9 @@ void pa_source_put(pa_source *s) {
     else
         pa_assert_se(source_set_state(s, PA_SOURCE_IDLE) == 0);
 
+    if (s->active_port)
+        pa_device_port_active_changed(s->active_port, true);
+
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SOURCE | PA_SUBSCRIPTION_EVENT_NEW, s->index);
     pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SOURCE_PUT], s);
 }
@@ -624,6 +627,9 @@ void pa_source_unlink(pa_source *s) {
 
     if (linked)
         pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SOURCE_UNLINK], s);
+
+    if (s->active_port)
+        pa_device_port_active_changed(s->active_port, false);
 
     if (s->state != PA_SOURCE_UNLINKED)
         pa_namereg_unregister(s->core, s->name);
@@ -2578,6 +2584,7 @@ size_t pa_source_get_max_rewind(pa_source *s) {
 /* Called from main context */
 int pa_source_set_port(pa_source *s, const char *name, bool save) {
     pa_device_port *port;
+    pa_device_port *old_port;
     int ret;
 
     pa_source_assert_ref(s);
@@ -2594,10 +2601,14 @@ int pa_source_set_port(pa_source *s, const char *name, bool save) {
     if (!(port = pa_hashmap_get(s->ports, name)))
         return -PA_ERR_NOENTITY;
 
-    if (s->active_port == port) {
+    old_port = s->active_port;
+
+    if (port == old_port) {
         s->save_port = s->save_port || save;
         return 0;
     }
+
+    pa_device_port_active_changed(old_port, false);
 
     if (s->flags & PA_SOURCE_DEFERRED_VOLUME) {
         struct source_message_set_port msg = { .port = port, .ret = 0 };
@@ -2607,15 +2618,25 @@ int pa_source_set_port(pa_source *s, const char *name, bool save) {
     else
         ret = s->set_port(s, port);
 
-    if (ret < 0)
-        return -PA_ERR_NOENTITY;
+    if (ret < 0) {
+        pa_log("Failed to set the port of sink %s from %s to %s.", s->name, old_port->name, port->name);
+
+        /* We don't know the real state of the device, but let's assume that
+         * the old port is still active, because s->active_port is left to
+         * point to the old port anyway. */
+        pa_device_port_active_changed(old_port, true);
+
+        return ret;
+    }
 
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SOURCE|PA_SUBSCRIPTION_EVENT_CHANGE, s->index);
 
-    pa_log_info("Changed port of source %u \"%s\" to %s", s->index, s->name, port->name);
+    pa_log_info("Changed port of source %u \"%s\" from %s to %s", s->index, s->name, old_port->name, port->name);
 
     s->active_port = port;
     s->save_port = save;
+
+    pa_device_port_active_changed(port, true);
 
     pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SOURCE_PORT_CHANGED], s);
 

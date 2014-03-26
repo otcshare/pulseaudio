@@ -48,6 +48,7 @@ struct pa_device_port {
 
     unsigned priority;
     pa_available_t available;         /* PA_AVAILABLE_UNKNOWN, PA_AVAILABLE_NO or PA_AVAILABLE_YES */
+    bool active;
 
     pa_proplist *proplist;
     pa_hashmap *profiles; /* Does not own the profiles */
@@ -84,5 +85,8 @@ void pa_device_port_set_available(pa_device_port *p, pa_available_t available);
 void pa_device_port_set_latency_offset(pa_device_port *p, int64_t offset);
 
 pa_device_port *pa_device_port_find_best(pa_hashmap *ports);
+
+/* Called from sink.c and source.c only. */
+void pa_device_port_active_changed(pa_device_port *port, bool new_active);
 
 #endif
