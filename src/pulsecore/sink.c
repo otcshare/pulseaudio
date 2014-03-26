@@ -669,6 +669,9 @@ void pa_sink_put(pa_sink* s) {
     else
         pa_assert_se(sink_set_state(s, PA_SINK_IDLE) == 0);
 
+    if (s->active_port)
+        pa_device_port_active_changed(s->active_port, true);
+
     pa_source_put(s->monitor_source);
 
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_NEW, s->index);
@@ -695,6 +698,9 @@ void pa_sink_unlink(pa_sink* s) {
 
     if (linked)
         pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SINK_UNLINK], s);
+
+    if (s->active_port)
+        pa_device_port_active_changed(s->active_port, false);
 
     if (s->state != PA_SINK_UNLINKED)
         pa_namereg_unregister(s->core, s->name);
@@ -3410,6 +3416,7 @@ size_t pa_sink_get_max_request(pa_sink *s) {
 /* Called from main context */
 int pa_sink_set_port(pa_sink *s, const char *name, bool save) {
     pa_device_port *port;
+    pa_device_port *old_port;
     int ret;
 
     pa_sink_assert_ref(s);
@@ -3426,10 +3433,14 @@ int pa_sink_set_port(pa_sink *s, const char *name, bool save) {
     if (!(port = pa_hashmap_get(s->ports, name)))
         return -PA_ERR_NOENTITY;
 
-    if (s->active_port == port) {
+    old_port = s->active_port;
+
+    if (port == old_port) {
         s->save_port = s->save_port || save;
         return 0;
     }
+
+    pa_device_port_active_changed(old_port, false);
 
     if (s->flags & PA_SINK_DEFERRED_VOLUME) {
         struct sink_message_set_port msg = { .port = port, .ret = 0 };
@@ -3439,17 +3450,26 @@ int pa_sink_set_port(pa_sink *s, const char *name, bool save) {
     else
         ret = s->set_port(s, port);
 
-    if (ret < 0)
-        return -PA_ERR_NOENTITY;
+    if (ret < 0) {
+        pa_log("Failed to set the port of sink %s from %s to %s.", s->name, old_port->name, port->name);
+
+        /* We don't know the real state of the device, but let's assume that
+         * the old port is still active, because s->active_port is left to
+         * point to the old port anyway. */
+        pa_device_port_active_changed(old_port, true);
+
+        return ret;
+    }
 
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK|PA_SUBSCRIPTION_EVENT_CHANGE, s->index);
 
-    pa_log_info("Changed port of sink %u \"%s\" to %s", s->index, s->name, port->name);
+    pa_log_info("Changed port of sink %u \"%s\" from %s to %s", s->index, s->name, old_port->name, port->name);
 
     s->active_port = port;
     s->save_port = save;
 
     pa_sink_set_latency_offset(s, s->active_port->latency_offset);
+    pa_device_port_active_changed(port, true);
 
     pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SINK_PORT_CHANGED], s);
 
