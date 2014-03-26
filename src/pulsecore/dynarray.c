@@ -93,3 +93,9 @@ unsigned pa_dynarray_size(pa_dynarray *array) {
 
     return array->n_entries;
 }
+
+void * const *pa_dynarray_get_raw_array(pa_dynarray *array) {
+    pa_assert(array);
+
+    return array->data;
+}

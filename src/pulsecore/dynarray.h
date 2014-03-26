@@ -54,5 +54,6 @@ void *pa_dynarray_get(pa_dynarray *array, unsigned i);
 void *pa_dynarray_steal_last(pa_dynarray *array);
 
 unsigned pa_dynarray_size(pa_dynarray *array);
+void * const *pa_dynarray_get_raw_array(pa_dynarray *array);
 
 #endif
