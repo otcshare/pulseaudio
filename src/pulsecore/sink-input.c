@@ -1470,7 +1470,7 @@ void pa_sink_input_set_mute(pa_sink_input *i, bool mute, bool save) {
     pa_assert(PA_SINK_INPUT_IS_LINKED(i->state));
 
     if (!i->muted == !mute) {
-        i->save_muted = i->save_muted || mute;
+        i->save_muted |= save;
         return;
     }
 
