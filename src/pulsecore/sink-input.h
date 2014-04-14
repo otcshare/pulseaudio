@@ -387,7 +387,6 @@ int pa_sink_input_remove_volume_factor(pa_sink_input *i, const char *key);
 pa_cvolume *pa_sink_input_get_volume(pa_sink_input *i, pa_cvolume *volume, bool absolute);
 
 void pa_sink_input_set_mute(pa_sink_input *i, bool mute, bool save);
-bool pa_sink_input_get_mute(pa_sink_input *i);
 
 void pa_sink_input_set_volume_ramp(pa_sink_input *i, const pa_cvolume_ramp *ramp, bool send_msg, bool save);
 
