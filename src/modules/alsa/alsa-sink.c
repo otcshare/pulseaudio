@@ -87,8 +87,13 @@
 
 #define VOLUME_ACCURACY (PA_VOLUME_NORM/100)  /* don't require volume adjustments to be perfectly correct. don't necessarily extend granularity in software unless the differences get greater than this level */
 
+#if 0
 #define DEFAULT_REWIND_SAFEGUARD_BYTES (256U) /* 1.33ms @48kHz, we'll never rewind less than this */
 #define DEFAULT_REWIND_SAFEGUARD_USEC (1330) /* 1.33ms, depending on channels/rate/sample we may rewind more than 256 above */
+#endif
+
+#define DEFAULT_REWIND_SAFEGUARD_BYTES (1024U) /* increase safeguard 4x */
+#define DEFAULT_REWIND_SAFEGUARD_USEC (5000) /* increase safeguard ~4x */
 
 struct userdata {
     pa_core *core;
