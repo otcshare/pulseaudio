@@ -81,6 +81,21 @@ void *pa_dynarray_get(pa_dynarray *array, unsigned i) {
     return array->data[i];
 }
 
+int pa_dynarray_remove_last(pa_dynarray *array) {
+    void *entry;
+
+    pa_assert(array);
+
+    entry = pa_dynarray_steal_last(array);
+    if (!entry)
+        return -PA_ERR_NOENTITY;
+
+    if (array->free_cb)
+        array->free_cb(entry);
+
+    return 0;
+}
+
 void *pa_dynarray_steal_last(pa_dynarray *array) {
     pa_assert(array);
 
