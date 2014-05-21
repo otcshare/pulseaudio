@@ -854,7 +854,7 @@ libpulse_la_SOURCES = \
 		pulse/ext-device-restore.c pulse/ext-device-restore.h \
 		pulse/ext-stream-restore.c pulse/ext-stream-restore.h \
 		pulse/ext-echo-cancel.c pulse/ext-echo-cancel.h \
-		pulse/ext-volume-api.c pulse/ext-volume-api.h \
+		pulse/ext-volume-api.c pulse/ext-volume-api.h modules/volume-api/volume-api-common.h \
 		pulse/format.c pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/internal.h \
@@ -1177,6 +1177,7 @@ modlibexec_LTLIBRARIES += \
 		module-cli.la \
 		module-cli-protocol-tcp.la \
 		module-simple-protocol-tcp.la \
+		module-volume-api.la \
 		module-null-sink.la \
 		module-null-source.la \
 		module-sine-source.la \
@@ -1477,6 +1478,7 @@ SYMDEF_FILES = \
 		module-pipe-source-symdef.h \
 		module-simple-protocol-tcp-symdef.h \
 		module-simple-protocol-unix-symdef.h \
+		module-volume-api-symdef.h \
 		module-native-protocol-tcp-symdef.h \
 		module-native-protocol-unix-symdef.h \
 		module-native-protocol-fd-symdef.h \
@@ -1594,6 +1596,14 @@ module_simple_protocol_unix_la_SOURCES = modules/module-protocol-stub.c
 module_simple_protocol_unix_la_CFLAGS = -DUSE_UNIX_SOCKETS -DUSE_PROTOCOL_SIMPLE $(AM_CFLAGS)
 module_simple_protocol_unix_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_simple_protocol_unix_la_LIBADD = $(MODULE_LIBADD) libprotocol-simple.la
+
+# Volume API
+
+module_volume_api_la_SOURCES = \
+		modules/volume-api/module-volume-api.c \
+		modules/volume-api/volume-api-common.h
+module_volume_api_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_volume_api_la_LIBADD = $(MODULE_LIBADD) libprotocol-native.la libvolume-api.la
 
 # CLI protocol
 
