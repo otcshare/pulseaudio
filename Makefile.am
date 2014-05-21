@@ -58,6 +58,9 @@ moduledevdir   = $(includedir)/pulsemodule/pulsecore
 moduledevinternal_DATA = src/pulse/internal.h src/pulse/client-conf.h src/pulse/fork-detect.h
 moduledevinternaldir   = $(includedir)/pulsemodule/pulse
 
+moduledevvolumeapi_DATA = src/modules/volume-api/*.h
+moduledevvolumeapidir   = $(includedir)/pulsemodule/modules/volume-api
+
 filterdir = /etc/pulse/filter
 filter_DATA = filter/filter_44100_48000.dat \
 	      filter/filter_44100_8000.dat \
