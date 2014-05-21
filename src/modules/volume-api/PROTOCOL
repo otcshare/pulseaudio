@@ -1,0 +1,167 @@
+==== v1 ====
+
+client->server
+CONNECT
+    uint32 version
+reply
+    uint32 version
+
+
+client->server, server->client
+DISCONNECT
+    (no arguments)
+(no reply)
+
+
+client->server
+SUBSCRIBE
+    uint32 mask
+reply
+    (no arguments)
+
+
+server->client
+SUBSCRIBE_EVENT
+    uint32 event_type
+    uint32 index
+(no reply)
+
+
+client->server
+GET_SERVER_INFO
+    (no arguments)
+reply
+    uint32 main_output_volume_control
+    uint32 main_input_volume_control
+    uint32 main_output_mute_control
+    uint32 main_input_mute_control
+
+
+client->server
+GET_VOLUME_CONTROL_INFO
+    uint32 index
+    string name
+reply
+    uint32 index
+    string name
+    string description
+    proplist proplist
+    volume volume
+    channel_map channel_map
+    uint64 balance (repeated channel_map.channels times)
+    boolean convertible_to_dB
+
+
+client->server
+GET_VOLUME_CONTROL_INFO_LIST
+    (no arguments)
+reply
+    (the same arguments as with GET_VOLUME_CONTROL_INFO, repeated for each
+    volume control in the system)
+
+
+client->server
+SET_VOLUME_CONTROL_VOLUME
+    uint32 index
+    string name
+    volume volume
+    channel_map channel_map
+    uint64 balance (repeated channel_map.channels times)
+reply
+    (no arguments)
+
+
+client->server
+GET_MUTE_CONTROL_INFO
+    uint32 index
+    string name
+reply
+    uint32 index
+    string name
+    string description
+    proplist proplist
+    boolean mute
+
+
+client->server
+GET_MUTE_CONTROL_INFO_LIST
+    (no arguments)
+reply
+    (the same arguments as with GET_MUTE_CONTROL_INFO, repeated for each mute
+    control in the system)
+
+
+client->server
+SET_MUTE_CONTROL_MUTE
+    uint32 index
+    string name
+    boolean mute
+reply
+    (no arguments)
+
+
+client->server
+GET_DEVICE_INFO
+    uint32 index
+    string name
+reply
+    uint32 index
+    string name
+    string description
+    uint8 direction
+    uint32 n_device_types
+    string device_type (repeated n_device_types times)
+    proplist proplist
+    uint32 volume_control
+    uint32 mute_control
+
+
+client->server
+GET_DEVICE_INFO_LIST
+    (no arguments)
+reply
+    (the same arguments as with GET_DEVICE_INFO, repeated for each device in
+    the system)
+
+
+client->server
+GET_STREAM_INFO
+    uint32 index
+    string name
+reply
+    uint32 index
+    string name
+    string description
+    uint8 direction
+    proplist proplist
+    uint32 volume_control
+    uint32 mute_control
+
+
+client->server
+GET_STREAM_INFO_LIST
+    (no arguments)
+reply
+    (the same arguments as with GET_STREAM_INFO, repeated for each stream in
+    the system)
+
+
+client->server
+GET_AUDIO_GROUP_INFO
+    uint32 index
+    string name
+reply
+    uint32 index
+    string name
+    string description
+    proplist proplist
+    uint32 volume_control
+    uint32 mute_control
+
+
+client->server
+GET_AUDIO_GROUP_INFO_LIST
+    (no arguments)
+reply
+    (the same arguments as with GET_AUDIO_GROUP_INFO, repeated for each audio
+    group in the system)

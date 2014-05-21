@@ -189,6 +189,10 @@ ifelse(@HAVE_X11@, 1, [dnl
 #.endif
 ])dnl
 
+.ifexists module-volume-api
+load-module module-volume-api
+.endif
+
 ### Make some devices default
 #set-default-sink output
 #set-default-source input
