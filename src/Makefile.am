@@ -1047,6 +1047,7 @@ libpulsecore_foreign_la_CFLAGS = $(AM_CFLAGS) $(FOREIGN_CFLAGS)
 
 modlibexec_LTLIBRARIES = \
 		libcli.la \
+		libmain-volume-policy.la \
 		libprotocol-cli.la \
 		libprotocol-simple.la \
 		libprotocol-http.la \
@@ -1080,6 +1081,12 @@ libprotocol_simple_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libp
 libcli_la_SOURCES = pulsecore/cli.c pulsecore/cli.h
 libcli_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
 libcli_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
+
+libmain_volume_policy_la_SOURCES = \
+		modules/main-volume-policy/main-volume-context.c modules/main-volume-policy/main-volume-context.h \
+		modules/main-volume-policy/main-volume-policy.c modules/main-volume-policy/main-volume-policy.h
+libmain_volume_policy_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
+libmain_volume_policy_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la libvolume-api.la
 
 libprotocol_cli_la_SOURCES = pulsecore/protocol-cli.c pulsecore/protocol-cli.h
 libprotocol_cli_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
@@ -1163,6 +1170,7 @@ endif
 modlibexec_LTLIBRARIES += \
 		module-cli.la \
 		module-cli-protocol-tcp.la \
+		module-main-volume-policy.la \
 		module-simple-protocol-tcp.la \
 		module-volume-api.la \
 		module-null-sink.la \
@@ -1463,6 +1471,7 @@ SYMDEF_FILES = \
 		module-cli-symdef.h \
 		module-cli-protocol-tcp-symdef.h \
 		module-cli-protocol-unix-symdef.h \
+		module-main-volume-policy-symdef.h \
 		module-pipe-sink-symdef.h \
 		module-pipe-source-symdef.h \
 		module-simple-protocol-tcp-symdef.h \
@@ -1611,6 +1620,12 @@ module_cli_protocol_unix_la_SOURCES = modules/module-protocol-stub.c
 module_cli_protocol_unix_la_CFLAGS = -DUSE_UNIX_SOCKETS -DUSE_PROTOCOL_CLI $(AM_CFLAGS)
 module_cli_protocol_unix_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_cli_protocol_unix_la_LIBADD = $(MODULE_LIBADD) libprotocol-cli.la
+
+# Main volume and mute policy
+
+module_main_volume_policy_la_SOURCES = modules/main-volume-policy/module-main-volume-policy.c
+module_main_volume_policy_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_main_volume_policy_la_LIBADD = $(MODULE_LIBADD) libmain-volume-policy.la libvolume-api.la
 
 # HTTP protocol
 

@@ -56,6 +56,9 @@ pkgconfig_DATA = libpulse.pc libpulse-simple.pc
 moduledevvolumeapi_DATA = src/modules/volume-api/*.h
 moduledevvolumeapidir   = $(includedir)/pulsemodule/modules/volume-api
 
+moduledevmainvolumepolicy_DATA = src/modules/main-volume-policy/*.h
+moduledevmainvolumepolicydir   = $(includedir)/pulsemodule/modules/main-volume-policy
+
 filterdir = $(pulseconfdir)/filter
 filter_DATA = filter/filter_44100_48000.dat \
 	      filter/filter_44100_8000.dat \
