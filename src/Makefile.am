@@ -781,6 +781,7 @@ pulseinclude_HEADERS = \
 		pulse/ext-device-restore.h \
 		pulse/ext-stream-restore.h \
 		pulse/ext-echo-cancel.h \
+		pulse/ext-volume-api.h \
 		pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/introspect.h \
@@ -834,6 +835,7 @@ libpulse_la_SOURCES = \
 		pulse/ext-device-restore.c pulse/ext-device-restore.h \
 		pulse/ext-stream-restore.c pulse/ext-stream-restore.h \
 		pulse/ext-echo-cancel.c pulse/ext-echo-cancel.h \
+		pulse/ext-volume-api.c pulse/ext-volume-api.h \
 		pulse/format.c pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/internal.h \
@@ -1048,7 +1050,8 @@ modlibexec_LTLIBRARIES = \
 		libprotocol-cli.la \
 		libprotocol-simple.la \
 		libprotocol-http.la \
-		libprotocol-native.la
+		libprotocol-native.la \
+		libvolume-api.la
 
 if HAVE_WEBRTC
 modlibexec_LTLIBRARIES += libwebrtc-util.la
@@ -1094,6 +1097,20 @@ if HAVE_DBUS
 libprotocol_native_la_CFLAGS += $(DBUS_CFLAGS)
 libprotocol_native_la_LIBADD += $(DBUS_LIBS)
 endif
+
+libvolume_api_la_SOURCES = \
+		modules/volume-api/audio-group.c modules/volume-api/audio-group.h \
+		modules/volume-api/bvolume.h \
+		modules/volume-api/device.c modules/volume-api/device.h \
+		modules/volume-api/device-creator.c modules/volume-api/device-creator.h \
+		modules/volume-api/inidb.c modules/volume-api/inidb.h \
+		modules/volume-api/mute-control.c modules/volume-api/mute-control.h \
+		modules/volume-api/sstream.c modules/volume-api/sstream.h \
+		modules/volume-api/stream-creator.c modules/volume-api/stream-creator.h \
+		modules/volume-api/volume-api.c modules/volume-api/volume-api.h \
+		modules/volume-api/volume-control.c modules/volume-api/volume-control.h
+libvolume_api_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
+libvolume_api_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
 
 if HAVE_ESOUND
 libprotocol_esound_la_SOURCES = pulsecore/protocol-esound.c pulsecore/protocol-esound.h pulsecore/esound.h
