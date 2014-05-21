@@ -1,0 +1,19 @@
+[General]
+output-volume-model = by-active-main-volume-context
+input-volume-model = by-active-main-volume-context
+output-mute-model = none
+input-mute-model = none
+
+[MainVolumeContext x-example-call-main-volume-context]
+description = Call main volume context
+main-output-volume-control = bind:AudioGroup:x-example-call-downlink-audio-group
+main-input-volume-control = bind:AudioGroup:x-example-call-uplink-audio-group
+main-output-mute-control = none
+main-input-mute-control = none
+
+[MainVolumeContext x-example-default-main-volume-context]
+description = Default main volume context
+main-output-volume-control = bind:AudioGroup:x-example-default-output-audio-group
+main-input-volume-control = bind:AudioGroup:x-example-default-input-audio-group
+main-output-mute-control = none
+main-input-mute-control = none
