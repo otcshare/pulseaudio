@@ -38,6 +38,7 @@
 
 #include <pulse/pulseaudio.h>
 #include <pulse/ext-device-restore.h>
+#include <pulse/ext-volume-api.h>
 
 #include <pulsecore/i18n.h>
 #include <pulsecore/macro.h>
@@ -58,7 +59,9 @@ static char
     *card_name = NULL,
     *profile_name = NULL,
     *port_name = NULL,
-    *formats = NULL;
+    *formats = NULL,
+    *volume_control_name = NULL,
+    *mute_control_name = NULL;
 
 static uint32_t
     sink_input_idx = PA_INVALID_INDEX,
@@ -102,6 +105,15 @@ static int actions = 0;
 
 static bool nl = false;
 
+bool volume_api_connected = false;
+pa_ext_volume_api_bvolume bvolume;
+bool volume_valid = false;
+bool balance_valid = false;
+uint32_t main_output_volume_control = PA_INVALID_INDEX;
+uint32_t main_input_volume_control = PA_INVALID_INDEX;
+uint32_t main_output_mute_control = PA_INVALID_INDEX;
+uint32_t main_input_mute_control = PA_INVALID_INDEX;
+
 static enum {
     NONE,
     EXIT,
@@ -132,7 +144,9 @@ static enum {
     SET_SOURCE_OUTPUT_MUTE,
     SET_SINK_FORMATS,
     SET_PORT_LATENCY_OFFSET,
-    SUBSCRIBE
+    SET_VOLUME_CONTROL_VOLUME,
+    SET_MUTE_CONTROL_MUTE,
+    SUBSCRIBE,
 } action = NONE;
 
 static void quit(int ret) {
@@ -836,7 +850,7 @@ static void index_callback(pa_context *c, uint32_t idx, void *userdata) {
     complete_action();
 }
 
-static void volume_relative_adjust(pa_cvolume *cv) {
+static void volume_relative_adjust(pa_cvolume *cv, pa_cvolume *adjustment) {
     pa_assert(volume_flags & VOL_RELATIVE);
 
     /* Relative volume change is additive in case of UINT or PERCENT
@@ -844,14 +858,14 @@ static void volume_relative_adjust(pa_cvolume *cv) {
     if ((volume_flags & 0x0F) == VOL_UINT || (volume_flags & 0x0F) == VOL_PERCENT) {
         unsigned i;
         for (i = 0; i < cv->channels; i++) {
-            if (cv->values[i] + volume.values[i] < PA_VOLUME_NORM)
+            if (cv->values[i] + adjustment->values[i] < PA_VOLUME_NORM)
                 cv->values[i] = PA_VOLUME_MUTED;
             else
-                cv->values[i] = cv->values[i] + volume.values[i] - PA_VOLUME_NORM;
+                cv->values[i] = cv->values[i] + adjustment->values[i] - PA_VOLUME_NORM;
         }
     }
     if ((volume_flags & 0x0F) == VOL_LINEAR || (volume_flags & 0x0F) == VOL_DECIBEL)
-        pa_sw_cvolume_multiply(cv, cv, &volume);
+        pa_sw_cvolume_multiply(cv, cv, adjustment);
 }
 
 static void unload_module_by_name_callback(pa_context *c, const pa_module_info *i, int is_last, void *userdata) {
@@ -890,7 +904,7 @@ static void fill_volume(pa_cvolume *cv, unsigned supported) {
     }
 
     if (volume_flags & VOL_RELATIVE)
-        volume_relative_adjust(cv);
+        volume_relative_adjust(cv, &volume);
     else
         *cv = volume;
 }
@@ -1186,6 +1200,577 @@ static void context_subscribe_callback(pa_context *c, pa_subscription_event_type
     fflush(stdout);
 }
 
+static void get_volume_control_info_callback(pa_context *c, const pa_ext_volume_api_volume_control_info *info,
+                                             int is_last, void *userdata) {
+    char volume_str[PA_VOLUME_SNPRINT_VERBOSE_MAX];
+    char balance_str[PA_EXT_VOLUME_API_BVOLUME_SNPRINT_BALANCE_MAX];
+    char *proplist_str;
+
+    pa_assert(c);
+
+    if (is_last < 0) {
+        pa_log(_("Failed to get volume control information: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    if (is_last) {
+        complete_action();
+        return;
+    }
+
+    pa_assert(info);
+
+    if (action == INFO) {
+        if (info->index == main_output_volume_control)
+            printf(_("Main output volume control: %s\n"), info->name);
+
+        if (info->index == main_input_volume_control)
+            printf(_("Main input volume control: %s\n"), info->name);
+
+        return;
+    }
+
+    if (action == SET_VOLUME_CONTROL_VOLUME) {
+        pa_ext_volume_api_bvolume bv;
+
+        if (balance_valid && bvolume.channel_map.channels != info->volume.channel_map.channels) {
+            pa_log(_("Incompatible number of channels, expected %u channels."), info->volume.channel_map.channels);
+            quit(1);
+        }
+
+        bv = info->volume;
+
+        if (volume_valid) {
+            if (volume_flags & VOL_RELATIVE) {
+                pa_cvolume cv;
+                pa_cvolume adjustment;
+
+                pa_cvolume_set(&cv, 1, info->volume.volume);
+                pa_cvolume_set(&adjustment, 1, bvolume.volume);
+                volume_relative_adjust(&cv, &adjustment);
+                bv.volume = cv.values[0];
+            } else
+                bv.volume = bvolume.volume;
+        }
+
+        if (balance_valid)
+            memcpy(bv.balance, bvolume.balance, sizeof(bv.balance));
+
+        pa_operation_unref(pa_ext_volume_api_set_volume_control_volume_by_name(c, volume_control_name, &bv,
+                                                                               volume_valid, balance_valid,
+                                                                               simple_callback, NULL));
+        actions++;
+
+        return;
+    }
+
+    pa_assert(action == LIST);
+
+    if (nl && !short_list_format)
+        printf("\n");
+    nl = true;
+
+    if (short_list_format) {
+        printf("%u\t%s\t%u\n", info->index, info->name, info->volume.volume);
+        return;
+    }
+
+    pa_volume_snprint_verbose(volume_str, sizeof(volume_str), info->volume.volume, info->convertible_to_dB);
+    pa_ext_volume_api_bvolume_snprint_balance(balance_str, sizeof(balance_str), &info->volume);
+    proplist_str = pa_proplist_to_string_sep(info->proplist, "\n\t\t");
+
+    printf(_("Volume Control #%u\n"
+             "\tName: %s\n"
+             "\tDescription: %s\n"
+             "\tVolume: %s\n"
+             "\tBalance: %s\n"
+             "\tProperties: %s%s\n"),
+             info->index,
+             info->name,
+             info->description,
+             volume_str,
+             balance_str,
+             *proplist_str ? "\n\t\t" : _("(none)"),
+             proplist_str);
+
+    pa_xfree(proplist_str);
+}
+
+static void get_mute_control_info_callback(pa_context *c, const pa_ext_volume_api_mute_control_info *info, int is_last,
+                                           void *userdata) {
+    char *proplist_str;
+
+    pa_assert(c);
+
+    if (is_last < 0) {
+        pa_log(_("Failed to get mute control information: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    if (is_last) {
+        complete_action();
+        return;
+    }
+
+    pa_assert(info);
+
+    if (action == INFO) {
+        if (info->index == main_output_mute_control)
+            printf(_("Main output mute control: %s\n"), info->name);
+
+        if (info->index == main_input_mute_control)
+            printf(_("Main input mute control: %s\n"), info->name);
+
+        return;
+    }
+
+    if (action == SET_MUTE_CONTROL_MUTE) {
+        pa_operation_unref(pa_ext_volume_api_set_mute_control_mute_by_index(c, info->index, info->mute ? false : true,
+                                                                                   simple_callback, NULL));
+        actions++;
+        return;
+    }
+
+    pa_assert(action == LIST);
+
+    if (nl && !short_list_format)
+        printf("\n");
+    nl = true;
+
+    if (short_list_format) {
+        printf("%u\t%s\t%s\n", info->index, info->name, pa_yes_no(info->mute));
+        return;
+    }
+
+    proplist_str = pa_proplist_to_string_sep(info->proplist, "\n\t\t");
+
+    printf(_("Mute Control #%u\n"
+             "\tName: %s\n"
+             "\tDescription: %s\n"
+             "\tMute: %s\n"
+             "\tProperties: %s%s\n"),
+             info->index,
+             info->name,
+             info->description,
+             pa_yes_no(info->mute),
+             *proplist_str ? "\n\t\t" : _("(none)"),
+             proplist_str);
+
+    pa_xfree(proplist_str);
+}
+
+static void volume_api_get_server_info_callback(pa_context *c, const pa_ext_volume_api_server_info *info, void *userdata) {
+    pa_assert(c);
+
+    if (!info) {
+        pa_log(_("Failed to get server information: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    main_output_volume_control = info->main_output_volume_control;
+    main_input_volume_control = info->main_input_volume_control;
+    main_output_mute_control = info->main_output_mute_control;
+    main_input_mute_control = info->main_input_mute_control;
+
+    if (main_output_volume_control == PA_INVALID_INDEX)
+        printf(_("Main output volume control: (unset)\n"));
+
+    if (main_input_volume_control == PA_INVALID_INDEX)
+        printf(_("Main input volume control: (unset)\n"));
+
+    if (main_output_mute_control == PA_INVALID_INDEX)
+        printf(_("Main output mute control: (unset)\n"));
+
+    if (main_input_mute_control == PA_INVALID_INDEX)
+        printf(_("Main input mute control: (unset)\n"));
+
+    if (main_output_volume_control != PA_INVALID_INDEX || main_input_volume_control != PA_INVALID_INDEX) {
+        pa_operation_unref(pa_ext_volume_api_get_volume_control_info_list(c, get_volume_control_info_callback, NULL));
+        actions++;
+    }
+
+    if (main_output_mute_control != PA_INVALID_INDEX || main_input_mute_control != PA_INVALID_INDEX) {
+        pa_operation_unref(pa_ext_volume_api_get_mute_control_info_list(c, get_mute_control_info_callback, NULL));
+        actions++;
+    }
+
+    complete_action();
+}
+
+static void get_device_info_callback(pa_context *c, const pa_ext_volume_api_device_info *info, int is_last,
+                                     void *userdata) {
+    char *device_types_str = NULL;
+    char *volume_control_str;
+    char *mute_control_str;
+    char *proplist_str;
+
+    pa_assert(c);
+
+    if (is_last < 0) {
+        pa_log(_("Failed to get device information: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    if (is_last) {
+        complete_action();
+        return;
+    }
+
+    pa_assert(info);
+
+    if (nl && !short_list_format)
+        printf("\n");
+    nl = true;
+
+    if (info->n_device_types > 0)
+        device_types_str = pa_join(info->device_types, info->n_device_types, ", ");
+    else
+        device_types_str = pa_xstrdup(_("(none)"));
+
+    if (info->volume_control != PA_INVALID_INDEX)
+        volume_control_str = pa_sprintf_malloc("%u", info->volume_control);
+    else
+        volume_control_str = pa_xstrdup(_("(unset)"));
+
+    if (info->mute_control != PA_INVALID_INDEX)
+        mute_control_str = pa_sprintf_malloc("%u", info->mute_control);
+    else
+        mute_control_str = pa_xstrdup(_("(unset)"));
+
+    if (short_list_format) {
+        printf("%u\t%s\t%s\t%s\t%s\t%s\n", info->index, info->name, pa_direction_to_string(info->direction), device_types_str,
+               volume_control_str, mute_control_str);
+        pa_xfree(mute_control_str);
+        pa_xfree(volume_control_str);
+        pa_xfree(device_types_str);
+        return;
+    }
+
+    proplist_str = pa_proplist_to_string_sep(info->proplist, "\n\t\t");
+
+    printf(_("Device #%u\n"
+             "\tName: %s\n"
+             "\tDescription: %s\n"
+             "\tDirection: %s\n"
+             "\tDevice Types: %s\n"
+             "\tVolume Control: %s\n"
+             "\tMute Control: %s\n"
+             "\tProperties: %s%s\n"),
+             info->index,
+             info->name,
+             info->description,
+             pa_direction_to_string(info->direction),
+             device_types_str,
+             volume_control_str,
+             mute_control_str,
+             *proplist_str ? "\n\t\t" : _("(none)"),
+             proplist_str);
+
+    pa_xfree(proplist_str);
+    pa_xfree(mute_control_str);
+    pa_xfree(volume_control_str);
+    pa_xfree(device_types_str);
+}
+
+static void get_stream_info_callback(pa_context *c, const pa_ext_volume_api_stream_info *info, int is_last,
+                                     void *userdata) {
+    char *volume_control_str;
+    char *mute_control_str;
+    char *proplist_str;
+
+    pa_assert(c);
+
+    if (is_last < 0) {
+        pa_log(_("Failed to get stream information: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    if (is_last) {
+        complete_action();
+        return;
+    }
+
+    pa_assert(info);
+
+    if (nl && !short_list_format)
+        printf("\n");
+    nl = true;
+
+    if (info->volume_control != PA_INVALID_INDEX)
+        volume_control_str = pa_sprintf_malloc("%u", info->volume_control);
+    else
+        volume_control_str = pa_xstrdup(_("(unset)"));
+
+    if (info->mute_control != PA_INVALID_INDEX)
+        mute_control_str = pa_sprintf_malloc("%u", info->mute_control);
+    else
+        mute_control_str = pa_xstrdup(_("(unset)"));
+
+    if (short_list_format) {
+        printf("%u\t%s\t%s\t%s\t%s\n", info->index, info->name, pa_direction_to_string(info->direction), volume_control_str,
+               mute_control_str);
+        pa_xfree(mute_control_str);
+        pa_xfree(volume_control_str);
+        return;
+    }
+
+    proplist_str = pa_proplist_to_string_sep(info->proplist, "\n\t\t");
+
+    printf(_("Stream #%u\n"
+             "\tName: %s\n"
+             "\tDescription: %s\n"
+             "\tDirection: %s\n"
+             "\tVolume Control: %s\n"
+             "\tMute Control: %s\n"
+             "\tProperties: %s%s\n"),
+             info->index,
+             info->name,
+             info->description,
+             pa_direction_to_string(info->direction),
+             volume_control_str,
+             mute_control_str,
+             *proplist_str ? "\n\t\t" : _("(none)"),
+             proplist_str);
+
+    pa_xfree(proplist_str);
+    pa_xfree(mute_control_str);
+    pa_xfree(volume_control_str);
+}
+
+static void get_audio_group_info_callback(pa_context *c, const pa_ext_volume_api_audio_group_info *info, int is_last,
+                                          void *userdata) {
+    char *volume_control_str;
+    char *mute_control_str;
+    char *proplist_str;
+
+    pa_assert(c);
+
+    if (is_last < 0) {
+        pa_log(_("Failed to get audio group information: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    if (is_last) {
+        complete_action();
+        return;
+    }
+
+    pa_assert(info);
+
+    if (nl && !short_list_format)
+        printf("\n");
+    nl = true;
+
+    if (info->volume_control != PA_INVALID_INDEX)
+        volume_control_str = pa_sprintf_malloc("%u", info->volume_control);
+    else
+        volume_control_str = pa_xstrdup(_("(unset)"));
+
+    if (info->mute_control != PA_INVALID_INDEX)
+        mute_control_str = pa_sprintf_malloc("%u", info->mute_control);
+    else
+        mute_control_str = pa_xstrdup(_("(unset)"));
+
+    if (short_list_format) {
+        printf("%u\t%s\t%s\t%s\n", info->index, info->name, volume_control_str, mute_control_str);
+        pa_xfree(mute_control_str);
+        pa_xfree(volume_control_str);
+        return;
+    }
+
+    proplist_str = pa_proplist_to_string_sep(info->proplist, "\n\t\t");
+
+    printf(_("Audio Group #%u\n"
+             "\tName: %s\n"
+             "\tDescription: %s\n"
+             "\tVolume Control: %s\n"
+             "\tMute Control: %s\n"
+             "\tProperties: %s%s\n"),
+             info->index,
+             info->name,
+             info->description,
+             volume_control_str,
+             mute_control_str,
+             *proplist_str ? "\n\t\t" : _("(none)"),
+             proplist_str);
+
+    pa_xfree(proplist_str);
+    pa_xfree(mute_control_str);
+    pa_xfree(volume_control_str);
+}
+
+static const char *volume_api_subscription_event_facility_to_string(pa_ext_volume_api_subscription_event_type_t type) {
+
+    switch (type & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) {
+        case PA_EXT_VOLUME_API_SUBSCRIPTION_EVENT_SERVER:
+            return _("server (volume API)");
+
+        case PA_EXT_VOLUME_API_SUBSCRIPTION_EVENT_VOLUME_CONTROL:
+            return _("volume-control");
+
+        case PA_EXT_VOLUME_API_SUBSCRIPTION_EVENT_MUTE_CONTROL:
+            return _("mute-control");
+
+        case PA_EXT_VOLUME_API_SUBSCRIPTION_EVENT_DEVICE:
+            return _("device");
+
+        case PA_EXT_VOLUME_API_SUBSCRIPTION_EVENT_STREAM:
+            return _("stream");
+
+        case PA_EXT_VOLUME_API_SUBSCRIPTION_EVENT_AUDIO_GROUP:
+            return _("audio-group");
+    }
+
+    return _("unknown");
+}
+
+static void volume_api_subscribe_cb(pa_context *c, pa_ext_volume_api_subscription_event_type_t event_type, uint32_t idx,
+                                    void *userdata) {
+    pa_assert(c);
+
+    printf(_("Event '%s' on %s #%u\n"),
+           subscription_event_type_to_string(event_type),
+           volume_api_subscription_event_facility_to_string(event_type),
+           idx);
+    fflush(stdout);
+}
+
+static void volume_api_state_cb(pa_context *c, void *userdata) {
+    pa_ext_volume_api_state_t state;
+
+    pa_assert(c);
+
+    state = pa_ext_volume_api_get_state(c);
+
+    switch (state) {
+        case PA_EXT_VOLUME_API_STATE_READY: {
+            pa_operation *o = NULL;
+
+            volume_api_connected = true;
+
+            switch (action) {
+                case INFO:
+                    o = pa_ext_volume_api_get_server_info(c, volume_api_get_server_info_callback, NULL);
+                    actions++;
+                    break;
+
+                case LIST:
+                    if (!list_type) {
+                        o = pa_ext_volume_api_get_volume_control_info_list(c, get_volume_control_info_callback, NULL);
+                        pa_operation_unref(o);
+                        o = pa_ext_volume_api_get_mute_control_info_list(c, get_mute_control_info_callback, NULL);
+                        pa_operation_unref(o);
+                        o = pa_ext_volume_api_get_device_info_list(c, get_device_info_callback, NULL);
+                        pa_operation_unref(o);
+                        o = pa_ext_volume_api_get_stream_info_list(c, get_stream_info_callback, NULL);
+                        pa_operation_unref(o);
+                        o = pa_ext_volume_api_get_audio_group_info_list(c, get_audio_group_info_callback, NULL);
+                        pa_operation_unref(o);
+                        o = NULL;
+                        actions += 5;
+                    } else if (pa_streq(list_type, "volume-controls")) {
+                        o = pa_ext_volume_api_get_volume_control_info_list(c, get_volume_control_info_callback, NULL);
+                        actions++;
+                    } else if (pa_streq(list_type, "mute-controls")) {
+                        o = pa_ext_volume_api_get_mute_control_info_list(c, get_mute_control_info_callback, NULL);
+                        actions++;
+                    } else if (pa_streq(list_type, "devices")) {
+                        o = pa_ext_volume_api_get_device_info_list(c, get_device_info_callback, NULL);
+                        actions++;
+                    } else if (pa_streq(list_type, "streams")) {
+                        o = pa_ext_volume_api_get_stream_info_list(c, get_stream_info_callback, NULL);
+                        actions++;
+                    } else if (pa_streq(list_type, "audio-groups")) {
+                        o = pa_ext_volume_api_get_audio_group_info_list(c, get_audio_group_info_callback, NULL);
+                        actions++;
+                    }
+                    break;
+
+                case SET_VOLUME_CONTROL_VOLUME:
+                    if (!balance_valid && !(volume_flags & VOL_RELATIVE)) {
+                        pa_assert(volume_valid);
+                        o = pa_ext_volume_api_set_volume_control_volume_by_name(c, volume_control_name, &bvolume, true,
+                                                                                false, simple_callback, NULL);
+                    } else
+                        o = pa_ext_volume_api_get_volume_control_info_by_name(c, volume_control_name,
+                                                                              get_volume_control_info_callback, NULL);
+
+                    actions++;
+                    break;
+
+                case SET_MUTE_CONTROL_MUTE:
+                    if (mute == TOGGLE_MUTE)
+                        o = pa_ext_volume_api_get_mute_control_info_by_name(c, mute_control_name,
+                                                                                  get_mute_control_info_callback, NULL);
+                    else
+                        o = pa_ext_volume_api_set_mute_control_mute_by_name(c, mute_control_name, mute, simple_callback,
+                                                                            NULL);
+
+                    actions++;
+                    break;
+
+                case SUBSCRIBE:
+                    pa_ext_volume_api_set_subscribe_callback(c, volume_api_subscribe_cb, NULL);
+                    o = pa_ext_volume_api_subscribe(c, PA_EXT_VOLUME_API_SUBSCRIPTION_MASK_ALL, NULL, NULL);
+                    break;
+
+                default:
+                    break;
+            }
+
+            if (o)
+                pa_operation_unref(o);
+
+            complete_action();
+            break;
+        }
+
+        case PA_EXT_VOLUME_API_STATE_FAILED:
+            pa_log("Volume API context failed: %s", pa_strerror(pa_context_errno(c)));
+
+            /* If the main context failed too, let's not do anything, because
+             * calling complete_action() would reset the context error code to
+             * PA_ERR_BADSTATE, meaning that the original error code would be
+             * lost. */
+            if (pa_context_get_state(c) == PA_CONTEXT_FAILED)
+                break;
+
+            if (action == INFO || (action == LIST && !list_type) || action == SUBSCRIBE) {
+                /* In these cases we shouldn't exit with an error if the volume
+                 * API happens to be or become unavailable. If we haven't yet
+                 * connected to the volume API, then we need to complete the
+                 * "connect to volume API" action. */
+
+                if (!volume_api_connected)
+                    complete_action();
+            } else
+                quit(1);
+
+            break;
+
+        default:
+            break;
+    }
+}
+
+static void connect_to_volume_api(void) {
+    int r;
+
+    pa_assert(context);
+
+    pa_ext_volume_api_set_state_callback(context, volume_api_state_cb, NULL);
+
+    r = pa_ext_volume_api_connect(context);
+    if (r >= 0)
+        actions++;
+}
+
 static void context_state_callback(pa_context *c, void *userdata) {
     pa_operation *o = NULL;
 
@@ -1205,6 +1790,7 @@ static void context_state_callback(pa_context *c, void *userdata) {
 
                 case INFO:
                     o = pa_context_get_server_info(c, get_server_info_callback, NULL);
+                    connect_to_volume_api();
                     break;
 
                 case PLAY_SAMPLE:
@@ -1247,7 +1833,14 @@ static void context_state_callback(pa_context *c, void *userdata) {
                             o = pa_context_get_sample_info_list(c, get_sample_info_callback, NULL);
                         else if (pa_streq(list_type, "cards"))
                             o = pa_context_get_card_info_list(c, get_card_info_callback, NULL);
-                        else
+                        else if (pa_streq(list_type, "volume-controls")
+                                     || pa_streq(list_type, "mute-controls")
+                                     || pa_streq(list_type, "devices")
+                                     || pa_streq(list_type, "streams")
+                                     || pa_streq(list_type, "audio-groups")) {
+                            connect_to_volume_api();
+                            o = NULL;
+                        } else
                             pa_assert_not_reached();
                     } else {
                         o = pa_context_get_module_info_list(c, get_module_info_callback, NULL);
@@ -1297,6 +1890,7 @@ static void context_state_callback(pa_context *c, void *userdata) {
                             actions++;
                         }
 
+                        connect_to_volume_api();
                         o = NULL;
                     }
                     break;
@@ -1406,6 +2000,11 @@ static void context_state_callback(pa_context *c, void *userdata) {
                     o = pa_context_set_port_latency_offset(c, card_name, port_name, latency_offset, simple_callback, NULL);
                     break;
 
+                case SET_VOLUME_CONTROL_VOLUME:
+                case SET_MUTE_CONTROL_MUTE:
+                    connect_to_volume_api();
+                    break;
+
                 case SUBSCRIBE:
                     pa_context_set_subscribe_callback(c, context_subscribe_callback, NULL);
 
@@ -1421,6 +2020,14 @@ static void context_state_callback(pa_context *c, void *userdata) {
                                              PA_SUBSCRIPTION_MASK_CARD,
                                              NULL,
                                              NULL);
+
+                    if (o) {
+                        pa_operation_unref(o);
+                        actions++;
+                        o = NULL;
+                    }
+
+                    connect_to_volume_api();
                     break;
 
                 default:
@@ -1576,6 +2183,9 @@ static void help(const char *argv0) {
     printf("%s %s %s %s\n", argv0, _("[options]"), "set-(sink-input|source-output)-mute", _("#N 1|0|toggle"));
     printf("%s %s %s %s\n", argv0, _("[options]"), "set-sink-formats", _("#N FORMATS"));
     printf("%s %s %s %s\n", argv0, _("[options]"), "set-port-latency-offset", _("CARD-NAME|CARD-#N PORT OFFSET"));
+    printf("%s %s %s %s\n", argv0, _("[options]"), "set-volume-control-volume", _("NAME|#N VOLUME [BALANCE ...]"));
+    printf("%s %s %s %s\n", argv0, _("[options]"), "set-volume-control-balance", _("NAME|#N BALANCE ..."));
+    printf("%s %s %s %s\n", argv0, _("[options]"), "set-mute-control-mute", _("NAME|#N 1|0|toggle"));
     printf("%s %s %s\n",    argv0, _("[options]"), "subscribe");
     printf(_("\nThe special names @DEFAULT_SINK@, @DEFAULT_SOURCE@ and @DEFAULT_MONITOR@\n"
              "can be used to specify the default sink, source and monitor.\n"));
@@ -1585,6 +2195,40 @@ static void help(const char *argv0) {
              "      --version                         Show version\n\n"
              "  -s, --server=SERVER                   The name of the server to connect to\n"
              "  -n, --client-name=NAME                How to call this client on the server\n"));
+}
+
+static int parse_balance(char *argv[], unsigned first_arg, unsigned n_channels, pa_ext_volume_api_bvolume *bv) {
+    pa_ext_volume_api_bvolume bv_local;
+    unsigned i;
+
+    pa_assert(n_channels > 0);
+    pa_assert(bv);
+
+    if (n_channels > PA_CHANNELS_MAX) {
+        pa_log("Too many channels, the maximum is %u.", PA_CHANNELS_MAX);
+        return -1;
+    }
+
+    bv_local = *bv;
+
+    for (i = 0; i < n_channels; i++) {
+        const char *balance_str;
+        double balance;
+
+        balance_str = argv[first_arg + i];
+
+        if (pa_atod(balance_str, &balance) < 0 || !pa_ext_volume_api_balance_valid(balance)) {
+            pa_log(_("Invalid balance value: %s"), balance_str);
+            return -1;
+        }
+
+        bv_local.balance[i] = balance;
+    }
+
+    bv_local.channel_map.channels = n_channels;
+    *bv = bv_local;
+
+    return 0;
 }
 
 enum {
@@ -1669,15 +2313,19 @@ int main(int argc, char *argv[]) {
             action = LIST;
 
             for (int i = optind+1; i < argc; i++) {
-                if (pa_streq(argv[i], "modules") || pa_streq(argv[i], "clients") ||
-                    pa_streq(argv[i], "sinks")   || pa_streq(argv[i], "sink-inputs") ||
-                    pa_streq(argv[i], "sources") || pa_streq(argv[i], "source-outputs") ||
-                    pa_streq(argv[i], "samples") || pa_streq(argv[i], "cards")) {
+                if (pa_streq(argv[i], "modules")         || pa_streq(argv[i], "clients") ||
+                    pa_streq(argv[i], "sinks")           || pa_streq(argv[i], "sink-inputs") ||
+                    pa_streq(argv[i], "sources")         || pa_streq(argv[i], "source-outputs") ||
+                    pa_streq(argv[i], "samples")         || pa_streq(argv[i], "cards") ||
+                    pa_streq(argv[i], "volume-controls") || pa_streq(argv[i], "mute-controls") ||
+                    pa_streq(argv[i], "devices")         || pa_streq(argv[i], "streams") ||
+                    pa_streq(argv[i], "audio-groups")) {
                     list_type = pa_xstrdup(argv[i]);
                 } else if (pa_streq(argv[i], "short")) {
                     short_list_format = true;
                 } else {
-                    pa_log(_("Specify nothing, or one of: %s"), "modules, sinks, sources, sink-inputs, source-outputs, clients, samples, cards");
+                    pa_log(_("Specify nothing, or one of: %s"), "modules, sinks, sources, sink-inputs, source-outputs, "
+                             "clients, samples, cards, volume-controls, mute-controls, devices, streams, audio-groups");
                     goto quit;
                 }
             }
@@ -2042,7 +2690,59 @@ int main(int argc, char *argv[]) {
                 goto quit;
             }
 
-        } else if (pa_streq(argv[optind], "help")) {
+        } else if (pa_streq(argv[optind], "set-volume-control-volume")) {
+            action = SET_VOLUME_CONTROL_VOLUME;
+
+            if (argc < optind + 3) {
+                pa_log(_("You have to specify a volume control name/index and a volume, and optionally balance parameters."));
+                goto quit;
+            }
+
+            volume_control_name = pa_xstrdup(argv[optind + 1]);
+
+            if (parse_volume(argv[optind + 2], &bvolume.volume, &volume_flags) < 0)
+                goto quit;
+
+            volume_valid = true;
+
+            if (argc > optind + 3) {
+                if (parse_balance(argv, optind + 3, argc - (optind + 3), &bvolume) < 0)
+                    goto quit;
+
+                balance_valid = true;
+            }
+
+        } else if (pa_streq(argv[optind], "set-volume-control-balance")) {
+            action = SET_VOLUME_CONTROL_VOLUME;
+
+            if (argc < optind + 3) {
+                pa_log(_("You have to specify a volume control name/index and balance parameters."));
+                goto quit;
+            }
+
+            volume_control_name = pa_xstrdup(argv[optind + 1]);
+
+            if (parse_balance(argv, optind + 2, argc - (optind + 2), &bvolume) < 0)
+                goto quit;
+
+            balance_valid = true;
+
+        } else if (pa_streq(argv[optind], "set-mute-control-mute")) {
+            action = SET_MUTE_CONTROL_MUTE;
+
+            if (argc != optind + 3) {
+                pa_log(_("You have to specify a mute control name/index and a mute value."));
+                goto quit;
+            }
+
+            mute_control_name = pa_xstrdup(argv[optind + 1]);
+
+            if ((mute = parse_mute(argv[optind + 2])) == INVALID_MUTE) {
+                pa_log(_("Invalid mute specification"));
+                goto quit;
+            }
+
+	} else if (pa_streq(argv[optind], "help")) {
             help(bn);
             ret = 0;
             goto quit;
@@ -2104,6 +2804,8 @@ quit:
     pa_xfree(profile_name);
     pa_xfree(port_name);
     pa_xfree(formats);
+    pa_xfree(mute_control_name);
+    pa_xfree(volume_control_name);
 
     if (sndfile)
         sf_close(sndfile);
