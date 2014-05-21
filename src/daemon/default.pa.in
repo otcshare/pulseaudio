@@ -197,6 +197,10 @@ load-module module-volume-api
 load-module module-audio-groups
 .endif
 
+.ifexists module-main-volume-policy
+load-module module-main-volume-policy
+.endif
+
 ### Make some devices default
 #set-default-sink output
 #set-default-source input
