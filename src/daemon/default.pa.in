@@ -193,6 +193,10 @@ ifelse(@HAVE_X11@, 1, [dnl
 load-module module-volume-api
 .endif
 
+.ifexists module-audio-groups
+load-module module-audio-groups
+.endif
+
 ### Make some devices default
 #set-default-sink output
 #set-default-source input
