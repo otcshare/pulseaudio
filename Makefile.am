@@ -53,6 +53,9 @@ dist_vapi_DATA = \
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libpulse.pc libpulse-simple.pc
 
+moduledevvolumeapi_DATA = src/modules/volume-api/*.h
+moduledevvolumeapidir   = $(includedir)/pulsemodule/modules/volume-api
+
 filterdir = $(pulseconfdir)/filter
 filter_DATA = filter/filter_44100_48000.dat \
 	      filter/filter_44100_8000.dat \
