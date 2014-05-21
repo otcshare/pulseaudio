@@ -1082,6 +1082,12 @@ libvolume_api_la_SOURCES = \
 libvolume_api_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
 libvolume_api_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
 
+# Audio Groups
+module_audio_groups_la_SOURCES = modules/audio-groups/module-audio-groups.c
+module_audio_groups_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_audio_groups_la_LIBADD = $(MODULE_LIBADD) libvolume-api.la
+module_audio_groups_la_CFLAGS = $(AM_CFLAGS)
+
 if HAVE_ESOUND
 libprotocol_esound_la_SOURCES = pulsecore/protocol-esound.c pulsecore/protocol-esound.h pulsecore/esound.h
 libprotocol_esound_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
@@ -1168,7 +1174,8 @@ modlibexec_LTLIBRARIES += \
 		module-switch-on-port-available.la \
 		module-filter-apply.la \
 		module-filter-heuristics.la \
-		module-role-ducking.la
+		module-role-ducking.la \
+		module-audio-groups.la
 
 if HAVE_ESOUND
 modlibexec_LTLIBRARIES += \
@@ -1505,7 +1512,9 @@ SYMDEF_FILES = \
 		module-switch-on-connect-symdef.h \
 		module-switch-on-port-available-symdef.h \
 		module-filter-apply-symdef.h \
-		module-filter-heuristics-symdef.h
+		module-filter-heuristics-symdef.h \
+		module-audio-groups-symdef.h
+
 if USE_SAMSUNG_POLICY
 SYMDEF_FILES += \
 		module-policy-symdef.h
