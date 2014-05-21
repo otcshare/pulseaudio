@@ -47,13 +47,9 @@ pa_dynarray* pa_dynarray_new(pa_free_cb_t free_cb) {
 }
 
 void pa_dynarray_free(pa_dynarray *array) {
-    unsigned i;
     pa_assert(array);
 
-    if (array->free_cb)
-        for (i = 0; i < array->n_entries; i++)
-            array->free_cb(array->data[i]);
-
+    pa_dynarray_remove_all(array);
     pa_xfree(array->data);
     pa_xfree(array);
 }
@@ -103,6 +99,13 @@ void *pa_dynarray_steal_last(pa_dynarray *array) {
         return array->data[--array->n_entries];
     else
         return NULL;
+}
+
+void pa_dynarray_remove_all(pa_dynarray *array) {
+    pa_assert(array);
+
+    while (array->n_entries > 0)
+        pa_dynarray_remove_last(array);
 }
 
 unsigned pa_dynarray_size(pa_dynarray *array) {

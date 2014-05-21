@@ -58,6 +58,8 @@ int pa_dynarray_remove_last(pa_dynarray *array);
 /* Returns the removed item, or NULL if the array is empty. */
 void *pa_dynarray_steal_last(pa_dynarray *array);
 
+void pa_dynarray_remove_all(pa_dynarray *array);
+
 unsigned pa_dynarray_size(pa_dynarray *array);
 void * const *pa_dynarray_get_raw_array(pa_dynarray *array);
 
