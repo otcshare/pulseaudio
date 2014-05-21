@@ -52,6 +52,9 @@ void pa_dynarray_append(pa_dynarray *array, void *p);
 /* Returns NULL if i is out of bounds. */
 void *pa_dynarray_get(pa_dynarray *array, unsigned i);
 
+/* Returns -PA_ERR_NOENTITY if the array is empty, and zero otherwise. */
+int pa_dynarray_remove_last(pa_dynarray *array);
+
 /* Returns the removed item, or NULL if the array is empty. */
 void *pa_dynarray_steal_last(pa_dynarray *array);
 
