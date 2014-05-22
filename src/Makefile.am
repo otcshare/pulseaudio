@@ -89,6 +89,8 @@ MODULE_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_
 EXTRA_DIST = \
 		pulse/client.conf.in \
 		pulse/version.h.in \
+		tizen-ivi/audio-groups.conf \
+		tizen-ivi/main-volume-policy.conf \
 		daemon/daemon.conf.in \
 		daemon/default.pa.in \
 		daemon/system.pa.in \
@@ -110,6 +112,25 @@ pulseconf_DATA = \
 		system.pa \
 		daemon.conf \
 		client.conf
+
+# Add some Tizen specific configuration files.
+#
+# FIXME: These configuration files should be installed only if explicitly
+# requested, because they define policy which may not be the desired policy in
+# every Tizen profile. Currently default.pa loads module-audio-groups and
+# module-main-volume-policy only if module-murphy-ivi is installed in the
+# system, which helps with this issue, because non-IVI profiles don't
+# currently use module-murphy-ivi, so these configuration files won't have any
+# effect outside the IVI profile, but this is pretty hacky solution. It would
+# be better to load module-audio-groups and module-main-volume-policy
+# unconditionally, since they're not really tied to the Murphy module in any
+# way. We use this hack, because otherwise we'd need a configure switch for
+# enabling the example IVI configuration, and a new configure switch would also
+# require a new switch in the Tizen IVI image configuration. That's an extra
+# hurdle that we decided to avoid for now.
+pulseconf_DATA += \
+		tizen-ivi/audio-groups.conf \
+		tizen-ivi/main-volume-policy.conf
 
 if HAVE_DBUS
 dbuspolicy_DATA = \
