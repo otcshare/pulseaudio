@@ -89,8 +89,8 @@ MODULE_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_
 EXTRA_DIST = \
 		pulse/client.conf.in \
 		pulse/version.h.in \
-		tizen-ivi-examples/audio-groups.conf \
-		tizen-ivi-examples/main-volume-policy.conf \
+		tizen-ivi/audio-groups.conf \
+		tizen-ivi/main-volume-policy.conf \
 		daemon/daemon.conf.in \
 		daemon/default.pa.in \
 		daemon/system.pa.in \
@@ -129,8 +129,8 @@ pulseconf_DATA = \
 # require a new switch in the Tizen IVI image configuration. That's an extra
 # hurdle that we decided to avoid for now.
 pulseconf_DATA += \
-		tizen-ivi-examples/audio-groups.conf \
-		tizen-ivi-examples/main-volume-policy.conf
+		tizen-ivi/audio-groups.conf \
+		tizen-ivi/main-volume-policy.conf
 
 if HAVE_DBUS
 dbuspolicy_DATA = \
