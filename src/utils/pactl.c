@@ -1673,7 +1673,7 @@ static void volume_api_state_cb(pa_context *c, void *userdata) {
                         o = pa_ext_volume_api_get_audio_group_info_list(c, get_audio_group_info_callback, NULL);
                         pa_operation_unref(o);
                         o = NULL;
-                        actions += 4;
+                        actions += 5;
                     } else if (pa_streq(list_type, "volume-controls")) {
                         o = pa_ext_volume_api_get_volume_control_info_list(c, get_volume_control_info_callback, NULL);
                         actions++;
