@@ -253,7 +253,7 @@ static pa_hook_result_t active_main_volume_context_changed_cb(void *hook_data, v
     struct userdata *u = userdata;
     pa_main_volume_context *context;
     pa_volume_api *api;
-    pa_binding_target_info *info = NULL;
+    pa_binding_target_info *info;
 
     pa_assert(u);
 
@@ -265,6 +265,7 @@ static pa_hook_result_t active_main_volume_context_changed_cb(void *hook_data, v
             info = pa_binding_target_info_new(PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_TYPE, context->name,
                                               PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_OUTPUT_VOLUME_CONTROL);
             pa_volume_api_bind_main_output_volume_control(api, info);
+            pa_binding_target_info_free(info);
         } else
             pa_volume_api_set_main_output_volume_control(api, NULL);
     }
@@ -274,6 +275,7 @@ static pa_hook_result_t active_main_volume_context_changed_cb(void *hook_data, v
             info = pa_binding_target_info_new(PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_TYPE, context->name,
                                               PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_INPUT_VOLUME_CONTROL);
             pa_volume_api_bind_main_input_volume_control(api, info);
+            pa_binding_target_info_free(info);
         } else
             pa_volume_api_set_main_input_volume_control(api, NULL);
     }
@@ -283,6 +285,7 @@ static pa_hook_result_t active_main_volume_context_changed_cb(void *hook_data, v
             info = pa_binding_target_info_new(PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_TYPE, context->name,
                                               PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_OUTPUT_MUTE_CONTROL);
             pa_volume_api_bind_main_output_mute_control(api, info);
+            pa_binding_target_info_free(info);
         } else
             pa_volume_api_set_main_output_mute_control(api, NULL);
     }
@@ -292,12 +295,10 @@ static pa_hook_result_t active_main_volume_context_changed_cb(void *hook_data, v
             info = pa_binding_target_info_new(PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_TYPE, context->name,
                                               PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_INPUT_MUTE_CONTROL);
             pa_volume_api_bind_main_input_mute_control(api, info);
+            pa_binding_target_info_free(info);
         } else
             pa_volume_api_set_main_input_mute_control(api, NULL);
     }
-
-    if (info)
-        pa_binding_target_info_free(info);
 
     return PA_HOOK_OK;
 }
