@@ -513,8 +513,10 @@ static pa_hook_result_t sink_or_source_mute_changed_cb(void *hook_data, void *ca
 
     if (sink)
         mute = sink->muted;
-    else
+    else if (source)
         mute = source->muted;
+    else
+        pa_assert_not_reached();
 
     pa_mute_control_mute_changed(control->mute_control, mute);
 
