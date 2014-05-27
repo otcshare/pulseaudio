@@ -216,8 +216,10 @@ static pa_hook_result_t sink_input_or_source_output_mute_changed_cb(void *hook_d
 
     if (input)
         mute = input->muted;
-    else
+    else if (output)
         mute = output->muted;
+    else
+        pa_assert_not_reached();
 
     pa_mute_control_mute_changed(stream->stream->own_mute_control, mute);
 
