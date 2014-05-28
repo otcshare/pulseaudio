@@ -753,6 +753,8 @@ pulseinclude_HEADERS = \
 		pulse/ext-device-manager.h \
 		pulse/ext-device-restore.h \
 		pulse/ext-stream-restore.h \
+		pulse/ext-echo-cancel.h \
+		pulse/ext-node-manager.h \
 		pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/introspect.h \
@@ -798,6 +800,8 @@ libpulse_la_SOURCES = \
 		pulse/ext-device-manager.c pulse/ext-device-manager.h \
 		pulse/ext-device-restore.c pulse/ext-device-restore.h \
 		pulse/ext-stream-restore.c pulse/ext-stream-restore.h \
+		pulse/ext-echo-cancel.c pulse/ext-echo-cancel.h \
+		pulse/ext-node-manager.c pulse/ext-node-manager.h \
 		pulse/format.c pulse/format.h \
 		pulse/gccmacro.h \
 		pulse/internal.h \
