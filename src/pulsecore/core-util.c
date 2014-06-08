@@ -1724,6 +1724,22 @@ finish:
     return r;
 }
 
+int pa_append_to_config_home_dir(const char *path, bool use_machine_id, char **_r) {
+    int r;
+    char *config_home_dir;
+
+    pa_assert(path);
+    pa_assert(_r);
+
+    r = pa_get_config_home_dir(use_machine_id, &config_home_dir);
+    if (r < 0)
+        return r;
+
+    *_r = pa_sprintf_malloc("%s" PA_PATH_SEP "%s", config_home_dir, path);
+    pa_xfree(config_home_dir);
+    return 0;
+}
+
 char *pa_get_binary_name_malloc(void) {
     char *t;
     size_t allocated = 128;
