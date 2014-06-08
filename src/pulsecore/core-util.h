@@ -138,6 +138,7 @@ char *pa_get_runtime_dir(void);
 char *pa_get_state_dir(void);
 char *pa_get_home_dir_malloc(void);
 int pa_append_to_home_dir(const char *path, char **_r);
+int pa_get_config_home_dir(bool use_machine_id, char **_r);
 char *pa_get_binary_name_malloc(void);
 char *pa_runtime_path(const char *fn);
 char *pa_state_path(const char *fn, bool prepend_machine_id);
