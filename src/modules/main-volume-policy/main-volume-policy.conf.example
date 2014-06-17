@@ -3,7 +3,6 @@ output-volume-model = by-active-main-volume-context
 input-volume-model = by-active-main-volume-context
 output-mute-model = none
 input-mute-model = none
-main-volume-contexts = x-example-call-main-volume-context x-example-default-main-volume-context
 
 [MainVolumeContext x-example-call-main-volume-context]
 description = Call main volume context

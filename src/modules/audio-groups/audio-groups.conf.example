@@ -1,28 +1,29 @@
 [General]
-audio-groups = x-example-call-downlink-audio-group x-example-default-output-audio-group x-example-music-output-audio-group
-streams = phone-output music-output default-output
+stream-rules = phone-output music-output default-output
 
 [AudioGroup x-example-call-downlink-audio-group]
-volume-control = create
-mute-control = none
+volume-control = create:call-downlink-volume-control
+mute-control = create:call-downlink-mute-control
 
 [AudioGroup x-example-default-output-audio-group]
-volume-control = create
-mute-control = none
+volume-control = create:default-output-volume-control
+mute-control = create:call-downlink-mute-control
 
 [AudioGroup x-example-music-output-audio-group]
 volume-control = bind:AudioGroup:x-example-default-output-audio-group
+mute-control = bind:AudioGroup:x-example-default-output-audio-group
 
-[Stream phone-output]
+[StreamRule phone-output]
 match = (direction output AND property media.role=phone)
 audio-group-for-volume = x-example-call-downlink-audio-group
 audio-group-for-mute = x-example-call-downlink-audio-group
 
-[Stream music-output]
+[StreamRule music-output]
 match = (direction output AND property media.role=music)
 audio-group-for-volume = x-example-music-output-audio-group
 audio-group-for-mute = x-example-music-output-audio-group
 
-[Stream default-output]
+[StreamRule default-output]
+match = (direction output)
 audio-group-for-volume = x-example-default-output-audio-group
 audio-group-for-mute = x-example-default-output-audio-group

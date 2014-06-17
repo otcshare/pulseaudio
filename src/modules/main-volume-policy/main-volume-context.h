@@ -24,15 +24,7 @@
 
 #include <modules/main-volume-policy/main-volume-policy.h>
 
-#include <modules/volume-api/binding.h>
-
 typedef struct pa_main_volume_context pa_main_volume_context;
-
-#define PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_TYPE "MainVolumeContext"
-#define PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_OUTPUT_VOLUME_CONTROL "main_output_volume_control"
-#define PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_INPUT_VOLUME_CONTROL "main_input_volume_control"
-#define PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_OUTPUT_MUTE_CONTROL "main_output_mute_control"
-#define PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_INPUT_MUTE_CONTROL "main_input_mute_control"
 
 struct pa_main_volume_context {
     pa_main_volume_policy *main_volume_policy;
@@ -44,32 +36,21 @@ struct pa_main_volume_context {
     pa_mute_control *main_output_mute_control;
     pa_mute_control *main_input_mute_control;
 
-    pa_binding *main_output_volume_control_binding;
-    pa_binding *main_input_volume_control_binding;
-    pa_binding *main_output_mute_control_binding;
-    pa_binding *main_input_mute_control_binding;
-
     bool linked;
     bool unlinked;
+
+    void *userdata;
 };
 
-int pa_main_volume_context_new(pa_main_volume_policy *policy, const char *name, const char *description,
-                               pa_main_volume_context **context);
+int pa_main_volume_context_new(pa_main_volume_policy *policy, const char *name, void *userdata, pa_main_volume_context **_r);
 void pa_main_volume_context_put(pa_main_volume_context *context);
 void pa_main_volume_context_unlink(pa_main_volume_context *context);
 void pa_main_volume_context_free(pa_main_volume_context *context);
 
-const char *pa_main_volume_context_get_name(pa_main_volume_context *context);
-
-void pa_main_volume_context_bind_main_output_volume_control(pa_main_volume_context *context,
-                                                            pa_binding_target_info *target_info);
-void pa_main_volume_context_bind_main_input_volume_control(pa_main_volume_context *context,
-                                                           pa_binding_target_info *target_info);
-void pa_main_volume_context_bind_main_output_mute_control(pa_main_volume_context *context,
-                                                          pa_binding_target_info *target_info);
-void pa_main_volume_context_bind_main_input_mute_control(pa_main_volume_context *context, pa_binding_target_info *target_info);
-
-/* Called from main-volume-policy.c only. */
-pa_binding_target_type *pa_main_volume_context_create_binding_target_type(pa_main_volume_policy *policy);
+void pa_main_volume_context_set_description(pa_main_volume_context *context, const char *description);
+void pa_main_volume_context_set_main_output_volume_control(pa_main_volume_context *context, pa_volume_control *control);
+void pa_main_volume_context_set_main_input_volume_control(pa_main_volume_context *context, pa_volume_control *control);
+void pa_main_volume_context_set_main_output_mute_control(pa_main_volume_context *context, pa_mute_control *control);
+void pa_main_volume_context_set_main_input_mute_control(pa_main_volume_context *context, pa_mute_control *control);
 
 #endif

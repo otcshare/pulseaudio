@@ -51,6 +51,7 @@ struct userdata {
     pa_hook_slot *volume_control_unlink_slot;
     pa_hook_slot *volume_control_description_changed_slot;
     pa_hook_slot *volume_control_volume_changed_slot;
+    pa_hook_slot *volume_control_convertible_to_db_changed_slot;
     pa_hook_slot *mute_control_put_slot;
     pa_hook_slot *mute_control_unlink_slot;
     pa_hook_slot *mute_control_description_changed_slot;
@@ -63,10 +64,13 @@ struct userdata {
     pa_hook_slot *stream_put_slot;
     pa_hook_slot *stream_unlink_slot;
     pa_hook_slot *stream_description_changed_slot;
+    pa_hook_slot *stream_proplist_changed_slot;
     pa_hook_slot *stream_volume_control_changed_slot;
+    pa_hook_slot *stream_relative_volume_control_changed_slot;
     pa_hook_slot *stream_mute_control_changed_slot;
     pa_hook_slot *audio_group_put_slot;
     pa_hook_slot *audio_group_unlink_slot;
+    pa_hook_slot *audio_group_description_changed_slot;
     pa_hook_slot *audio_group_volume_control_changed_slot;
     pa_hook_slot *audio_group_mute_control_changed_slot;
     pa_hook_slot *main_output_volume_control_changed_slot;
@@ -1247,6 +1251,9 @@ int pa__init(pa_module *module) {
     u->volume_control_volume_changed_slot =
             pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_VOLUME_CHANGED],
                             PA_HOOK_NORMAL, volume_control_event_cb, u);
+    u->volume_control_convertible_to_db_changed_slot =
+            pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_CONVERTIBLE_TO_DB_CHANGED], PA_HOOK_NORMAL,
+                            volume_control_event_cb, u);
     u->mute_control_put_slot = pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_PUT],
                                                PA_HOOK_NORMAL, mute_control_put_cb, u);
     u->mute_control_unlink_slot = pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_MUTE_CONTROL_UNLINK],
@@ -1277,8 +1284,13 @@ int pa__init(pa_module *module) {
     u->stream_description_changed_slot =
             pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_STREAM_DESCRIPTION_CHANGED], PA_HOOK_NORMAL,
                             stream_event_cb, u);
+    u->stream_proplist_changed_slot = pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_STREAM_PROPLIST_CHANGED],
+                                                      PA_HOOK_NORMAL, stream_event_cb, u);
     u->stream_volume_control_changed_slot =
             pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_STREAM_VOLUME_CONTROL_CHANGED],
+                            PA_HOOK_NORMAL, stream_event_cb, u);
+    u->stream_relative_volume_control_changed_slot =
+            pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_STREAM_RELATIVE_VOLUME_CONTROL_CHANGED],
                             PA_HOOK_NORMAL, stream_event_cb, u);
     u->stream_mute_control_changed_slot =
             pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_STREAM_MUTE_CONTROL_CHANGED], PA_HOOK_NORMAL,
@@ -1287,6 +1299,9 @@ int pa__init(pa_module *module) {
                                               PA_HOOK_NORMAL, audio_group_put_cb, u);
     u->audio_group_unlink_slot = pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_UNLINK],
                                                  PA_HOOK_NORMAL, audio_group_unlink_cb, u);
+    u->audio_group_description_changed_slot =
+            pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_DESCRIPTION_CHANGED], PA_HOOK_NORMAL,
+                            audio_group_event_cb, u);
     u->audio_group_volume_control_changed_slot =
             pa_hook_connect(&u->volume_api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_VOLUME_CONTROL_CHANGED],
                             PA_HOOK_NORMAL, audio_group_event_cb, u);
@@ -1352,6 +1367,9 @@ void pa__done(pa_module *module) {
     if (u->audio_group_volume_control_changed_slot)
         pa_hook_slot_free(u->audio_group_volume_control_changed_slot);
 
+    if (u->audio_group_description_changed_slot)
+        pa_hook_slot_free(u->audio_group_description_changed_slot);
+
     if (u->audio_group_unlink_slot)
         pa_hook_slot_free(u->audio_group_unlink_slot);
 
@@ -1361,8 +1379,14 @@ void pa__done(pa_module *module) {
     if (u->stream_mute_control_changed_slot)
         pa_hook_slot_free(u->stream_mute_control_changed_slot);
 
+    if (u->stream_relative_volume_control_changed_slot)
+        pa_hook_slot_free(u->stream_relative_volume_control_changed_slot);
+
     if (u->stream_volume_control_changed_slot)
         pa_hook_slot_free(u->stream_volume_control_changed_slot);
+
+    if (u->stream_proplist_changed_slot)
+        pa_hook_slot_free(u->stream_proplist_changed_slot);
 
     if (u->stream_description_changed_slot)
         pa_hook_slot_free(u->stream_description_changed_slot);
@@ -1399,6 +1423,9 @@ void pa__done(pa_module *module) {
 
     if (u->mute_control_put_slot)
         pa_hook_slot_free(u->mute_control_put_slot);
+
+    if (u->volume_control_convertible_to_db_changed_slot)
+        pa_hook_slot_free(u->volume_control_convertible_to_db_changed_slot);
 
     if (u->volume_control_volume_changed_slot)
         pa_hook_slot_free(u->volume_control_volume_changed_slot);

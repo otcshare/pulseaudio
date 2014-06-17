@@ -28,32 +28,33 @@
 #include <modules/volume-api/mute-control.h>
 #include <modules/volume-api/volume-control.h>
 
-int pa_main_volume_context_new(pa_main_volume_policy *policy, const char *name, const char *description,
-                               pa_main_volume_context **context) {
-    pa_main_volume_context *context_local;
+#include <pulsecore/core-util.h>
+
+int pa_main_volume_context_new(pa_main_volume_policy *policy, const char *name, void *userdata, pa_main_volume_context **_r) {
+    pa_main_volume_context *context;
     int r;
 
     pa_assert(policy);
     pa_assert(name);
-    pa_assert(description);
-    pa_assert(context);
+    pa_assert(_r);
 
-    context_local = pa_xnew0(struct pa_main_volume_context, 1);
-    context_local->main_volume_policy = policy;
-    context_local->index = pa_main_volume_policy_allocate_main_volume_context_index(policy);
+    context = pa_xnew0(struct pa_main_volume_context, 1);
+    context->main_volume_policy = policy;
+    context->index = pa_main_volume_policy_allocate_main_volume_context_index(policy);
 
-    r = pa_main_volume_policy_register_name(policy, name, true, &context_local->name);
+    r = pa_main_volume_policy_register_name(policy, name, true, &context->name);
     if (r < 0)
         goto fail;
 
-    context_local->description = pa_xstrdup(description);
+    context->description = pa_xstrdup(context->name);
+    context->userdata = userdata;
 
-    *context = context_local;
-
+    *_r = context;
     return 0;
 
 fail:
-    pa_main_volume_context_free(context_local);
+    if (context)
+        pa_main_volume_context_free(context);
 
     return r;
 }
@@ -62,7 +63,6 @@ void pa_main_volume_context_put(pa_main_volume_context *context) {
     pa_assert(context);
 
     pa_main_volume_policy_add_main_volume_context(context->main_volume_policy, context);
-
     context->linked = true;
 
     pa_log_debug("Created main volume context #%u.", context->index);
@@ -93,40 +93,21 @@ void pa_main_volume_context_unlink(pa_main_volume_context *context) {
     pa_log_debug("Unlinking main volume context %s.", context->name);
 
     if (context->linked)
-        pa_hook_fire(&context->main_volume_policy->hooks[PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_UNLINK], context);
+        pa_main_volume_policy_remove_main_volume_context(context->main_volume_policy, context);
 
-    if (context->main_input_mute_control_binding) {
-        pa_binding_free(context->main_input_mute_control_binding);
-        context->main_input_mute_control_binding = NULL;
-    }
-
-    if (context->main_output_mute_control_binding) {
-        pa_binding_free(context->main_output_mute_control_binding);
-        context->main_output_mute_control_binding = NULL;
-    }
-
-    if (context->main_input_volume_control_binding) {
-        pa_binding_free(context->main_input_volume_control_binding);
-        context->main_input_volume_control_binding = NULL;
-    }
-
-    if (context->main_output_volume_control_binding) {
-        pa_binding_free(context->main_output_volume_control_binding);
-        context->main_output_volume_control_binding = NULL;
-    }
+    pa_hook_fire(&context->main_volume_policy->hooks[PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_UNLINK], context);
 
     context->main_input_mute_control = NULL;
     context->main_output_mute_control = NULL;
     context->main_input_volume_control = NULL;
     context->main_output_volume_control = NULL;
-
-    pa_main_volume_policy_remove_main_volume_context(context->main_volume_policy, context);
 }
 
 void pa_main_volume_context_free(pa_main_volume_context *context) {
     pa_assert(context);
 
-    if (!context->unlinked)
+    /* unlink() expects name to be set. */
+    if (!context->unlinked && context->name)
         pa_main_volume_context_unlink(context);
 
     pa_xfree(context->description);
@@ -137,13 +118,33 @@ void pa_main_volume_context_free(pa_main_volume_context *context) {
     pa_xfree(context);
 }
 
-const char *pa_main_volume_context_get_name(pa_main_volume_context *context) {
-    pa_assert(context);
+void pa_main_volume_context_set_description(pa_main_volume_context *context, const char *description) {
+    char *old_description;
 
-    return context->name;
+    pa_assert(context);
+    pa_assert(description);
+
+    old_description = context->description;
+
+    if (pa_streq(description, old_description))
+        return;
+
+    context->description = pa_xstrdup(description);
+
+    if (!context->linked || context->unlinked) {
+        pa_xfree(old_description);
+        return;
+    }
+
+    pa_log_debug("Main volume context %s description changed from \"%s\" to \"%s\".", context->name, old_description,
+                 description);
+    pa_xfree(old_description);
+
+    pa_hook_fire(&context->main_volume_policy->hooks[PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_DESCRIPTION_CHANGED],
+                 context);
 }
 
-static void set_main_output_volume_control_internal(pa_main_volume_context *context, pa_volume_control *control) {
+void pa_main_volume_context_set_main_output_volume_control(pa_main_volume_context *context, pa_volume_control *control) {
     pa_volume_control *old_control;
 
     pa_assert(context);
@@ -158,7 +159,7 @@ static void set_main_output_volume_control_internal(pa_main_volume_context *cont
     if (!context->linked || context->unlinked)
         return;
 
-    pa_log_debug("The main output volume control of main volume context %s changed from %s to %s.", context->name,
+    pa_log_debug("Main volume context %s main output volume control changed from %s to %s.", context->name,
                  old_control ? old_control->name : "(unset)", control ? control->name : "(unset)");
 
     pa_hook_fire(&context->main_volume_policy->hooks
@@ -166,24 +167,7 @@ static void set_main_output_volume_control_internal(pa_main_volume_context *cont
                  context);
 }
 
-void pa_main_volume_context_bind_main_output_volume_control(pa_main_volume_context *context,
-                                                            pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = context,
-        .set_value = (pa_binding_set_value_cb_t) set_main_output_volume_control_internal,
-    };
-
-    pa_assert(context);
-    pa_assert(target_info);
-
-    if (context->main_output_volume_control_binding)
-        pa_binding_free(context->main_output_volume_control_binding);
-
-    context->main_output_volume_control_binding = pa_binding_new(context->main_volume_policy->volume_api, &owner_info,
-                                                                 target_info);
-}
-
-static void set_main_input_volume_control_internal(pa_main_volume_context *context, pa_volume_control *control) {
+void pa_main_volume_context_set_main_input_volume_control(pa_main_volume_context *context, pa_volume_control *control) {
     pa_volume_control *old_control;
 
     pa_assert(context);
@@ -198,7 +182,7 @@ static void set_main_input_volume_control_internal(pa_main_volume_context *conte
     if (!context->linked || context->unlinked)
         return;
 
-    pa_log_debug("The main input volume control of main volume context %s changed from %s to %s.", context->name,
+    pa_log_debug("Main volume context %s main input volume control changed from %s to %s.", context->name,
                  old_control ? old_control->name : "(unset)", control ? control->name : "(unset)");
 
     pa_hook_fire(&context->main_volume_policy->hooks
@@ -206,24 +190,7 @@ static void set_main_input_volume_control_internal(pa_main_volume_context *conte
                  context);
 }
 
-void pa_main_volume_context_bind_main_input_volume_control(pa_main_volume_context *context,
-                                                           pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = context,
-        .set_value = (pa_binding_set_value_cb_t) set_main_input_volume_control_internal,
-    };
-
-    pa_assert(context);
-    pa_assert(target_info);
-
-    if (context->main_input_volume_control_binding)
-        pa_binding_free(context->main_input_volume_control_binding);
-
-    context->main_input_volume_control_binding = pa_binding_new(context->main_volume_policy->volume_api, &owner_info,
-                                                                target_info);
-}
-
-static void set_main_output_mute_control_internal(pa_main_volume_context *context, pa_mute_control *control) {
+void pa_main_volume_context_set_main_output_mute_control(pa_main_volume_context *context, pa_mute_control *control) {
     pa_mute_control *old_control;
 
     pa_assert(context);
@@ -238,7 +205,7 @@ static void set_main_output_mute_control_internal(pa_main_volume_context *contex
     if (!context->linked || context->unlinked)
         return;
 
-    pa_log_debug("The main output mute control of main volume context %s changed from %s to %s.", context->name,
+    pa_log_debug("Main volume context %s main output mute control changed from %s to %s.", context->name,
                  old_control ? old_control->name : "(unset)", control ? control->name : "(unset)");
 
     pa_hook_fire(&context->main_volume_policy->hooks
@@ -246,24 +213,7 @@ static void set_main_output_mute_control_internal(pa_main_volume_context *contex
                  context);
 }
 
-void pa_main_volume_context_bind_main_output_mute_control(pa_main_volume_context *context,
-                                                          pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = context,
-        .set_value = (pa_binding_set_value_cb_t) set_main_output_mute_control_internal,
-    };
-
-    pa_assert(context);
-    pa_assert(target_info);
-
-    if (context->main_output_mute_control_binding)
-        pa_binding_free(context->main_output_mute_control_binding);
-
-    context->main_output_mute_control_binding = pa_binding_new(context->main_volume_policy->volume_api, &owner_info,
-                                                               target_info);
-}
-
-static void set_main_input_mute_control_internal(pa_main_volume_context *context, pa_mute_control *control) {
+void pa_main_volume_context_set_main_input_mute_control(pa_main_volume_context *context, pa_mute_control *control) {
     pa_mute_control *old_control;
 
     pa_assert(context);
@@ -278,48 +228,10 @@ static void set_main_input_mute_control_internal(pa_main_volume_context *context
     if (!context->linked || context->unlinked)
         return;
 
-    pa_log_debug("The main input mute control of main volume context %s changed from %s to %s.", context->name,
+    pa_log_debug("Main volume context %s main input mute control changed from %s to %s.", context->name,
                  old_control ? old_control->name : "(unset)", control ? control->name : "(unset)");
 
     pa_hook_fire(&context->main_volume_policy->hooks
                      [PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_MAIN_INPUT_MUTE_CONTROL_CHANGED],
                  context);
-}
-
-void pa_main_volume_context_bind_main_input_mute_control(pa_main_volume_context *context,
-                                                         pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = context,
-        .set_value = (pa_binding_set_value_cb_t) set_main_input_mute_control_internal,
-    };
-
-    pa_assert(context);
-    pa_assert(target_info);
-
-    if (context->main_input_mute_control_binding)
-        pa_binding_free(context->main_input_mute_control_binding);
-
-    context->main_input_mute_control_binding = pa_binding_new(context->main_volume_policy->volume_api, &owner_info,
-                                                              target_info);
-}
-
-pa_binding_target_type *pa_main_volume_context_create_binding_target_type(pa_main_volume_policy *policy) {
-    pa_binding_target_type *type;
-
-    pa_assert(policy);
-
-    type = pa_binding_target_type_new(PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_TYPE, policy->main_volume_contexts,
-                                      &policy->hooks[PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_PUT],
-                                      &policy->hooks[PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_UNLINK],
-                                      (pa_binding_target_type_get_name_cb_t) pa_main_volume_context_get_name);
-    pa_binding_target_type_add_field(type, PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_OUTPUT_VOLUME_CONTROL,
-                                     PA_BINDING_CALCULATE_FIELD_OFFSET(pa_main_volume_context, main_output_volume_control));
-    pa_binding_target_type_add_field(type, PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_INPUT_VOLUME_CONTROL,
-                                     PA_BINDING_CALCULATE_FIELD_OFFSET(pa_main_volume_context, main_input_volume_control));
-    pa_binding_target_type_add_field(type, PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_OUTPUT_MUTE_CONTROL,
-                                     PA_BINDING_CALCULATE_FIELD_OFFSET(pa_main_volume_context, main_output_mute_control));
-    pa_binding_target_type_add_field(type, PA_MAIN_VOLUME_CONTEXT_BINDING_TARGET_FIELD_MAIN_INPUT_MUTE_CONTROL,
-                                     PA_BINDING_CALCULATE_FIELD_OFFSET(pa_main_volume_context, main_input_mute_control));
-
-    return type;
 }

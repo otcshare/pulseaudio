@@ -26,15 +26,19 @@
 #include "volume-api.h"
 
 #include <modules/volume-api/audio-group.h>
-#include <modules/volume-api/binding.h>
 #include <modules/volume-api/device.h>
 #include <modules/volume-api/device-creator.h>
+#include <modules/volume-api/inidb.h>
 #include <modules/volume-api/sstream.h>
 #include <modules/volume-api/stream-creator.h>
 #include <modules/volume-api/volume-control.h>
 
 #include <pulsecore/core-util.h>
+#include <pulsecore/namereg.h>
 #include <pulsecore/shared.h>
+
+#define CONTROL_DB_TABLE_NAME_VOLUME_CONTROL "VolumeControl"
+#define CONTROL_DB_TABLE_NAME_MUTE_CONTROL "MuteControl"
 
 static pa_volume_api *volume_api_new(pa_core *core);
 static void volume_api_free(pa_volume_api *api);
@@ -76,44 +80,209 @@ void pa_volume_api_unref(pa_volume_api *api) {
     }
 }
 
-void pa_volume_api_add_binding_target_type(pa_volume_api *api, pa_binding_target_type *type) {
-    pa_assert(api);
-    pa_assert(type);
+static int control_db_get_volume_control_cb(pa_inidb *db, const char *name, void **_r) {
+    pa_volume_api *api;
+    pa_volume_control *control;
 
-    pa_assert_se(pa_hashmap_put(api->binding_target_types, type->name, type) >= 0);
+    pa_assert(db);
+    pa_assert(name);
+    pa_assert(_r);
 
-    pa_log_debug("Added binding target type %s.", type->name);
+    api = pa_inidb_get_userdata(db);
 
-    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_BINDING_TARGET_TYPE_ADDED], type);
+    control = pa_hashmap_get(api->volume_controls_from_db, name);
+    if (!control) {
+        int r;
+
+        r = pa_volume_control_new(api, name, true, &control);
+        if (r < 0)
+            return r;
+
+        pa_hashmap_put(api->volume_controls_from_db, (void *) control->name, control);
+    }
+
+    *_r = control;
+    return 0;
 }
 
-void pa_volume_api_remove_binding_target_type(pa_volume_api *api, pa_binding_target_type *type) {
-    pa_assert(api);
-    pa_assert(type);
+static int control_db_parse_volume_control_description_cb(pa_inidb *db, const char *value, void *object) {
+    pa_volume_control *control = object;
 
-    pa_log_debug("Removing binding target type %s.", type->name);
+    pa_assert(db);
+    pa_assert(value);
+    pa_assert(control);
 
-    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_BINDING_TARGET_TYPE_REMOVED], type);
+    pa_volume_control_set_description(control, value);
 
-    pa_assert_se(pa_hashmap_remove(api->binding_target_types, type->name));
+    return 0;
 }
 
-static void create_builtin_binding_target_types(pa_volume_api *api) {
-    pa_binding_target_type *type;
+static int control_db_parse_volume_control_volume_cb(pa_inidb *db, const char *value, void *object) {
+    pa_volume_control *control = object;
+    int r;
+    pa_bvolume bvolume;
 
-    pa_assert(api);
+    pa_assert(db);
+    pa_assert(value);
+    pa_assert(control);
 
-    type = pa_audio_group_create_binding_target_type(api);
-    pa_volume_api_add_binding_target_type(api, type);
+    r = pa_atou(value, &bvolume.volume);
+    if (r < 0)
+        return -PA_ERR_INVALID;
+
+    if (!PA_VOLUME_IS_VALID(bvolume.volume))
+        return -PA_ERR_INVALID;
+
+    pa_volume_control_set_volume(control, &bvolume, true, false);
+
+    return 0;
 }
 
-static void delete_builtin_binding_target_types(pa_volume_api *api) {
-    pa_binding_target_type *type;
+static int control_db_parse_volume_control_balance_cb(pa_inidb *db, const char *value, void *object) {
+    pa_volume_control *control = object;
+    int r;
+    pa_bvolume bvolume;
+
+    pa_assert(db);
+    pa_assert(value);
+    pa_assert(control);
+
+    r = pa_bvolume_parse_balance(value, &bvolume);
+    if (r < 0)
+        return -PA_ERR_INVALID;
+
+    pa_volume_control_set_channel_map(control, &bvolume.channel_map);
+    pa_volume_control_set_volume(control, &bvolume, false, true);
+
+    return 0;
+}
+
+static int control_db_parse_volume_control_convertible_to_dB_cb(pa_inidb *db, const char *value, void *object) {
+    pa_volume_control *control = object;
+    int r;
+
+    pa_assert(db);
+    pa_assert(value);
+    pa_assert(control);
+
+    r = pa_parse_boolean(value);
+    if (r < 0)
+        return -PA_ERR_INVALID;
+
+    pa_volume_control_set_convertible_to_dB(control, r);
+
+    return 0;
+}
+
+static int control_db_get_mute_control_cb(pa_inidb *db, const char *name, void **_r) {
+    pa_volume_api *api;
+    pa_mute_control *control;
+
+    pa_assert(db);
+    pa_assert(name);
+    pa_assert(_r);
+
+    api = pa_inidb_get_userdata(db);
+
+    control = pa_hashmap_get(api->mute_controls_from_db, name);
+    if (!control) {
+        int r;
+
+        r = pa_mute_control_new(api, name, true, &control);
+        if (r < 0)
+            return r;
+
+        pa_hashmap_put(api->mute_controls_from_db, (void *) control->name, control);
+    }
+
+    *_r = control;
+    return 0;
+}
+
+static int control_db_parse_mute_control_description_cb(pa_inidb *db, const char *value, void *object) {
+    pa_mute_control *control = object;
+
+    pa_assert(db);
+    pa_assert(value);
+    pa_assert(control);
+
+    pa_mute_control_set_description(control, value);
+
+    return 0;
+}
+
+static int control_db_parse_mute_control_mute_cb(pa_inidb *db, const char *value, void *object) {
+    pa_mute_control *control = object;
+    int mute;
+
+    pa_assert(db);
+    pa_assert(value);
+    pa_assert(control);
+
+    mute = pa_parse_boolean(value);
+    if (mute < 0)
+        return -PA_ERR_INVALID;
+
+    pa_mute_control_set_mute(control, mute);
+
+    return 0;
+}
+
+static void create_control_db(pa_volume_api *api) {
+    pa_volume_control *volume_control;
+    pa_mute_control *mute_control;
 
     pa_assert(api);
+    pa_assert(!api->control_db.db);
 
-    type = pa_hashmap_get(api->binding_target_types, PA_AUDIO_GROUP_BINDING_TARGET_TYPE);
-    pa_volume_api_remove_binding_target_type(api, type);
+    api->control_db.db = pa_inidb_new(api->core, "controls", api);
+
+    api->control_db.volume_controls = pa_inidb_add_table(api->control_db.db, CONTROL_DB_TABLE_NAME_VOLUME_CONTROL,
+                                                         control_db_get_volume_control_cb);
+    pa_inidb_table_add_column(api->control_db.volume_controls, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_DESCRIPTION,
+                              control_db_parse_volume_control_description_cb);
+    pa_inidb_table_add_column(api->control_db.volume_controls, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_VOLUME,
+                              control_db_parse_volume_control_volume_cb);
+    pa_inidb_table_add_column(api->control_db.volume_controls, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_BALANCE,
+                              control_db_parse_volume_control_balance_cb);
+    pa_inidb_table_add_column(api->control_db.volume_controls, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_CONVERTIBLE_TO_DB,
+                              control_db_parse_volume_control_convertible_to_dB_cb);
+
+    api->control_db.mute_controls = pa_inidb_add_table(api->control_db.db, CONTROL_DB_TABLE_NAME_MUTE_CONTROL,
+                                                       control_db_get_mute_control_cb);
+    pa_inidb_table_add_column(api->control_db.mute_controls, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_DESCRIPTION,
+                              control_db_parse_mute_control_description_cb);
+    pa_inidb_table_add_column(api->control_db.mute_controls, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_MUTE,
+                              control_db_parse_mute_control_mute_cb);
+
+    api->volume_controls_from_db = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+    api->mute_controls_from_db = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+
+    pa_inidb_load(api->control_db.db);
+
+    while ((volume_control = pa_hashmap_steal_first(api->volume_controls_from_db)))
+        pa_volume_control_put(volume_control);
+
+    pa_hashmap_free(api->volume_controls_from_db);
+    api->volume_controls_from_db = NULL;
+
+    while ((mute_control = pa_hashmap_steal_first(api->mute_controls_from_db)))
+        pa_mute_control_put(mute_control);
+
+    pa_hashmap_free(api->mute_controls_from_db);
+    api->mute_controls_from_db = NULL;
+}
+
+static void delete_control_db(pa_volume_api *api) {
+    pa_assert(api);
+
+    if (!api->control_db.db)
+        return;
+
+    pa_inidb_free(api->control_db.db);
+    api->control_db.mute_controls = NULL;
+    api->control_db.volume_controls = NULL;
+    api->control_db.db = NULL;
 }
 
 static void create_objects_defer_event_cb(pa_mainloop_api *mainloop_api, pa_defer_event *event, void *userdata) {
@@ -138,7 +307,6 @@ static pa_volume_api *volume_api_new(pa_core *core) {
     api = pa_xnew0(pa_volume_api, 1);
     api->core = core;
     api->refcnt = 1;
-    api->binding_target_types = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     api->names = pa_hashmap_new_full(pa_idxset_string_hash_func, pa_idxset_string_compare_func, NULL, pa_xfree);
     api->volume_controls = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     api->mute_controls = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
@@ -149,7 +317,7 @@ static pa_volume_api *volume_api_new(pa_core *core) {
     for (i = 0; i < PA_VOLUME_API_HOOK_MAX; i++)
         pa_hook_init(&api->hooks[i], api);
 
-    create_builtin_binding_target_types(api);
+    create_control_db(api);
 
     /* We delay the object creation to ensure that policy modules have a chance
      * to affect the initialization of the objects. If we created the objects
@@ -170,6 +338,9 @@ static void volume_api_free(pa_volume_api *api) {
 
     pa_log_debug("Freeing the pa_volume_api object.");
 
+    pa_assert(!api->mute_controls_from_db);
+    pa_assert(!api->volume_controls_from_db);
+
     if (api->stream_creator)
         pa_stream_creator_free(api->stream_creator);
 
@@ -179,8 +350,7 @@ static void volume_api_free(pa_volume_api *api) {
     if (api->create_objects_defer_event)
         api->core->mainloop->defer_free(api->create_objects_defer_event);
 
-    if (api->binding_target_types)
-        delete_builtin_binding_target_types(api);
+    delete_control_db(api);
 
     for (i = 0; i < PA_VOLUME_API_HOOK_MAX; i++)
         pa_hook_done(&api->hooks[i]);
@@ -201,23 +371,30 @@ static void volume_api_free(pa_volume_api *api) {
     }
 
     if (api->mute_controls) {
-        pa_assert(pa_hashmap_isempty(api->mute_controls));
+        pa_mute_control *control;
+
+        while ((control = pa_hashmap_first(api->mute_controls))) {
+            pa_assert(!control->present);
+            pa_mute_control_free(control);
+        }
+
         pa_hashmap_free(api->mute_controls);
     }
 
     if (api->volume_controls) {
-        pa_assert(pa_hashmap_isempty(api->volume_controls));
+        pa_volume_control *control;
+
+        while ((control = pa_hashmap_first(api->volume_controls))) {
+            pa_assert(!control->present);
+            pa_volume_control_free(control);
+        }
+
         pa_hashmap_free(api->volume_controls);
     }
 
     if (api->names) {
         pa_assert(pa_hashmap_isempty(api->names));
         pa_hashmap_free(api->names);
-    }
-
-    if (api->binding_target_types) {
-        pa_assert(pa_hashmap_isempty(api->binding_target_types));
-        pa_hashmap_free(api->binding_target_types);
     }
 
     pa_xfree(api);
@@ -231,19 +408,24 @@ int pa_volume_api_register_name(pa_volume_api *api, const char *requested_name, 
     pa_assert(requested_name);
     pa_assert(registered_name);
 
+    if (!pa_namereg_is_valid_name(requested_name)) {
+        pa_log("Invalid name: \"%s\"", requested_name);
+        return -PA_ERR_INVALID;
+    }
+
     n = pa_xstrdup(requested_name);
 
     if (pa_hashmap_put(api->names, n, n) < 0) {
         unsigned i = 1;
 
-        pa_xfree(n);
-
         if (fail_if_already_registered) {
+            pa_xfree(n);
             pa_log("Name %s already registered.", requested_name);
             return -PA_ERR_EXIST;
         }
 
         do {
+            pa_xfree(n);
             i++;
             n = pa_sprintf_malloc("%s.%u", requested_name, i);
         } while (pa_hashmap_put(api->names, n, n) < 0);
@@ -271,38 +453,6 @@ uint32_t pa_volume_api_allocate_volume_control_index(pa_volume_api *api) {
     return idx;
 }
 
-static void set_main_output_volume_control_internal(pa_volume_api *api, pa_volume_control *control) {
-    pa_volume_control *old_control;
-
-    pa_assert(api);
-
-    old_control = api->main_output_volume_control;
-
-    if (control == old_control)
-        return;
-
-    api->main_output_volume_control = control;
-    pa_log_debug("Main output volume control changed from %s to %s.", old_control ? old_control->name : "(unset)",
-                 control ? control->name : "(unset)");
-    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_MAIN_OUTPUT_VOLUME_CONTROL_CHANGED], api);
-}
-
-static void set_main_input_volume_control_internal(pa_volume_api *api, pa_volume_control *control) {
-    pa_volume_control *old_control;
-
-    pa_assert(api);
-
-    old_control = api->main_input_volume_control;
-
-    if (control == old_control)
-        return;
-
-    api->main_input_volume_control = control;
-    pa_log_debug("Main input volume control changed from %s to %s.", old_control ? old_control->name : "(unset)",
-                 control ? control->name : "(unset)");
-    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_MAIN_INPUT_VOLUME_CONTROL_CHANGED], api);
-}
-
 void pa_volume_api_add_volume_control(pa_volume_api *api, pa_volume_control *control) {
     pa_assert(api);
     pa_assert(control);
@@ -318,10 +468,10 @@ int pa_volume_api_remove_volume_control(pa_volume_api *api, pa_volume_control *c
         return -1;
 
     if (control == api->main_output_volume_control)
-        set_main_output_volume_control_internal(api, NULL);
+        pa_volume_api_set_main_output_volume_control(api, NULL);
 
     if (control == api->main_input_volume_control)
-        set_main_input_volume_control_internal(api, NULL);
+        pa_volume_api_set_main_input_volume_control(api, NULL);
 
     return 0;
 }
@@ -350,38 +500,6 @@ uint32_t pa_volume_api_allocate_mute_control_index(pa_volume_api *api) {
     return idx;
 }
 
-static void set_main_output_mute_control_internal(pa_volume_api *api, pa_mute_control *control) {
-    pa_mute_control *old_control;
-
-    pa_assert(api);
-
-    old_control = api->main_output_mute_control;
-
-    if (control == old_control)
-        return;
-
-    api->main_output_mute_control = control;
-    pa_log_debug("Main output mute control changed from %s to %s.", old_control ? old_control->name : "(unset)",
-                 control ? control->name : "(unset)");
-    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_MAIN_OUTPUT_MUTE_CONTROL_CHANGED], api);
-}
-
-static void set_main_input_mute_control_internal(pa_volume_api *api, pa_mute_control *control) {
-    pa_mute_control *old_control;
-
-    pa_assert(api);
-
-    old_control = api->main_input_mute_control;
-
-    if (control == old_control)
-        return;
-
-    api->main_input_mute_control = control;
-    pa_log_debug("Main input mute control changed from %s to %s.", old_control ? old_control->name : "(unset)",
-                 control ? control->name : "(unset)");
-    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_MAIN_INPUT_MUTE_CONTROL_CHANGED], api);
-}
-
 void pa_volume_api_add_mute_control(pa_volume_api *api, pa_mute_control *control) {
     pa_assert(api);
     pa_assert(control);
@@ -397,10 +515,10 @@ int pa_volume_api_remove_mute_control(pa_volume_api *api, pa_mute_control *contr
         return -1;
 
     if (control == api->main_output_mute_control)
-        set_main_output_mute_control_internal(api, NULL);
+        pa_volume_api_set_main_output_mute_control(api, NULL);
 
     if (control == api->main_input_mute_control)
-        set_main_input_mute_control_internal(api, NULL);
+        pa_volume_api_set_main_input_mute_control(api, NULL);
 
     return 0;
 }
@@ -543,105 +661,73 @@ pa_audio_group *pa_volume_api_get_audio_group_by_index(pa_volume_api *api, uint3
 }
 
 void pa_volume_api_set_main_output_volume_control(pa_volume_api *api, pa_volume_control *control) {
+    pa_volume_control *old_control;
+
     pa_assert(api);
 
-    if (api->main_output_volume_control_binding) {
-        pa_binding_free(api->main_output_volume_control_binding);
-        api->main_output_volume_control_binding = NULL;
-    }
+    old_control = api->main_output_volume_control;
 
-    set_main_output_volume_control_internal(api, control);
+    if (control == old_control)
+        return;
+
+    api->main_output_volume_control = control;
+
+    pa_log_debug("Main output volume control changed from %s to %s.", old_control ? old_control->name : "(unset)",
+                 control ? control->name : "(unset)");
+
+    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_MAIN_OUTPUT_VOLUME_CONTROL_CHANGED], api);
 }
 
 void pa_volume_api_set_main_input_volume_control(pa_volume_api *api, pa_volume_control *control) {
+    pa_volume_control *old_control;
+
     pa_assert(api);
 
-    if (api->main_input_volume_control_binding) {
-        pa_binding_free(api->main_input_volume_control_binding);
-        api->main_input_volume_control_binding = NULL;
-    }
+    old_control = api->main_input_volume_control;
 
-    set_main_input_volume_control_internal(api, control);
+    if (control == old_control)
+        return;
+
+    api->main_input_volume_control = control;
+
+    pa_log_debug("Main input volume control changed from %s to %s.", old_control ? old_control->name : "(unset)",
+                 control ? control->name : "(unset)");
+
+    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_MAIN_INPUT_VOLUME_CONTROL_CHANGED], api);
 }
 
 void pa_volume_api_set_main_output_mute_control(pa_volume_api *api, pa_mute_control *control) {
+    pa_mute_control *old_control;
+
     pa_assert(api);
 
-    if (api->main_output_mute_control_binding) {
-        pa_binding_free(api->main_output_mute_control_binding);
-        api->main_output_mute_control_binding = NULL;
-    }
+    old_control = api->main_output_mute_control;
 
-    set_main_output_mute_control_internal(api, control);
+    if (control == old_control)
+        return;
+
+    api->main_output_mute_control = control;
+
+    pa_log_debug("Main output mute control changed from %s to %s.", old_control ? old_control->name : "(unset)",
+                 control ? control->name : "(unset)");
+
+    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_MAIN_OUTPUT_MUTE_CONTROL_CHANGED], api);
 }
 
 void pa_volume_api_set_main_input_mute_control(pa_volume_api *api, pa_mute_control *control) {
-    pa_assert(api);
-
-    if (api->main_input_mute_control_binding) {
-        pa_binding_free(api->main_input_mute_control_binding);
-        api->main_input_mute_control_binding = NULL;
-    }
-
-    set_main_input_mute_control_internal(api, control);
-}
-
-void pa_volume_api_bind_main_output_volume_control(pa_volume_api *api, pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = api,
-        .set_value = (pa_binding_set_value_cb_t) set_main_output_volume_control_internal,
-    };
+    pa_mute_control *old_control;
 
     pa_assert(api);
-    pa_assert(target_info);
 
-    if (api->main_output_volume_control_binding)
-        pa_binding_free(api->main_output_volume_control_binding);
+    old_control = api->main_input_mute_control;
 
-    api->main_output_volume_control_binding = pa_binding_new(api, &owner_info, target_info);
-}
+    if (control == old_control)
+        return;
 
-void pa_volume_api_bind_main_input_volume_control(pa_volume_api *api, pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = api,
-        .set_value = (pa_binding_set_value_cb_t) set_main_input_volume_control_internal,
-    };
+    api->main_input_mute_control = control;
 
-    pa_assert(api);
-    pa_assert(target_info);
+    pa_log_debug("Main input mute control changed from %s to %s.", old_control ? old_control->name : "(unset)",
+                 control ? control->name : "(unset)");
 
-    if (api->main_input_volume_control_binding)
-        pa_binding_free(api->main_input_volume_control_binding);
-
-    api->main_input_volume_control_binding = pa_binding_new(api, &owner_info, target_info);
-}
-
-void pa_volume_api_bind_main_output_mute_control(pa_volume_api *api, pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = api,
-        .set_value = (pa_binding_set_value_cb_t) set_main_output_mute_control_internal,
-    };
-
-    pa_assert(api);
-    pa_assert(target_info);
-
-    if (api->main_output_mute_control_binding)
-        pa_binding_free(api->main_output_mute_control_binding);
-
-    api->main_output_mute_control_binding = pa_binding_new(api, &owner_info, target_info);
-}
-
-void pa_volume_api_bind_main_input_mute_control(pa_volume_api *api, pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = api,
-        .set_value = (pa_binding_set_value_cb_t) set_main_input_mute_control_internal,
-    };
-
-    pa_assert(api);
-    pa_assert(target_info);
-
-    if (api->main_input_mute_control_binding)
-        pa_binding_free(api->main_input_mute_control_binding);
-
-    api->main_input_mute_control_binding = pa_binding_new(api, &owner_info, target_info);
+    pa_hook_fire(&api->hooks[PA_VOLUME_API_HOOK_MAIN_INPUT_MUTE_CONTROL_CHANGED], api);
 }

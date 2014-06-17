@@ -28,6 +28,7 @@
 #include <modules/main-volume-policy/main-volume-context.h>
 
 #include <pulsecore/core-util.h>
+#include <pulsecore/namereg.h>
 #include <pulsecore/shared.h>
 
 static pa_main_volume_policy *main_volume_policy_new(pa_core *core);
@@ -70,6 +71,46 @@ void pa_main_volume_policy_unref(pa_main_volume_policy *policy) {
     }
 }
 
+static pa_hook_result_t volume_control_unlink_cb(void *hook_data, void *call_data, void *userdata) {
+    pa_main_volume_policy *policy = userdata;
+    pa_volume_control *control = call_data;
+    pa_main_volume_context *context;
+    void *state;
+
+    pa_assert(policy);
+    pa_assert(control);
+
+    PA_HASHMAP_FOREACH(context, policy->main_volume_contexts, state) {
+        if (context->main_output_volume_control == control)
+            pa_main_volume_context_set_main_output_volume_control(context, NULL);
+
+        if (context->main_input_volume_control == control)
+            pa_main_volume_context_set_main_input_volume_control(context, NULL);
+    }
+
+    return PA_HOOK_OK;
+}
+
+static pa_hook_result_t mute_control_unlink_cb(void *hook_data, void *call_data, void *userdata) {
+    pa_main_volume_policy *policy = userdata;
+    pa_mute_control *control = call_data;
+    pa_main_volume_context *context;
+    void *state;
+
+    pa_assert(policy);
+    pa_assert(control);
+
+    PA_HASHMAP_FOREACH(context, policy->main_volume_contexts, state) {
+        if (context->main_output_mute_control == control)
+            pa_main_volume_context_set_main_output_mute_control(context, NULL);
+
+        if (context->main_input_mute_control == control)
+            pa_main_volume_context_set_main_input_mute_control(context, NULL);
+    }
+
+    return PA_HOOK_OK;
+}
+
 static pa_main_volume_policy *main_volume_policy_new(pa_core *core) {
     pa_main_volume_policy *policy;
     unsigned i;
@@ -86,8 +127,10 @@ static pa_main_volume_policy *main_volume_policy_new(pa_core *core) {
     for (i = 0; i < PA_MAIN_VOLUME_POLICY_HOOK_MAX; i++)
         pa_hook_init(&policy->hooks[i], policy);
 
-    policy->main_volume_context_binding_target_type = pa_main_volume_context_create_binding_target_type(policy);
-    pa_volume_api_add_binding_target_type(policy->volume_api, policy->main_volume_context_binding_target_type);
+    policy->volume_control_unlink_slot = pa_hook_connect(&policy->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_UNLINK],
+                                                         PA_HOOK_NORMAL, volume_control_unlink_cb, policy);
+    policy->mute_control_unlink_slot = pa_hook_connect(&policy->volume_api->hooks[PA_VOLUME_API_HOOK_MUTE_CONTROL_UNLINK],
+                                                       PA_HOOK_NORMAL, mute_control_unlink_cb, policy);
 
     pa_log_debug("Created a pa_main_volume_policy object.");
 
@@ -102,10 +145,11 @@ static void main_volume_policy_free(pa_main_volume_policy *policy) {
 
     pa_log_debug("Freeing the pa_main_volume_policy object.");
 
-    if (policy->main_volume_context_binding_target_type) {
-        pa_volume_api_remove_binding_target_type(policy->volume_api, policy->main_volume_context_binding_target_type);
-        pa_binding_target_type_free(policy->main_volume_context_binding_target_type);
-    }
+    if (policy->mute_control_unlink_slot)
+        pa_hook_slot_free(policy->mute_control_unlink_slot);
+
+    if (policy->volume_control_unlink_slot)
+        pa_hook_slot_free(policy->volume_control_unlink_slot);
 
     for (i = 0; i < PA_MAIN_VOLUME_POLICY_HOOK_MAX; i++)
         pa_hook_done(&policy->hooks[i]);
@@ -134,19 +178,24 @@ int pa_main_volume_policy_register_name(pa_main_volume_policy *policy, const cha
     pa_assert(requested_name);
     pa_assert(registered_name);
 
+    if (!pa_namereg_is_valid_name(requested_name)) {
+        pa_log("Invalid name: \"%s\"", requested_name);
+        return -PA_ERR_INVALID;
+    }
+
     n = pa_xstrdup(requested_name);
 
     if (pa_hashmap_put(policy->names, n, n) < 0) {
         unsigned i = 1;
 
-        pa_xfree(n);
-
         if (fail_if_already_registered) {
+            pa_xfree(n);
             pa_log("Name %s already registered.", requested_name);
             return -PA_ERR_EXIST;
         }
 
         do {
+            pa_xfree(n);
             i++;
             n = pa_sprintf_malloc("%s.%u", requested_name, i);
         } while (pa_hashmap_put(policy->names, n, n) < 0);

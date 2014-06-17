@@ -50,7 +50,9 @@ int pa_ext_volume_api_balance_valid(double balance) PA_GCC_CONST;
 int pa_ext_volume_api_bvolume_valid(const pa_ext_volume_api_bvolume *volume, int check_volume, int check_balance)
         PA_GCC_PURE;
 void pa_ext_volume_api_bvolume_init_invalid(pa_ext_volume_api_bvolume *volume);
+void pa_ext_volume_api_bvolume_init(pa_ext_volume_api_bvolume *bvolume, pa_volume_t volume, pa_channel_map *map);
 void pa_ext_volume_api_bvolume_init_mono(pa_ext_volume_api_bvolume *bvolume, pa_volume_t volume);
+int pa_ext_volume_api_bvolume_parse_balance(const char *str, pa_ext_volume_api_bvolume *bvolume);
 int pa_ext_volume_api_bvolume_equal(const pa_ext_volume_api_bvolume *a, const pa_ext_volume_api_bvolume *b,
                                     int check_volume, int check_balance) PA_GCC_PURE;
 void pa_ext_volume_api_bvolume_from_cvolume(pa_ext_volume_api_bvolume *bvolume, const pa_cvolume *cvolume,
@@ -64,6 +66,7 @@ double pa_ext_volume_api_bvolume_get_left_right_balance(const pa_ext_volume_api_
 void pa_ext_volume_api_bvolume_set_left_right_balance(pa_ext_volume_api_bvolume *volume, double balance);
 double pa_ext_volume_api_bvolume_get_rear_front_balance(const pa_ext_volume_api_bvolume *volume) PA_GCC_PURE;
 void pa_ext_volume_api_bvolume_set_rear_front_balance(pa_ext_volume_api_bvolume *volume, double balance);
+int pa_ext_volume_api_bvolume_balance_to_string(const pa_ext_volume_api_bvolume *volume, char **_r);
 
 #define PA_EXT_VOLUME_API_BVOLUME_SNPRINT_BALANCE_MAX 500
 char *pa_ext_volume_api_bvolume_snprint_balance(char *buf, size_t buf_size,

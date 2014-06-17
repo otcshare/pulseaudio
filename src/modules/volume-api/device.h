@@ -51,8 +51,8 @@ struct pa_device {
     bool unlinked;
 };
 
-pa_device *pa_device_new(pa_volume_api *api, const char *name, const char *description, pa_direction_t direction,
-                         const char * const *device_types, unsigned n_device_types);
+int pa_device_new(pa_volume_api *api, const char *name, const char *description, pa_direction_t direction,
+                  const char * const *device_types, unsigned n_device_types, pa_device **_r);
 void pa_device_put(pa_device *device, pa_volume_control *default_volume_control, pa_mute_control *default_mute_control);
 void pa_device_unlink(pa_device *device);
 void pa_device_free(pa_device *device);

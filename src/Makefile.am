@@ -1098,10 +1098,10 @@ endif
 
 libvolume_api_la_SOURCES = \
 		modules/volume-api/audio-group.c modules/volume-api/audio-group.h \
-		modules/volume-api/binding.c modules/volume-api/binding.h \
 		modules/volume-api/bvolume.h \
 		modules/volume-api/device.c modules/volume-api/device.h \
 		modules/volume-api/device-creator.c modules/volume-api/device-creator.h \
+		modules/volume-api/inidb.c modules/volume-api/inidb.h \
 		modules/volume-api/mute-control.c modules/volume-api/mute-control.h \
 		modules/volume-api/sstream.c modules/volume-api/sstream.h \
 		modules/volume-api/stream-creator.c modules/volume-api/stream-creator.h \

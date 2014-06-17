@@ -22,7 +22,6 @@
   USA.
 ***/
 
-#include <modules/volume-api/binding.h>
 #include <modules/volume-api/mute-control.h>
 #include <modules/volume-api/volume-control.h>
 
@@ -32,10 +31,6 @@
 
 typedef struct pa_audio_group pa_audio_group;
 
-#define PA_AUDIO_GROUP_BINDING_TARGET_TYPE "AudioGroup"
-#define PA_AUDIO_GROUP_BINDING_TARGET_FIELD_VOLUME_CONTROL "volume_control"
-#define PA_AUDIO_GROUP_BINDING_TARGET_FIELD_MUTE_CONTROL "mute_control"
-
 struct pa_audio_group {
     pa_volume_api *volume_api;
     uint32_t index;
@@ -44,13 +39,7 @@ struct pa_audio_group {
     pa_proplist *proplist;
     pa_volume_control *volume_control;
     pa_mute_control *mute_control;
-    bool have_own_volume_control;
-    bool have_own_mute_control;
-    pa_volume_control *own_volume_control;
-    pa_mute_control *own_mute_control;
 
-    pa_binding *volume_control_binding;
-    pa_binding *mute_control_binding;
     pa_hashmap *volume_streams; /* pas_stream -> pas_stream (hashmap-as-a-set) */
     pa_hashmap *mute_streams; /* pas_stream -> pas_stream (hashmap-as-a-set) */
 
@@ -58,28 +47,22 @@ struct pa_audio_group {
     bool unlinked;
 };
 
-int pa_audio_group_new(pa_volume_api *api, const char *name, const char *description, pa_audio_group **group);
+int pa_audio_group_new(pa_volume_api *api, const char *name, pa_audio_group **_r);
 void pa_audio_group_put(pa_audio_group *group);
 void pa_audio_group_unlink(pa_audio_group *group);
 void pa_audio_group_free(pa_audio_group *group);
 
-const char *pa_audio_group_get_name(pa_audio_group *group);
-
-/* Called by policy modules. */
-void pa_audio_group_set_have_own_volume_control(pa_audio_group *group, bool have);
-void pa_audio_group_set_have_own_mute_control(pa_audio_group *group, bool have);
+/* Called by the audio group implementation. */
+void pa_audio_group_set_description(pa_audio_group *group, const char *description);
 void pa_audio_group_set_volume_control(pa_audio_group *group, pa_volume_control *control);
 void pa_audio_group_set_mute_control(pa_audio_group *group, pa_mute_control *control);
-void pa_audio_group_bind_volume_control(pa_audio_group *group, pa_binding_target_info *target_info);
-void pa_audio_group_bind_mute_control(pa_audio_group *group, pa_binding_target_info *target_info);
 
-/* Called from sstream.c only. */
+/* Called by sstream.c only. If you want to assign a stream to an audio group, use
+ * pas_stream_set_audio_group_for_volume() and
+ * pas_stream_set_audio_group_for_mute(). */
 void pa_audio_group_add_volume_stream(pa_audio_group *group, pas_stream *stream);
 void pa_audio_group_remove_volume_stream(pa_audio_group *group, pas_stream *stream);
 void pa_audio_group_add_mute_stream(pa_audio_group *group, pas_stream *stream);
 void pa_audio_group_remove_mute_stream(pa_audio_group *group, pas_stream *stream);
-
-/* Called from volume-api.c only. */
-pa_binding_target_type *pa_audio_group_create_binding_target_type(pa_volume_api *api);
 
 #endif

@@ -22,7 +22,6 @@
   USA.
 ***/
 
-#include <modules/volume-api/binding.h>
 #include <modules/volume-api/volume-api.h>
 
 #include <pulsecore/core.h>
@@ -35,6 +34,7 @@ typedef struct pa_main_volume_context pa_main_volume_context;
 enum {
     PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_PUT,
     PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_UNLINK,
+    PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_DESCRIPTION_CHANGED,
     PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_MAIN_OUTPUT_VOLUME_CONTROL_CHANGED,
     PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_MAIN_INPUT_VOLUME_CONTROL_CHANGED,
     PA_MAIN_VOLUME_POLICY_HOOK_MAIN_VOLUME_CONTEXT_MAIN_OUTPUT_MUTE_CONTROL_CHANGED,
@@ -53,7 +53,9 @@ struct pa_main_volume_policy {
 
     uint32_t next_main_volume_context_index;
     pa_hook hooks[PA_MAIN_VOLUME_POLICY_HOOK_MAX];
-    pa_binding_target_type *main_volume_context_binding_target_type;
+
+    pa_hook_slot *volume_control_unlink_slot;
+    pa_hook_slot *mute_control_unlink_slot;
 };
 
 pa_main_volume_policy *pa_main_volume_policy_get(pa_core *core);

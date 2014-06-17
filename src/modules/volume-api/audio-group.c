@@ -29,34 +29,33 @@
 
 #include <pulsecore/core-util.h>
 
-int pa_audio_group_new(pa_volume_api *api, const char *name, const char *description, pa_audio_group **group) {
-    pa_audio_group *group_local;
+int pa_audio_group_new(pa_volume_api *api, const char *name, pa_audio_group **_r) {
+    pa_audio_group *group = NULL;
     int r;
 
     pa_assert(api);
     pa_assert(name);
-    pa_assert(description);
-    pa_assert(group);
+    pa_assert(_r);
 
-    group_local = pa_xnew0(pa_audio_group, 1);
-    group_local->volume_api = api;
-    group_local->index = pa_volume_api_allocate_audio_group_index(api);
+    group = pa_xnew0(pa_audio_group, 1);
+    group->volume_api = api;
+    group->index = pa_volume_api_allocate_audio_group_index(api);
 
-    r = pa_volume_api_register_name(api, name, true, &group_local->name);
+    r = pa_volume_api_register_name(api, name, true, &group->name);
     if (r < 0)
         goto fail;
 
-    group_local->description = pa_xstrdup(description);
-    group_local->proplist = pa_proplist_new();
-    group_local->volume_streams = pa_hashmap_new(NULL, NULL);
-    group_local->mute_streams = pa_hashmap_new(NULL, NULL);
+    group->description = pa_xstrdup(group->name);
+    group->proplist = pa_proplist_new();
+    group->volume_streams = pa_hashmap_new(NULL, NULL);
+    group->mute_streams = pa_hashmap_new(NULL, NULL);
 
-    *group = group_local;
-
+    *_r = group;
     return 0;
 
 fail:
-    pa_audio_group_free(group_local);
+    if (group)
+        pa_audio_group_free(group);
 
     return r;
 }
@@ -68,7 +67,6 @@ void pa_audio_group_put(pa_audio_group *group) {
     pa_assert(group);
 
     pa_volume_api_add_audio_group(group->volume_api, group);
-
     group->linked = true;
 
     pa_log_debug("Created audio group #%u.", group->index);
@@ -99,9 +97,9 @@ void pa_audio_group_unlink(pa_audio_group *group) {
     pa_log_debug("Unlinking audio group %s.", group->name);
 
     if (group->linked)
-        pa_hook_fire(&group->volume_api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_UNLINK], group);
+        pa_volume_api_remove_audio_group(group->volume_api, group);
 
-    pa_volume_api_remove_audio_group(group->volume_api, group);
+    pa_hook_fire(&group->volume_api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_UNLINK], group);
 
     while ((stream = pa_hashmap_first(group->mute_streams)))
         pas_stream_set_audio_group_for_mute(stream, NULL);
@@ -109,34 +107,15 @@ void pa_audio_group_unlink(pa_audio_group *group) {
     while ((stream = pa_hashmap_first(group->volume_streams)))
         pas_stream_set_audio_group_for_volume(stream, NULL);
 
-    if (group->mute_control_binding) {
-        pa_binding_free(group->mute_control_binding);
-        group->mute_control_binding = NULL;
-    }
-
-    if (group->volume_control_binding) {
-        pa_binding_free(group->volume_control_binding);
-        group->volume_control_binding = NULL;
-    }
-
-    pa_audio_group_set_have_own_mute_control(group, false);
-    pa_audio_group_set_have_own_volume_control(group, false);
-
-    if (group->mute_control) {
-        pa_mute_control_remove_audio_group(group->mute_control, group);
-        group->mute_control = NULL;
-    }
-
-    if (group->volume_control) {
-        pa_volume_control_remove_audio_group(group->volume_control, group);
-        group->volume_control = NULL;
-    }
+    pa_audio_group_set_mute_control(group, NULL);
+    pa_audio_group_set_volume_control(group, NULL);
 }
 
 void pa_audio_group_free(pa_audio_group *group) {
     pa_assert(group);
 
-    if (!group->unlinked)
+    /* unlink() expects name to be set. */
+    if (!group->unlinked && group->name)
         pa_audio_group_unlink(group);
 
     if (group->mute_streams)
@@ -156,133 +135,33 @@ void pa_audio_group_free(pa_audio_group *group) {
     pa_xfree(group);
 }
 
-const char *pa_audio_group_get_name(pa_audio_group *group) {
+void pa_audio_group_set_description(pa_audio_group *group, const char *description) {
+    char *old_description;
+
     pa_assert(group);
+    pa_assert(description);
 
-    return group->name;
-}
+    old_description = group->description;
 
-static int volume_control_set_volume_cb(pa_volume_control *control, const pa_bvolume *volume, bool set_volume,
-                                        bool set_balance) {
-    pa_audio_group *group;
-    pas_stream *stream;
-    void *state;
-
-    pa_assert(control);
-    pa_assert(volume);
-
-    group = control->userdata;
-
-    PA_HASHMAP_FOREACH(stream, group->volume_streams, state) {
-        if (stream->own_volume_control)
-            pa_volume_control_set_volume(stream->own_volume_control, volume, set_volume, set_balance);
-    }
-
-    return 0;
-}
-
-static void volume_control_set_initial_volume_cb(pa_volume_control *control) {
-    pa_audio_group *group;
-    pas_stream *stream;
-    void *state;
-
-    pa_assert(control);
-
-    group = control->userdata;
-
-    PA_HASHMAP_FOREACH(stream, group->volume_streams, state) {
-        if (stream->own_volume_control)
-            pa_volume_control_set_volume(stream->own_volume_control, &control->volume, true, true);
-    }
-}
-
-void pa_audio_group_set_have_own_volume_control(pa_audio_group *group, bool have) {
-    pa_assert(group);
-
-    if (have == group->have_own_volume_control)
+    if (pa_streq(description, old_description))
         return;
 
-    if (have) {
-        pa_bvolume initial_volume;
+    group->description = pa_xstrdup(description);
 
-        if (group->volume_api->core->flat_volumes)
-            /* Usually the initial volume should get overridden by some module
-             * that manages audio group volume levels, but if there's no such
-             * module, let's try to avoid too high volume in flat volume
-             * mode. */
-            pa_bvolume_init_mono(&initial_volume, 0.3 * PA_VOLUME_NORM);
-        else
-            pa_bvolume_init_mono(&initial_volume, PA_VOLUME_NORM);
-
-        pa_assert(!group->own_volume_control);
-        group->own_volume_control = pa_volume_control_new(group->volume_api, "audio-group-volume-control",
-                                                          group->description, false, false);
-        pa_volume_control_set_owner_audio_group(group->own_volume_control, group);
-        group->own_volume_control->set_volume = volume_control_set_volume_cb;
-        group->own_volume_control->userdata = group;
-        pa_volume_control_put(group->own_volume_control, &initial_volume, volume_control_set_initial_volume_cb);
-    } else {
-        pa_volume_control_free(group->own_volume_control);
-        group->own_volume_control = NULL;
-    }
-
-    group->have_own_volume_control = have;
-}
-
-static int mute_control_set_mute_cb(pa_mute_control *control, bool mute) {
-    pa_audio_group *group;
-    pas_stream *stream;
-    void *state;
-
-    pa_assert(control);
-
-    group = control->userdata;
-
-    PA_HASHMAP_FOREACH(stream, group->mute_streams, state) {
-        if (stream->own_mute_control)
-            pa_mute_control_set_mute(stream->own_mute_control, mute);
-    }
-
-    return 0;
-}
-
-static void mute_control_set_initial_mute_cb(pa_mute_control *control) {
-    pa_audio_group *group;
-    pas_stream *stream;
-    void *state;
-
-    pa_assert(control);
-
-    group = control->userdata;
-
-    PA_HASHMAP_FOREACH(stream, group->mute_streams, state) {
-        if (stream->own_mute_control)
-            pa_mute_control_set_mute(stream->own_mute_control, control->mute);
-    }
-}
-
-void pa_audio_group_set_have_own_mute_control(pa_audio_group *group, bool have) {
-    pa_assert(group);
-
-    if (have == group->have_own_mute_control)
+    if (!group->linked || group->unlinked) {
+        pa_xfree(old_description);
         return;
-
-    group->have_own_mute_control = have;
-
-    if (have) {
-        pa_assert(!group->own_mute_control);
-        group->own_mute_control = pa_mute_control_new(group->volume_api, "audio-group-mute-control", group->description);
-        pa_mute_control_set_owner_audio_group(group->own_mute_control, group);
-        group->own_mute_control->set_mute = mute_control_set_mute_cb;
-        group->own_mute_control->userdata = group;
-        pa_mute_control_put(group->own_mute_control, false, true, mute_control_set_initial_mute_cb);
-    } else {
-        pa_mute_control_free(group->own_mute_control);
-        group->own_mute_control = NULL;
     }
+
+    pa_log_debug("The description of audio group %s changed from \"%s\" to \"%s\".", group->name, old_description,
+                 description);
+    pa_xfree(old_description);
+
+    pa_hook_fire(&group->volume_api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_DESCRIPTION_CHANGED], group);
+
 }
 
-static void set_volume_control_internal(pa_audio_group *group, pa_volume_control *control) {
+void pa_audio_group_set_volume_control(pa_audio_group *group, pa_volume_control *control) {
     pa_volume_control *old_control;
 
     pa_assert(group);
@@ -292,13 +171,7 @@ static void set_volume_control_internal(pa_audio_group *group, pa_volume_control
     if (control == old_control)
         return;
 
-    if (old_control)
-        pa_volume_control_remove_audio_group(old_control, group);
-
     group->volume_control = control;
-
-    if (control)
-        pa_volume_control_add_audio_group(control, group);
 
     if (!group->linked || group->unlinked)
         return;
@@ -309,18 +182,7 @@ static void set_volume_control_internal(pa_audio_group *group, pa_volume_control
     pa_hook_fire(&group->volume_api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_VOLUME_CONTROL_CHANGED], group);
 }
 
-void pa_audio_group_set_volume_control(pa_audio_group *group, pa_volume_control *control) {
-    pa_assert(group);
-
-    if (group->volume_control_binding) {
-        pa_binding_free(group->volume_control_binding);
-        group->volume_control_binding = NULL;
-    }
-
-    set_volume_control_internal(group, control);
-}
-
-static void set_mute_control_internal(pa_audio_group *group, pa_mute_control *control) {
+void pa_audio_group_set_mute_control(pa_audio_group *group, pa_mute_control *control) {
     pa_mute_control *old_control;
 
     pa_assert(group);
@@ -330,13 +192,7 @@ static void set_mute_control_internal(pa_audio_group *group, pa_mute_control *co
     if (control == old_control)
         return;
 
-    if (old_control)
-        pa_mute_control_remove_audio_group(old_control, group);
-
     group->mute_control = control;
-
-    if (control)
-        pa_mute_control_add_audio_group(control, group);
 
     if (!group->linked || group->unlinked)
         return;
@@ -347,57 +203,11 @@ static void set_mute_control_internal(pa_audio_group *group, pa_mute_control *co
     pa_hook_fire(&group->volume_api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_MUTE_CONTROL_CHANGED], group);
 }
 
-void pa_audio_group_set_mute_control(pa_audio_group *group, pa_mute_control *control) {
-    pa_assert(group);
-
-    if (group->mute_control_binding) {
-        pa_binding_free(group->mute_control_binding);
-        group->mute_control_binding = NULL;
-    }
-
-    set_mute_control_internal(group, control);
-}
-
-void pa_audio_group_bind_volume_control(pa_audio_group *group, pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = group,
-        .set_value = (pa_binding_set_value_cb_t) set_volume_control_internal,
-    };
-
-    pa_assert(group);
-    pa_assert(target_info);
-
-    if (group->volume_control_binding)
-        pa_binding_free(group->volume_control_binding);
-
-    group->volume_control_binding = pa_binding_new(group->volume_api, &owner_info, target_info);
-}
-
-void pa_audio_group_bind_mute_control(pa_audio_group *group, pa_binding_target_info *target_info) {
-    pa_binding_owner_info owner_info = {
-        .userdata = group,
-        .set_value = (pa_binding_set_value_cb_t) set_mute_control_internal,
-    };
-
-    pa_assert(group);
-    pa_assert(target_info);
-
-    if (group->mute_control_binding)
-        pa_binding_free(group->mute_control_binding);
-
-    group->mute_control_binding = pa_binding_new(group->volume_api, &owner_info, target_info);
-}
-
 void pa_audio_group_add_volume_stream(pa_audio_group *group, pas_stream *stream) {
     pa_assert(group);
     pa_assert(stream);
 
     pa_assert_se(pa_hashmap_put(group->volume_streams, stream, stream) >= 0);
-
-    if (stream->own_volume_control && group->own_volume_control)
-        pa_volume_control_set_volume(stream->own_volume_control, &group->own_volume_control->volume, true, true);
-
-    pa_log_debug("Stream %s added to audio group %s (volume).", stream->name, group->name);
 }
 
 void pa_audio_group_remove_volume_stream(pa_audio_group *group, pas_stream *stream) {
@@ -405,8 +215,6 @@ void pa_audio_group_remove_volume_stream(pa_audio_group *group, pas_stream *stre
     pa_assert(stream);
 
     pa_assert_se(pa_hashmap_remove(group->volume_streams, stream));
-
-    pa_log_debug("Stream %s removed from audio group %s (volume).", stream->name, group->name);
 }
 
 void pa_audio_group_add_mute_stream(pa_audio_group *group, pas_stream *stream) {
@@ -414,11 +222,6 @@ void pa_audio_group_add_mute_stream(pa_audio_group *group, pas_stream *stream) {
     pa_assert(stream);
 
     pa_assert_se(pa_hashmap_put(group->mute_streams, stream, stream) >= 0);
-
-    if (stream->own_mute_control && group->own_mute_control)
-        pa_mute_control_set_mute(stream->own_mute_control, group->own_mute_control->mute);
-
-    pa_log_debug("Stream %s added to audio group %s (mute).", stream->name, group->name);
 }
 
 void pa_audio_group_remove_mute_stream(pa_audio_group *group, pas_stream *stream) {
@@ -426,23 +229,4 @@ void pa_audio_group_remove_mute_stream(pa_audio_group *group, pas_stream *stream
     pa_assert(stream);
 
     pa_assert_se(pa_hashmap_remove(group->mute_streams, stream));
-
-    pa_log_debug("Stream %s removed from audio group %s (mute).", stream->name, group->name);
-}
-
-pa_binding_target_type *pa_audio_group_create_binding_target_type(pa_volume_api *api) {
-    pa_binding_target_type *type;
-
-    pa_assert(api);
-
-    type = pa_binding_target_type_new(PA_AUDIO_GROUP_BINDING_TARGET_TYPE, api->audio_groups,
-                                      &api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_PUT],
-                                      &api->hooks[PA_VOLUME_API_HOOK_AUDIO_GROUP_UNLINK],
-                                      (pa_binding_target_type_get_name_cb_t) pa_audio_group_get_name);
-    pa_binding_target_type_add_field(type, PA_AUDIO_GROUP_BINDING_TARGET_FIELD_VOLUME_CONTROL,
-                                     PA_BINDING_CALCULATE_FIELD_OFFSET(pa_audio_group, volume_control));
-    pa_binding_target_type_add_field(type, PA_AUDIO_GROUP_BINDING_TARGET_FIELD_MUTE_CONTROL,
-                                     PA_BINDING_CALCULATE_FIELD_OFFSET(pa_audio_group, mute_control));
-
-    return type;
 }

@@ -32,20 +32,26 @@
 
 #include <pulsecore/core-util.h>
 
-pa_device *pa_device_new(pa_volume_api *api, const char *name, const char *description, pa_direction_t direction,
-                         const char * const *device_types, unsigned n_device_types) {
-    pa_device *device;
+int pa_device_new(pa_volume_api *api, const char *name, const char *description, pa_direction_t direction,
+                  const char * const *device_types, unsigned n_device_types, pa_device **_r) {
+    pa_device *device = NULL;
+    int r;
     unsigned i;
 
     pa_assert(api);
     pa_assert(name);
     pa_assert(description);
     pa_assert(device_types || n_device_types == 0);
+    pa_assert(_r);
 
     device = pa_xnew0(pa_device, 1);
     device->volume_api = api;
     device->index = pa_volume_api_allocate_device_index(api);
-    pa_assert_se(pa_volume_api_register_name(api, name, false, &device->name) >= 0);
+
+    r = pa_volume_api_register_name(api, name, false, &device->name);
+    if (r < 0)
+        goto fail;
+
     device->description = pa_xstrdup(description);
     device->direction = direction;
     device->device_types = pa_dynarray_new(pa_xfree);
@@ -57,7 +63,14 @@ pa_device *pa_device_new(pa_volume_api *api, const char *name, const char *descr
     device->use_default_volume_control = true;
     device->use_default_mute_control = true;
 
-    return device;
+    *_r = device;
+    return 0;
+
+fail:
+    if (device)
+        pa_device_free(device);
+
+    return r;
 }
 
 void pa_device_put(pa_device *device, pa_volume_control *default_volume_control, pa_mute_control *default_mute_control) {
@@ -84,7 +97,6 @@ void pa_device_put(pa_device *device, pa_volume_control *default_volume_control,
     }
 
     pa_volume_api_add_device(device->volume_api, device);
-
     device->linked = true;
 
     device_types_str = pa_join((const char * const *) pa_dynarray_get_raw_array(device->device_types),
@@ -120,35 +132,21 @@ void pa_device_unlink(pa_device *device) {
     pa_log_debug("Unlinking device %s.", device->name);
 
     if (device->linked)
-        pa_hook_fire(&device->volume_api->hooks[PA_VOLUME_API_HOOK_DEVICE_UNLINK], device);
+        pa_volume_api_remove_device(device->volume_api, device);
 
-    pa_volume_api_remove_device(device->volume_api, device);
+    pa_hook_fire(&device->volume_api->hooks[PA_VOLUME_API_HOOK_DEVICE_UNLINK], device);
 
-    if (device->mute_control) {
-        pa_mute_control_remove_device(device->mute_control, device);
-        device->mute_control = NULL;
-    }
-
-    if (device->default_mute_control) {
-        pa_mute_control_remove_default_for_device(device->default_mute_control, device);
-        device->default_mute_control = NULL;
-    }
-
-    if (device->volume_control) {
-        pa_volume_control_remove_device(device->volume_control, device);
-        device->volume_control = NULL;
-    }
-
-    if (device->default_volume_control) {
-        pa_volume_control_remove_default_for_device(device->default_volume_control, device);
-        device->default_volume_control = NULL;
-    }
+    pa_device_set_mute_control(device, NULL);
+    pa_device_set_default_mute_control(device, NULL);
+    pa_device_set_volume_control(device, NULL);
+    pa_device_set_default_volume_control(device, NULL);
 }
 
 void pa_device_free(pa_device *device) {
     pa_assert(device);
 
-    if (!device->unlinked)
+    /* unlink() expects name to be set. */
+    if (!device->unlinked && device->name)
         pa_device_unlink(device);
 
     if (device->proplist)

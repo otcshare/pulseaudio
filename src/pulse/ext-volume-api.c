@@ -36,6 +36,7 @@
 #include <pulsecore/i18n.h>
 #include <pulsecore/macro.h>
 #include <pulsecore/pstream-util.h>
+#include <pulsecore/strbuf.h>
 
 #include <math.h>
 
@@ -94,6 +95,21 @@ void pa_ext_volume_api_bvolume_init_invalid(pa_ext_volume_api_bvolume *volume) {
     pa_channel_map_init(&volume->channel_map);
 }
 
+void pa_ext_volume_api_bvolume_init(pa_ext_volume_api_bvolume *bvolume, pa_volume_t volume, pa_channel_map *map) {
+    unsigned i;
+
+    pa_assert(bvolume);
+    pa_assert(PA_VOLUME_IS_VALID(volume));
+    pa_assert(map);
+    pa_assert(pa_channel_map_valid(map));
+
+    bvolume->volume = volume;
+    bvolume->channel_map = *map;
+
+    for (i = 0; i < map->channels; i++)
+        bvolume->balance[i] = 1.0;
+}
+
 void pa_ext_volume_api_bvolume_init_mono(pa_ext_volume_api_bvolume *bvolume, pa_volume_t volume) {
     pa_assert(bvolume);
     pa_assert(PA_VOLUME_IS_VALID(volume));
@@ -101,6 +117,67 @@ void pa_ext_volume_api_bvolume_init_mono(pa_ext_volume_api_bvolume *bvolume, pa_
     bvolume->volume = volume;
     bvolume->balance[0] = 1.0;
     pa_channel_map_init_mono(&bvolume->channel_map);
+}
+
+int pa_ext_volume_api_bvolume_parse_balance(const char *str, pa_ext_volume_api_bvolume *_r) {
+    pa_ext_volume_api_bvolume bvolume;
+
+    pa_assert(str);
+    pa_assert(_r);
+
+    bvolume.channel_map.channels = 0;
+
+    for (;;) {
+        const char *colon;
+        size_t channel_name_len;
+        char *channel_name;
+        pa_channel_position_t position;
+        const char *space;
+        size_t balance_str_len;
+        char *balance_str;
+        int r;
+        double balance;
+
+        colon = strchr(str, ':');
+        if (!colon)
+            return -PA_ERR_INVALID;
+
+        channel_name_len = colon - str;
+        channel_name = pa_xstrndup(str, channel_name_len);
+
+        position = pa_channel_position_from_string(channel_name);
+        pa_xfree(channel_name);
+        if (position == PA_CHANNEL_POSITION_INVALID)
+            return -PA_ERR_INVALID;
+
+        bvolume.channel_map.map[bvolume.channel_map.channels] = position;
+        str = colon + 1;
+
+        space = strchr(str, ' ');
+        if (space)
+            balance_str_len = space - str;
+        else
+            balance_str_len = strlen(str);
+
+        balance_str = pa_xstrndup(str, balance_str_len);
+
+        r = pa_atod(balance_str, &balance);
+        if (r < 0)
+            return -PA_ERR_INVALID;
+
+        if (!pa_ext_volume_api_balance_valid(balance))
+            return -PA_ERR_INVALID;
+
+        bvolume.balance[bvolume.channel_map.channels++] = balance;
+
+        if (space)
+            str = space + 1;
+        else
+            break;
+    }
+
+    pa_ext_volume_api_bvolume_copy_balance(_r, &bvolume);
+    return 0;
 }
 
 int pa_ext_volume_api_bvolume_equal(const pa_ext_volume_api_bvolume *a, const pa_ext_volume_api_bvolume *b,
@@ -264,6 +341,29 @@ void pa_ext_volume_api_bvolume_set_rear_front_balance(pa_ext_volume_api_bvolume 
     old_volume = volume->volume;
     pa_ext_volume_api_bvolume_from_cvolume(volume, &cvolume, &volume->channel_map);
     volume->volume = old_volume;
+}
+
+int pa_ext_volume_api_bvolume_balance_to_string(const pa_ext_volume_api_bvolume *volume, char **_r) {
+    pa_strbuf *buf;
+    unsigned i;
+
+    pa_assert(volume);
+    pa_assert(_r);
+
+    if (!pa_ext_volume_api_bvolume_valid(volume, false, true))
+        return -PA_ERR_INVALID;
+
+    buf = pa_strbuf_new();
+
+    for (i = 0; i < volume->channel_map.channels; i++) {
+        if (i != 0)
+            pa_strbuf_putc(buf, ' ');
+
+        pa_strbuf_printf(buf, "%s:%.2f", pa_channel_position_to_string(volume->channel_map.map[i]), volume->balance[i]);
+    }
+
+    *_r = pa_strbuf_tostring_free(buf);
+    return 0;
 }
 
 char *pa_ext_volume_api_bvolume_snprint_balance(char *buf, size_t buf_len,

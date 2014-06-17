@@ -27,88 +27,96 @@
 
 #include <modules/volume-api/audio-group.h>
 #include <modules/volume-api/device.h>
+#include <modules/volume-api/inidb.h>
 #include <modules/volume-api/sstream.h>
 
 #include <pulsecore/core-util.h>
 
-pa_volume_control *pa_volume_control_new(pa_volume_api *api, const char *name, const char *description, bool convertible_to_dB,
-                                         bool channel_map_is_writable) {
-    pa_volume_control *control;
+int pa_volume_control_new(pa_volume_api *api, const char *name, bool persistent, pa_volume_control **_r) {
+    pa_volume_control *control = NULL;
+    int r;
 
     pa_assert(api);
     pa_assert(name);
-    pa_assert(description);
+    pa_assert(_r);
 
     control = pa_xnew0(pa_volume_control, 1);
     control->volume_api = api;
     control->index = pa_volume_api_allocate_volume_control_index(api);
-    pa_assert_se(pa_volume_api_register_name(api, name, false, &control->name) >= 0);
-    control->description = pa_xstrdup(description);
+
+    r = pa_volume_api_register_name(api, name, persistent, &control->name);
+    if (r < 0)
+        goto fail;
+
+    control->description = pa_xstrdup(control->name);
     control->proplist = pa_proplist_new();
-    pa_bvolume_init_invalid(&control->volume);
-    control->convertible_to_dB = convertible_to_dB;
-    control->channel_map_is_writable = channel_map_is_writable;
+    pa_bvolume_init_mono(&control->volume, PA_VOLUME_NORM);
+    control->present = !persistent;
+    control->persistent = persistent;
+    control->purpose = PA_VOLUME_CONTROL_PURPOSE_OTHER;
     control->devices = pa_hashmap_new(NULL, NULL);
     control->default_for_devices = pa_hashmap_new(NULL, NULL);
-    control->streams = pa_hashmap_new(NULL, NULL);
-    control->audio_groups = pa_hashmap_new(NULL, NULL);
 
-    return control;
+    if (persistent) {
+        pa_inidb_row *row;
+
+        row = pa_inidb_table_add_row(api->control_db.volume_controls, control->name);
+        control->db_cells.description = pa_inidb_row_get_cell(row, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_DESCRIPTION);
+        control->db_cells.volume = pa_inidb_row_get_cell(row, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_VOLUME);
+        control->db_cells.balance = pa_inidb_row_get_cell(row, PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_BALANCE);
+        control->db_cells.convertible_to_dB = pa_inidb_row_get_cell(row,
+                                                                    PA_VOLUME_API_CONTROL_DB_COLUMN_NAME_CONVERTIBLE_TO_DB);
+    }
+
+    *_r = control;
+    return 0;
+
+fail:
+    if (control)
+        pa_volume_control_free(control);
+
+    return r;
 }
 
-void pa_volume_control_put(pa_volume_control *control, const pa_bvolume *initial_volume,
-                           pa_volume_control_set_initial_volume_cb_t set_initial_volume_cb) {
+void pa_volume_control_put(pa_volume_control *control) {
     const char *prop_key;
     void *state = NULL;
     char volume_str[PA_VOLUME_SNPRINT_VERBOSE_MAX];
     char balance_str[PA_BVOLUME_SNPRINT_BALANCE_MAX];
 
     pa_assert(control);
-    pa_assert((initial_volume && pa_bvolume_valid(initial_volume, true, true)) || control->set_volume);
-    pa_assert((initial_volume && pa_channel_map_valid(&initial_volume->channel_map)) || control->channel_map_is_writable);
-    pa_assert(set_initial_volume_cb || !control->set_volume);
+    pa_assert(control->set_volume || !control->present);
 
-    if (initial_volume && pa_bvolume_valid(initial_volume, true, false))
-        control->volume.volume = initial_volume->volume;
-    else
-        control->volume.volume = PA_VOLUME_NORM / 3;
+    pa_hook_fire(&control->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_IMPLEMENTATION_INITIALIZED], control);
+    pa_hook_fire(&control->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_SET_INITIAL_VOLUME], control);
 
-    if (initial_volume && pa_bvolume_valid(initial_volume, false, true))
-        pa_bvolume_copy_balance(&control->volume, initial_volume);
-    else if (initial_volume && pa_channel_map_valid(&initial_volume->channel_map))
-        pa_bvolume_reset_balance(&control->volume, &initial_volume->channel_map);
-    else {
-        pa_channel_map_init_mono(&control->volume.channel_map);
-        pa_bvolume_reset_balance(&control->volume, &control->volume.channel_map);
+    if (control->set_volume) {
+        control->set_volume_in_progress = true;
+        control->set_volume(control, &control->volume, &control->volume, true, true);
+        control->set_volume_in_progress = false;
     }
 
-    if (set_initial_volume_cb)
-        set_initial_volume_cb(control);
-
     pa_volume_api_add_volume_control(control->volume_api, control);
-
     control->linked = true;
 
     pa_log_debug("Created volume control #%u.", control->index);
     pa_log_debug("    Name: %s", control->name);
     pa_log_debug("    Description: %s", control->description);
+    pa_log_debug("    Volume: %s", pa_volume_snprint_verbose(volume_str, sizeof(volume_str), control->volume.volume,
+                 control->convertible_to_dB));
+    pa_log_debug("    Balance: %s", pa_bvolume_snprint_balance(balance_str, sizeof(balance_str), &control->volume));
+    pa_log_debug("    Present: %s", pa_yes_no(control->present));
+    pa_log_debug("    Persistent: %s", pa_yes_no(control->persistent));
     pa_log_debug("    Properties:");
 
     while ((prop_key = pa_proplist_iterate(control->proplist, &state)))
         pa_log_debug("        %s = %s", prop_key, pa_strnull(pa_proplist_gets(control->proplist, prop_key)));
 
-    pa_log_debug("    Volume: %s", pa_volume_snprint_verbose(volume_str, sizeof(volume_str), control->volume.volume,
-                 control->convertible_to_dB));
-    pa_log_debug("    Balance: %s", pa_bvolume_snprint_balance(balance_str, sizeof(balance_str), &control->volume));
-    pa_log_debug("    Channel map is writable: %s", pa_yes_no(control->channel_map_is_writable));
-
     pa_hook_fire(&control->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_PUT], control);
 }
 
 void pa_volume_control_unlink(pa_volume_control *control) {
-    pa_audio_group *group;
     pa_device *device;
-    pas_stream *stream;
 
     pa_assert(control);
 
@@ -122,15 +130,9 @@ void pa_volume_control_unlink(pa_volume_control *control) {
     pa_log_debug("Unlinking volume control %s.", control->name);
 
     if (control->linked)
-        pa_hook_fire(&control->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_UNLINK], control);
+        pa_volume_api_remove_volume_control(control->volume_api, control);
 
-    pa_volume_api_remove_volume_control(control->volume_api, control);
-
-    while ((group = pa_hashmap_first(control->audio_groups)))
-        pa_audio_group_set_volume_control(group, NULL);
-
-    while ((stream = pa_hashmap_first(control->streams)))
-        pas_stream_set_volume_control(stream, NULL);
+    pa_hook_fire(&control->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_UNLINK], control);
 
     while ((device = pa_hashmap_first(control->default_for_devices)))
         pa_device_set_default_volume_control(device, NULL);
@@ -153,18 +155,9 @@ void pa_volume_control_unlink(pa_volume_control *control) {
 void pa_volume_control_free(pa_volume_control *control) {
     pa_assert(control);
 
-    if (!control->unlinked)
+    /* unlink() expects name to be set. */
+    if (!control->unlinked && control->name)
         pa_volume_control_unlink(control);
-
-    if (control->audio_groups) {
-        pa_assert(pa_hashmap_isempty(control->audio_groups));
-        pa_hashmap_free(control->audio_groups);
-    }
-
-    if (control->streams) {
-        pa_assert(pa_hashmap_isempty(control->streams));
-        pa_hashmap_free(control->streams);
-    }
 
     if (control->default_for_devices) {
         pa_assert(pa_hashmap_isempty(control->default_for_devices));
@@ -187,17 +180,91 @@ void pa_volume_control_free(pa_volume_control *control) {
     pa_xfree(control);
 }
 
-void pa_volume_control_set_owner_audio_group(pa_volume_control *control, pa_audio_group *group) {
+void pa_volume_control_set_purpose(pa_volume_control *control, pa_volume_control_purpose_t purpose, void *owner) {
+    pa_assert(control);
+    pa_assert(!control->linked);
+
+    control->purpose = purpose;
+    control->owner = owner;
+}
+
+int pa_volume_control_acquire_for_audio_group(pa_volume_control *control, pa_audio_group *group,
+                                              pa_volume_control_set_volume_cb_t set_volume_cb, void *userdata) {
     pa_assert(control);
     pa_assert(group);
+    pa_assert(set_volume_cb);
 
-    control->owner_audio_group = group;
+    if (control->present) {
+        pa_log("Can't acquire volume control %s, it's already present.", control->name);
+        return -PA_ERR_BUSY;
+    }
+
+    control->set_volume = set_volume_cb;
+    control->userdata = userdata;
+
+    control->set_volume_in_progress = true;
+    control->set_volume(control, &control->volume, &control->volume, true, true);
+    control->set_volume_in_progress = false;
+
+    control->present = true;
+
+    if (!control->linked || control->unlinked)
+        return 0;
+
+    pa_log_debug("Volume control %s became present.", control->name);
+
+    return 0;
+}
+
+void pa_volume_control_release(pa_volume_control *control) {
+    pa_assert(control);
+
+    if (!control->present)
+        return;
+
+    control->present = false;
+
+    control->userdata = NULL;
+    control->set_volume = NULL;
+
+    if (!control->linked || control->unlinked)
+        return;
+
+    pa_log_debug("Volume control %s became not present.", control->name);
+}
+
+void pa_volume_control_set_description(pa_volume_control *control, const char *description) {
+    char *old_description;
+
+    pa_assert(control);
+    pa_assert(description);
+
+    old_description = control->description;
+
+    if (pa_streq(description, old_description))
+        return;
+
+    control->description = pa_xstrdup(description);
+
+    if (control->persistent)
+        pa_inidb_cell_set_value(control->db_cells.description, description);
+
+    if (!control->linked || control->unlinked) {
+        pa_xfree(old_description);
+        return;
+    }
+
+    pa_log_debug("The description of volume control %s changed from \"%s\" to \"%s\".", control->name, old_description,
+                 description);
+    pa_xfree(old_description);
+    pa_hook_fire(&control->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_DESCRIPTION_CHANGED], control);
 }
 
 static void set_volume_internal(pa_volume_control *control, const pa_bvolume *volume, bool set_volume, bool set_balance) {
     pa_bvolume old_volume;
     bool volume_changed;
     bool balance_changed;
+    char *str;
 
     pa_assert(control);
     pa_assert(volume);
@@ -209,11 +276,25 @@ static void set_volume_internal(pa_volume_control *control, const pa_bvolume *vo
     if (!volume_changed && !balance_changed)
         return;
 
-    if (volume_changed)
+    if (volume_changed) {
         control->volume.volume = volume->volume;
 
-    if (balance_changed)
+        if (control->persistent) {
+            str = pa_sprintf_malloc("%u", control->volume.volume);
+            pa_inidb_cell_set_value(control->db_cells.volume, str);
+            pa_xfree(str);
+        }
+    }
+
+    if (balance_changed) {
         pa_bvolume_copy_balance(&control->volume, volume);
+
+        if (control->persistent) {
+            pa_assert_se(pa_bvolume_balance_to_string(&control->volume, &str) >= 0);
+            pa_inidb_cell_set_value(control->db_cells.balance, str);
+            pa_xfree(str);
+        }
+    }
 
     if (!control->linked || control->unlinked)
         return;
@@ -248,62 +329,69 @@ int pa_volume_control_set_volume(pa_volume_control *control, const pa_bvolume *v
     pa_assert(control);
     pa_assert(volume);
 
+    if (control->set_volume_in_progress)
+        return 0;
+
     volume_local = *volume;
 
-    if (!control->set_volume) {
-        pa_log_info("Tried to set the volume of volume control %s, but the volume control doesn't support the operation.",
-                    control->name);
-        return -PA_ERR_NOTSUPPORTED;
-    }
-
-    if (set_balance
-            && !control->channel_map_is_writable
-            && !pa_channel_map_equal(&volume_local.channel_map, &control->volume.channel_map))
+    if (set_balance && !pa_channel_map_equal(&volume_local.channel_map, &control->volume.channel_map))
         pa_bvolume_remap(&volume_local, &control->volume.channel_map);
 
     if (pa_bvolume_equal(&volume_local, &control->volume, set_volume, set_balance))
         return 0;
 
-    control->set_volume_in_progress = true;
-    r = control->set_volume(control, &volume_local, set_volume, set_balance);
-    control->set_volume_in_progress = false;
+    if (control->linked && control->present) {
+        control->set_volume_in_progress = true;
+        r = control->set_volume(control, volume, &volume_local, set_volume, set_balance);
+        control->set_volume_in_progress = false;
 
-    if (r >= 0)
-        set_volume_internal(control, &volume_local, set_volume, set_balance);
+        if (r < 0) {
+            pa_log("Setting the volume of volume control %s failed.", control->name);
+            return r;
+        }
+    }
 
-    return r;
+    set_volume_internal(control, &volume_local, set_volume, set_balance);
+
+    return 0;
 }
 
-void pa_volume_control_description_changed(pa_volume_control *control, const char *new_description) {
-    char *old_description;
+void pa_volume_control_set_channel_map(pa_volume_control *control, const pa_channel_map *map) {
+    pa_bvolume bvolume;
 
     pa_assert(control);
-    pa_assert(new_description);
+    pa_assert(map);
 
-    old_description = control->description;
-
-    if (pa_streq(new_description, old_description))
+    if (pa_channel_map_equal(map, &control->volume.channel_map))
         return;
 
-    control->description = pa_xstrdup(new_description);
-    pa_log_debug("The description of volume control %s changed from \"%s\" to \"%s\".", control->name, old_description,
-                 new_description);
-    pa_xfree(old_description);
-    pa_hook_fire(&control->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_DESCRIPTION_CHANGED], control);
+    pa_bvolume_copy_balance(&bvolume, &control->volume);
+    pa_bvolume_remap(&bvolume, map);
+
+    set_volume_internal(control, &bvolume, false, true);
 }
 
-void pa_volume_control_volume_changed(pa_volume_control *control, const pa_bvolume *new_volume, bool volume_changed,
-                                      bool balance_changed) {
+void pa_volume_control_set_convertible_to_dB(pa_volume_control *control, bool convertible) {
+    bool old_convertible;
+
     pa_assert(control);
-    pa_assert(new_volume);
 
-    if (!control->linked)
+    old_convertible = control->convertible_to_dB;
+
+    if (convertible == old_convertible)
         return;
 
-    if (control->set_volume_in_progress)
+    control->convertible_to_dB = convertible;
+
+    if (control->persistent)
+        pa_inidb_cell_set_value(control->db_cells.convertible_to_dB, pa_boolean_to_string(convertible));
+
+    if (!control->linked || control->unlinked)
         return;
 
-    set_volume_internal(control, new_volume, volume_changed, balance_changed);
+    pa_log_debug("The volume of volume control %s became %sconvertible to dB.", control->name, convertible ? "" : "not ");
+
+    pa_hook_fire(&control->volume_api->hooks[PA_VOLUME_API_HOOK_VOLUME_CONTROL_CONVERTIBLE_TO_DB_CHANGED], control);
 }
 
 void pa_volume_control_add_device(pa_volume_control *control, pa_device *device) {
@@ -332,32 +420,4 @@ void pa_volume_control_remove_default_for_device(pa_volume_control *control, pa_
     pa_assert(device);
 
     pa_assert_se(pa_hashmap_remove(control->default_for_devices, device));
-}
-
-void pa_volume_control_add_stream(pa_volume_control *control, pas_stream *stream) {
-    pa_assert(control);
-    pa_assert(stream);
-
-    pa_assert_se(pa_hashmap_put(control->streams, stream, stream) >= 0);
-}
-
-void pa_volume_control_remove_stream(pa_volume_control *control, pas_stream *stream) {
-    pa_assert(control);
-    pa_assert(stream);
-
-    pa_assert_se(pa_hashmap_remove(control->streams, stream));
-}
-
-void pa_volume_control_add_audio_group(pa_volume_control *control, pa_audio_group *group) {
-    pa_assert(control);
-    pa_assert(group);
-
-    pa_assert_se(pa_hashmap_put(control->audio_groups, group, group) >= 0);
-}
-
-void pa_volume_control_remove_audio_group(pa_volume_control *control, pa_audio_group *group) {
-    pa_assert(control);
-    pa_assert(group);
-
-    pa_assert_se(pa_hashmap_remove(control->audio_groups, group));
 }
