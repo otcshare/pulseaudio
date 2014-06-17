@@ -24,6 +24,7 @@
 #include <config.h>
 #endif
 
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
@@ -33,6 +34,7 @@
 #include <pulse/xmalloc.h>
 
 #include <pulsecore/module.h>
+#include <pulsecore/core-error.h>
 #include <pulsecore/core-rtclock.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/core-scache.h>
@@ -64,11 +66,21 @@ static int core_process_msg(pa_msgobject *o, int code, void *userdata, int64_t o
 static void core_free(pa_object *o);
 
 pa_core* pa_core_new(pa_mainloop_api *m, bool shared, size_t shm_size) {
+    int r;
+    char *config_home_dir;
     pa_core* c;
     pa_mempool *pool;
     int j;
 
     pa_assert(m);
+
+    r = pa_get_config_home_dir(true, &config_home_dir);
+    if (r >= 0) {
+        r = pa_make_secure_dir(config_home_dir, 0700, (uid_t) -1, (gid_t) -1, true);
+        pa_xfree(config_home_dir);
+        if (r < 0)
+            pa_log("Failed to create config home directory (%s): %s", config_home_dir, pa_cstrerror(errno));
+    }
 
     if (shared) {
         if (!(pool = pa_mempool_new(shared, shm_size))) {
