@@ -257,6 +257,7 @@ typedef struct pa_source_output_new_data {
     pa_idxset *nego_formats;
 
     pa_cvolume volume, volume_factor, volume_factor_source;
+    pa_cvolume reference_ratio;
     bool muted:1;
 
     bool sample_spec_is_set:1;
@@ -265,7 +266,7 @@ typedef struct pa_source_output_new_data {
     bool volume_is_set:1, volume_factor_is_set:1, volume_factor_source_is_set:1;
     bool muted_is_set:1;
 
-    bool volume_is_absolute:1;
+    bool volume_is_relative:1;
 
     bool volume_writable:1;
 
@@ -276,7 +277,7 @@ pa_source_output_new_data* pa_source_output_new_data_init(pa_source_output_new_d
 void pa_source_output_new_data_set_sample_spec(pa_source_output_new_data *data, const pa_sample_spec *spec);
 void pa_source_output_new_data_set_channel_map(pa_source_output_new_data *data, const pa_channel_map *map);
 bool pa_source_output_new_data_is_passthrough(pa_source_output_new_data *data);
-void pa_source_output_new_data_set_volume(pa_source_output_new_data *data, const pa_cvolume *volume);
+void pa_source_output_new_data_set_volume(pa_source_output_new_data *data, const pa_cvolume *volume, bool relative);
 void pa_source_output_new_data_apply_volume_factor(pa_source_output_new_data *data, const pa_cvolume *volume_factor);
 void pa_source_output_new_data_apply_volume_factor_source(pa_source_output_new_data *data, const pa_cvolume *volume_factor);
 void pa_source_output_new_data_set_muted(pa_source_output_new_data *data, bool mute);

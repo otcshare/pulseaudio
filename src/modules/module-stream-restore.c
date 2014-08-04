@@ -1481,9 +1481,7 @@ static pa_hook_result_t sink_input_fixate_hook_callback(pa_core *c, pa_sink_inpu
 
                 v = e->volume;
                 pa_cvolume_remap(&v, &e->channel_map, &new_data->channel_map);
-                pa_sink_input_new_data_set_volume(new_data, &v);
-
-                new_data->volume_is_absolute = false;
+                pa_sink_input_new_data_set_volume(new_data, &v, true);
                 new_data->save_volume = true;
             }
         }
@@ -1578,9 +1576,7 @@ static pa_hook_result_t source_output_fixate_hook_callback(pa_core *c, pa_source
 
                 v = e->volume;
                 pa_cvolume_remap(&v, &e->channel_map, &new_data->channel_map);
-                pa_source_output_new_data_set_volume(new_data, &v);
-
-                new_data->volume_is_absolute = false;
+                pa_source_output_new_data_set_volume(new_data, &v, true);
                 new_data->save_volume = true;
             }
         }

@@ -86,12 +86,44 @@ bool pa_source_output_new_data_is_passthrough(pa_source_output_new_data *data) {
     return false;
 }
 
-void pa_source_output_new_data_set_volume(pa_source_output_new_data *data, const pa_cvolume *volume) {
+void pa_source_output_new_data_set_volume(pa_source_output_new_data *data, const pa_cvolume *volume, bool relative) {
+    pa_cvolume remapped_source_volume;
+
     pa_assert(data);
     pa_assert(data->volume_writable);
 
     if ((data->volume_is_set = !!volume))
         data->volume = *volume;
+    else
+        return;
+
+    data->volume_is_relative = relative;
+
+    if (data->source) {
+        remapped_source_volume = data->source->reference_volume;
+        pa_cvolume_remap(&remapped_source_volume, &data->source->channel_map, &data->channel_map);
+    }
+
+    if (relative) {
+        data->reference_ratio = data->volume;
+
+        if (data->source && pa_source_flat_volume_enabled(data->source)) {
+            /* Let's keep data->volume as absolute, so that modules won't ever
+             * have to specially handle the relative case. Modules inspecting
+             * the volume should do so in the FIXATE hook, and at that point
+             * data->source is always set. data->volume is relative only during
+             * the time before routing, and only if the source output owner
+             * requested relative volume. */
+            pa_sw_cvolume_multiply(&data->volume, &data->volume, &remapped_source_volume);
+            data->volume_is_relative = false;
+        }
+    } else {
+        if (data->source)
+            pa_sw_cvolume_divide(&data->reference_ratio, &data->volume, &remapped_source_volume);
+
+        /* If data->source is not set, we can't compute the reference ratio.
+         * We'll compute it after routing. */
+    }
 }
 
 void pa_source_output_new_data_apply_volume_factor(pa_source_output_new_data *data, const pa_cvolume *volume_factor) {
@@ -226,6 +258,7 @@ int pa_source_output_new(
     pa_channel_map volume_map;
     int r;
     char *pt;
+    pa_cvolume v;
 
     pa_assert(_o);
     pa_assert(core);
@@ -316,18 +349,17 @@ int pa_source_output_new(
     if (r < 0)
         return r;
 
+    /* Now that the routing is done, we can finalize the volume if it has been
+     * set. If the set volume is relative, we convert it to absolute, and if
+     * it's absolute, we compute the reference ratio. */
+    if (data->volume_is_set)
+        pa_source_output_new_data_set_volume(data, &data->volume, data->volume_is_relative);
+
     /* Don't restore (or save) stream volume for passthrough streams and
      * prevent attenuation/gain */
     if (pa_source_output_new_data_is_passthrough(data)) {
-        data->volume_is_set = true;
-        pa_cvolume_reset(&data->volume, data->sample_spec.channels);
-        data->volume_is_absolute = true;
-        data->save_volume = false;
-    }
-
-    if (!data->volume_is_set) {
-        pa_cvolume_reset(&data->volume, data->sample_spec.channels);
-        data->volume_is_absolute = false;
+        pa_cvolume_reset(&v, data->sample_spec.channels);
+        pa_source_output_new_data_set_volume(data, &v, false);
         data->save_volume = false;
     }
 
@@ -378,6 +410,12 @@ int pa_source_output_new(
     if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SOURCE_OUTPUT_FIXATE], data)) < 0)
         return r;
 
+    if (!data->volume_is_set) {
+        pa_cvolume_reset(&v, data->sample_spec.channels);
+        pa_source_output_new_data_set_volume(data, &v, true);
+        data->save_volume = false;
+    }
+
     if ((data->flags & PA_SOURCE_OUTPUT_NO_CREATE_ON_SUSPEND) &&
         pa_source_get_state(data->source) == PA_SOURCE_SUSPENDED) {
         pa_log("Failed to create source output: source is suspended.");
@@ -427,18 +465,7 @@ int pa_source_output_new(
     o->sample_spec = data->sample_spec;
     o->channel_map = data->channel_map;
     o->format = pa_format_info_copy(data->format);
-
-    if (!data->volume_is_absolute && pa_source_flat_volume_enabled(o->source)) {
-        pa_cvolume remapped;
-
-        /* When the 'absolute' bool is not set then we'll treat the volume
-         * as relative to the source volume even in flat volume mode */
-        remapped = data->source->reference_volume;
-        pa_cvolume_remap(&remapped, &data->source->channel_map, &data->channel_map);
-        pa_sw_cvolume_multiply(&o->volume, &data->volume, &remapped);
-    } else
-        o->volume = data->volume;
-
+    o->volume = data->volume;
     o->volume_factor = data->volume_factor;
     o->volume_factor_source = data->volume_factor_source;
     o->real_ratio = o->reference_ratio = data->volume;
