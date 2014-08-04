@@ -162,6 +162,9 @@ static pa_hook_result_t process(struct userdata *u, pa_sink_input *i, bool creat
     if (!create)
         pa_hashmap_remove(u->cork_state, i);
 
+    if (!i->proplist)
+        return PA_HOOK_OK;
+
     if (!(role = pa_proplist_gets(i->proplist, PA_PROP_MEDIA_ROLE)))
         return PA_HOOK_OK;
 
