@@ -679,8 +679,7 @@ static record_stream* record_stream_new(
         pa_source_output_new_data_set_formats(&data, formats);
     data.direct_on_input = direct_on_input;
     if (volume) {
-        pa_source_output_new_data_set_volume(&data, volume);
-        data.volume_is_absolute = !relative_volume;
+        pa_source_output_new_data_set_volume(&data, volume, relative_volume);
         data.save_volume = false;
     }
     if (muted_set) {
@@ -1149,8 +1148,7 @@ static playback_stream* playback_stream_new(
         formats = NULL;
     }
     if (volume) {
-        pa_sink_input_new_data_set_volume(&data, volume);
-        data.volume_is_absolute = !relative_volume;
+        pa_sink_input_new_data_set_volume(&data, volume, relative_volume);
         data.save_volume = false;
     }
     if (muted_set) {

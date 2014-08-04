@@ -311,6 +311,7 @@ typedef struct pa_sink_input_new_data {
     pa_idxset *nego_formats;
 
     pa_cvolume volume;
+    pa_cvolume reference_ratio;
     bool muted:1;
     pa_hashmap *volume_factor_items, *volume_factor_sink_items;
 
@@ -320,7 +321,7 @@ typedef struct pa_sink_input_new_data {
     bool volume_is_set:1;
     bool muted_is_set:1;
 
-    bool volume_is_absolute:1;
+    bool volume_is_relative:1;
 
     bool volume_writable:1;
 
@@ -331,7 +332,7 @@ pa_sink_input_new_data* pa_sink_input_new_data_init(pa_sink_input_new_data *data
 void pa_sink_input_new_data_set_sample_spec(pa_sink_input_new_data *data, const pa_sample_spec *spec);
 void pa_sink_input_new_data_set_channel_map(pa_sink_input_new_data *data, const pa_channel_map *map);
 bool pa_sink_input_new_data_is_passthrough(pa_sink_input_new_data *data);
-void pa_sink_input_new_data_set_volume(pa_sink_input_new_data *data, const pa_cvolume *volume);
+void pa_sink_input_new_data_set_volume(pa_sink_input_new_data *data, const pa_cvolume *volume, bool relative);
 void pa_sink_input_new_data_add_volume_factor(pa_sink_input_new_data *data, const char *key, const pa_cvolume *volume_factor);
 void pa_sink_input_new_data_add_volume_factor_sink(pa_sink_input_new_data *data, const char *key, const pa_cvolume *volume_factor);
 void pa_sink_input_new_data_set_muted(pa_sink_input_new_data *data, bool mute);
