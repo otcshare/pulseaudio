@@ -2348,4 +2348,6 @@ void pa_sink_input_set_reference_ratio(pa_sink_input *i, const pa_cvolume *ratio
     pa_log_debug("Sink input %u reference ratio changed from %s to %s.", i->index,
                  pa_cvolume_snprint_verbose(old_ratio_str, sizeof(old_ratio_str), &old_ratio, &i->channel_map, true),
                  pa_cvolume_snprint_verbose(new_ratio_str, sizeof(new_ratio_str), ratio, &i->channel_map, true));
+
+    pa_hook_fire(&i->core->hooks[PA_CORE_HOOK_SINK_INPUT_REFERENCE_RATIO_CHANGED], i);
 }
