@@ -1718,4 +1718,6 @@ void pa_source_output_set_reference_ratio(pa_source_output *o, const pa_cvolume 
     pa_log_debug("Source output %u reference ratio changed from %s to %s.", o->index,
                  pa_cvolume_snprint_verbose(old_ratio_str, sizeof(old_ratio_str), &old_ratio, &o->channel_map, true),
                  pa_cvolume_snprint_verbose(new_ratio_str, sizeof(new_ratio_str), ratio, &o->channel_map, true));
+
+    pa_hook_fire(&o->core->hooks[PA_CORE_HOOK_SOURCE_OUTPUT_REFERENCE_RATIO_CHANGED], o);
 }

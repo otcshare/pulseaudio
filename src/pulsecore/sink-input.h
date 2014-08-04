@@ -440,7 +440,8 @@ void pa_sink_input_set_volume_direct(pa_sink_input *i, const pa_cvolume *volume)
 /* Called from the main thread, from sink.c only. This shouldn't be a public
  * function, but the flat volume logic in sink.c currently needs a way to
  * directly set the sink input reference ratio. This function simply sets
- * i->reference_ratio and logs a message if the value changes. */
+ * i->reference_ratio and logs a message and fires a hook if the value
+ * changes. */
 void pa_sink_input_set_reference_ratio(pa_sink_input *i, const pa_cvolume *ratio);
 
 #define pa_sink_input_assert_io_context(s) \
