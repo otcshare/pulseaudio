@@ -579,7 +579,11 @@ static pa_hook_result_t sink_input_unlink_hook_callback(pa_core *c, pa_sink_inpu
     const char *role;
     pa_sink *sink = sink_input->sink;
 
-    pa_assert(sink);
+    if (!sink)
+        return PA_HOOK_OK;
+
+    if (!sink_input->proplist)
+        return PA_HOOK_OK;
 
     role = pa_proplist_gets(sink_input->proplist, PA_PROP_MEDIA_ROLE);
 
@@ -594,7 +598,11 @@ static pa_hook_result_t source_output_unlink_hook_callback(pa_core *c, pa_source
     const char *role;
     pa_source *source = source_output->source;
 
-    pa_assert(source);
+    if (!source)
+        return PA_HOOK_OK;
+
+    if (!source_output->proplist)
+        return PA_HOOK_OK;
 
     role = pa_proplist_gets(source_output->proplist, PA_PROP_MEDIA_ROLE);
 
