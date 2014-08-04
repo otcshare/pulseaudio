@@ -145,12 +145,44 @@ bool pa_sink_input_new_data_is_passthrough(pa_sink_input_new_data *data) {
     return false;
 }
 
-void pa_sink_input_new_data_set_volume(pa_sink_input_new_data *data, const pa_cvolume *volume) {
+void pa_sink_input_new_data_set_volume(pa_sink_input_new_data *data, const pa_cvolume *volume, bool relative) {
+    pa_cvolume remapped_sink_volume;
+
     pa_assert(data);
     pa_assert(data->volume_writable);
 
     if ((data->volume_is_set = !!volume))
         data->volume = *volume;
+    else
+        return;
+
+    data->volume_is_relative = relative;
+
+    if (data->sink) {
+        remapped_sink_volume = data->sink->reference_volume;
+        pa_cvolume_remap(&remapped_sink_volume, &data->sink->channel_map, &data->channel_map);
+    }
+
+    if (relative) {
+        data->reference_ratio = data->volume;
+
+        if (data->sink && pa_sink_flat_volume_enabled(data->sink)) {
+            /* Let's keep data->volume as absolute, so that modules won't ever
+             * have to specially handle the relative case. Modules inspecting
+             * the volume should do so in the FIXATE hook, and at that point
+             * data->sink is always set. data->volume is relative only during
+             * the time before routing, and only if the sink input owner
+             * requested relative volume. */
+            pa_sw_cvolume_multiply(&data->volume, &data->volume, &remapped_sink_volume);
+            data->volume_is_relative = false;
+        }
+    } else {
+        if (data->sink)
+            pa_sw_cvolume_divide(&data->reference_ratio, &data->volume, &remapped_sink_volume);
+
+        /* If data->sink is not set, we can't compute the reference ratio.
+         * We'll compute it after routing. */
+    }
 }
 
 void pa_sink_input_new_data_add_volume_factor(pa_sink_input_new_data *data, const char *key, const pa_cvolume *volume_factor) {
@@ -292,6 +324,7 @@ int pa_sink_input_new(
     int r;
     char *pt;
     char *memblockq_name;
+    pa_cvolume v;
 
     pa_assert(_i);
     pa_assert(core);
@@ -380,18 +413,17 @@ int pa_sink_input_new(
     if (r != PA_OK)
         return r;
 
+    /* Now that the routing is done, we can finalize the volume if it has been
+     * set. If the set volume is relative, we convert it to absolute, and if
+     * it's absolute, we compute the reference ratio. */
+    if (data->volume_is_set)
+        pa_sink_input_new_data_set_volume(data, &data->volume, data->volume_is_relative);
+
     /* Don't restore (or save) stream volume for passthrough streams and
      * prevent attenuation/gain */
     if (pa_sink_input_new_data_is_passthrough(data)) {
-        data->volume_is_set = true;
-        pa_cvolume_reset(&data->volume, data->sample_spec.channels);
-        data->volume_is_absolute = true;
-        data->save_volume = false;
-    }
-
-    if (!data->volume_is_set) {
-        pa_cvolume_reset(&data->volume, data->sample_spec.channels);
-        data->volume_is_absolute = false;
+        pa_cvolume_reset(&v, data->sample_spec.channels);
+        pa_sink_input_new_data_set_volume(data, &v, false);
         data->save_volume = false;
     }
 
@@ -431,6 +463,12 @@ int pa_sink_input_new(
 
     if ((r = pa_hook_fire(&core->hooks[PA_CORE_HOOK_SINK_INPUT_FIXATE], data)) < 0)
         return r;
+
+    if (!data->volume_is_set) {
+        pa_cvolume_reset(&v, data->sample_spec.channels);
+        pa_sink_input_new_data_set_volume(data, &v, true);
+        data->save_volume = false;
+    }
 
     if ((data->flags & PA_SINK_INPUT_NO_CREATE_ON_SUSPEND) &&
         pa_sink_get_state(data->sink) == PA_SINK_SUSPENDED) {
@@ -482,18 +520,7 @@ int pa_sink_input_new(
     i->sample_spec = data->sample_spec;
     i->channel_map = data->channel_map;
     i->format = pa_format_info_copy(data->format);
-
-    if (!data->volume_is_absolute && pa_sink_flat_volume_enabled(i->sink)) {
-        pa_cvolume remapped;
-
-        /* When the 'absolute' bool is not set then we'll treat the volume
-         * as relative to the sink volume even in flat volume mode */
-        remapped = data->sink->reference_volume;
-        pa_cvolume_remap(&remapped, &data->sink->channel_map, &data->channel_map);
-        pa_sw_cvolume_multiply(&i->volume, &data->volume, &remapped);
-    } else
-        i->volume = data->volume;
-
+    i->volume = data->volume;
     i->volume_factor_items = data->volume_factor_items;
     data->volume_factor_items = NULL;
     volume_factor_from_hashmap(&i->volume_factor, i->volume_factor_items, i->sample_spec.channels);

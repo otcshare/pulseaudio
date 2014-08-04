@@ -302,7 +302,7 @@ int pa_play_file(
     data.driver = __FILE__;
     pa_sink_input_new_data_set_sample_spec(&data, &ss);
     pa_sink_input_new_data_set_channel_map(&data, &cm);
-    pa_sink_input_new_data_set_volume(&data, volume);
+    pa_sink_input_new_data_set_volume(&data, volume, false);
     pa_proplist_sets(data.proplist, PA_PROP_MEDIA_NAME, pa_path_get_filename(fname));
     pa_proplist_sets(data.proplist, PA_PROP_MEDIA_FILENAME, fname);
     pa_sndfile_init_proplist(u->sndfile, data.proplist);

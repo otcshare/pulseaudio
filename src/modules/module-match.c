@@ -234,7 +234,7 @@ static pa_hook_result_t sink_input_fixate_hook_callback(pa_core *c, pa_sink_inpu
                 pa_cvolume cv;
                 pa_log_debug("changing volume of sink input '%s' to 0x%03x", n, r->volume);
                 pa_cvolume_set(&cv, si->sample_spec.channels, r->volume);
-                pa_sink_input_new_data_set_volume(si, &cv);
+                pa_sink_input_new_data_set_volume(si, &cv, true);
             } else
                 pa_log_debug("the volume of sink input '%s' is not writable, can't change it", n);
         }
