@@ -76,6 +76,7 @@ struct pa_sink_input {
      * pa_sink_input_get_state(). That function will transparently
      * merge the thread_info.drained value in. */
     pa_sink_input_state_t state;
+    bool unlinked;
     pa_sink_input_flags_t flags;
 
     char *driver;                       /* may be NULL */
@@ -289,6 +290,11 @@ typedef struct pa_sink_input_send_event_hook_data {
 } pa_sink_input_send_event_hook_data;
 
 typedef struct pa_sink_input_new_data {
+    /* The sink input object is not properly initialized, so don't access the
+     * member variables! You can only rely on the state variable being
+     * initialized to PA_SINK_INPUT_INIT. */
+    pa_sink_input *sink_input;
+
     pa_sink_input_flags_t flags;
 
     pa_proplist *proplist;
