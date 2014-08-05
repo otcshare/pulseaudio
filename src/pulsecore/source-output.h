@@ -69,6 +69,7 @@ struct pa_source_output {
     pa_core *core;
 
     pa_source_output_state_t state;
+    bool unlinked;
     pa_source_output_flags_t flags;
 
     char *driver;                         /* may be NULL */
@@ -236,6 +237,11 @@ typedef struct pa_source_output_send_event_hook_data {
 } pa_source_output_send_event_hook_data;
 
 typedef struct pa_source_output_new_data {
+    /* The source output object is not properly initialized, so don't access
+     * the member variables! You can only rely on the state variable being
+     * initialized to PA_SOURCE_OUTPUT_INIT. */
+    pa_source_output *source_output;
+
     pa_source_output_flags_t flags;
 
     pa_proplist *proplist;
