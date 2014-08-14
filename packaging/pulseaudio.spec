@@ -181,6 +181,15 @@ Requires:   %{name} = %{version}-%{release}
 %description vala-bindings
 PA Vala bindings.
 
+%package realtime-scheduling
+Summary:    PA realtime scheduling
+Group:      Multimedia/Audio
+Requires:   %{name} = %{version}-%{release}
+Requires:   /usr/sbin/setcap
+
+%description realtime-scheduling
+PA realtime-scheduling.               .
+
 %prep
 %setup -q -T -b0
 echo "%{version}" > .tarball-version
@@ -267,6 +276,11 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 
 %post   -n libpulse-mainloop-glib -p /sbin/ldconfig
 %postun -n libpulse-mainloop-glib -p /sbin/ldconfig
+
+%post   realtime-scheduling
+/usr/sbin/setcap cap_sys_nice+ep /usr/bin/pulseaudio
+%postun realtime-scheduling
+/usr/sbin/setcap -r /usr/bin/pulseaudio
 
 %lang_package
 
@@ -471,5 +485,8 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_datadir}/vala/vapi/*
+
+%files realtime-scheduling
+%defattr(-,root,root,-)
 
 %docs_package
