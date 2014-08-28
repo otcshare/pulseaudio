@@ -1,3 +1,7 @@
+* Thu Aug 28 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- various volume fixes for main volume
+- realtime prio setting from separate package
+
 * Mon May 22 2014 Jaska Uimonen <jaska.uimonen@intel.com>
 - update to pulseaudio 5.0
 - clean tizen patch set
