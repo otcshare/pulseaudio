@@ -249,7 +249,7 @@ int pa__init(pa_module*m) {
     int r;
 #endif
 
-#if defined(USE_PROTOCOL_NATIVE) || defined(USE_PROTOCOL_HTTP)
+#if (defined(USE_PROTOCOL_NATIVE) && !defined(USE_TCP_SOCKETS)) || defined(USE_PROTOCOL_HTTP)
     char t[256];
 #endif
 
@@ -368,14 +368,22 @@ int pa__init(pa_module*m) {
 
 #if defined(USE_PROTOCOL_NATIVE)
 #  if defined(USE_TCP_SOCKETS)
+/* Tizen hack: The pa_socket_server_get_address() calls are disabled for TCP,
+ * because they call pa_get_fqdn(), which in some testing environments causes
+ * 10 second delays. This hack prevents module-zeroconf-publish and from
+ * working, but who cares :) The proper fix would be to make the FQDN query
+ * asynchronous, bug tracked here:
+ * https://bugs.freedesktop.org/show_bug.cgi?id=81802 */
+#    if 0
     if (u->socket_server_ipv4)
         if (pa_socket_server_get_address(u->socket_server_ipv4, t, sizeof(t)))
             pa_native_protocol_add_server_string(u->native_protocol, t);
 
-#    ifdef HAVE_IPV6
+#      ifdef HAVE_IPV6
     if (u->socket_server_ipv6)
         if (pa_socket_server_get_address(u->socket_server_ipv6, t, sizeof(t)))
             pa_native_protocol_add_server_string(u->native_protocol, t);
+#      endif
 #    endif
 #  else
     if (pa_socket_server_get_address(u->socket_server_unix, t, sizeof(t)))
@@ -462,20 +470,23 @@ void pa__done(pa_module*m) {
     }
 #elif defined(USE_PROTOCOL_NATIVE)
     if (u->native_protocol) {
-
-        char t[256];
-
 #  if defined(USE_TCP_SOCKETS)
+/* See the previous comment about disabling pa_socket_server_get_address()
+ * (search for phrase "Tizen hack"). */
+#    if 0
         if (u->socket_server_ipv4)
             if (pa_socket_server_get_address(u->socket_server_ipv4, t, sizeof(t)))
                 pa_native_protocol_remove_server_string(u->native_protocol, t);
 
-#    ifdef HAVE_IPV6
+#      ifdef HAVE_IPV6
         if (u->socket_server_ipv6)
             if (pa_socket_server_get_address(u->socket_server_ipv6, t, sizeof(t)))
                 pa_native_protocol_remove_server_string(u->native_protocol, t);
+#      endif
 #    endif
 #  else
+        char t[256];
+
         if (u->socket_server_unix)
             if (pa_socket_server_get_address(u->socket_server_unix, t, sizeof(t)))
                 pa_native_protocol_remove_server_string(u->native_protocol, t);
