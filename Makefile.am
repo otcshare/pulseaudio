@@ -53,6 +53,15 @@ dist_vapi_DATA = \
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libpulse.pc libpulse-simple.pc
 
+filterdir = $(pulseconfdir)/filter
+filter_DATA = filter/filter_44100_48000.dat \
+	      filter/filter_44100_8000.dat \
+	      filter/filter_48000_44100.dat \
+	      filter/filter_8000_44100.dat
+dist_filter_DATA = filter/filter_44100_48000.dat \
+	      filter/filter_44100_8000.dat \
+	      filter/filter_48000_44100.dat \
+	      filter/filter_8000_44100.dat
 if HAVE_GLIB20
 pkgconfig_DATA += \
 	 libpulse-mainloop-glib.pc
