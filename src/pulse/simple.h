@@ -31,6 +31,7 @@
 #include <pulse/cdecl.h>
 #include <pulse/version.h>
 
+#include <pulse/proplist.h>
 /** \page simple Simple API
  *
  * \section overv_sec Overview
@@ -129,6 +130,19 @@ pa_simple* pa_simple_new(
     int *error                          /**< A pointer where the error code is stored when the routine returns NULL. It is OK to pass NULL here. */
     );
 
+/** Create a new connection to the server with proplist */
+pa_simple* pa_simple_new_proplist(
+    const char *server,                 /**< Server name, or NULL for default */
+    const char *name,                   /**< A descriptive name for this client (application name, ...) */
+    pa_stream_direction_t dir,          /**< Open this stream for recording or playback? */
+    const char *dev,                    /**< Sink (resp. source) name, or NULL for default */
+    const char *stream_name,            /**< A descriptive name for this client (application name, song title, ...) */
+    const pa_sample_spec *ss,           /**< The sample type to use */
+    const pa_channel_map *map,          /**< The channel map to use, or NULL for default */
+    const pa_buffer_attr *attr,         /**< Buffering attributes, or NULL for default */
+    pa_proplist *proplist,	/**< Properties, or NULL for default */
+    int *error                          /**< A pointer where the error code is stored when the routine returns NULL. It is OK to pass NULL here. */
+    );
 /** Close and free the connection to the server. The connection object becomes invalid when this is called. */
 void pa_simple_free(pa_simple *s);
 
@@ -155,6 +169,20 @@ pa_usec_t pa_simple_get_latency(pa_simple *s, int *error);
 
 /** Flush the playback or record buffer. This discards any audio in the buffer. */
 int pa_simple_flush(pa_simple *s, int *error);
+/** Mute the playback stream */
+int pa_simple_mute(pa_simple *p, int mute, int *rerror);
+
+/** Volume control the playback stream */
+int pa_simple_set_volume(pa_simple *p, int volume, int *rerror);
+
+/** Get stream index */
+int pa_simple_get_stream_index(pa_simple *p, unsigned int *idx, int *rerror);
+
+/** Cork on=1/off=0 stream */
+int pa_simple_cork(pa_simple *p, int cork, int *rerror);
+
+/** Check whether stream is corked or not */
+int pa_simple_is_corked(pa_simple *p);
 
 PA_C_DECL_END
 
