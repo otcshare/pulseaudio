@@ -678,6 +678,18 @@ AS_IF([test "x$enable_samplerate" = "xyes" && test "x$HAVE_LIBSAMPLERATE" = "x0"
 AM_CONDITIONAL([HAVE_LIBSAMPLERATE], [test "x$HAVE_LIBSAMPLERATE" = x1])
 AS_IF([test "x$HAVE_LIBSAMPLERATE" = "x1"], AC_DEFINE([HAVE_LIBSAMPLERATE], 1, [Have libsamplerate?]))
 
+#### samsung PM API support ####
+
+AC_ARG_ENABLE(pmlock, AC_HELP_STRING([--enable-pmlock], [using Samsung power management api]),
+[
+ case "${enableval}" in
+     yes) USE_PM_LOCK=yes ;;
+     no)  USE_PM_LOCK=no ;;
+     *)   AC_MSG_ERROR(bad value ${enableval} for --enable-pmlock) ;;
+ esac
+ ],[USE_PM_LOCK=no])
+AM_CONDITIONAL(USE_PM_LOCK, test "x$USE_PM_LOCK" = "xyes")
+
 #### Database support ####
 
 AC_ARG_WITH([database],
@@ -1475,6 +1487,7 @@ AS_IF([test "x$HAVE_ESOUND" = "x1" -a "x$USE_PER_USER_ESOUND_SOCKET" = "x1"], EN
 AS_IF([test "x$HAVE_GCOV" = "x1"], ENABLE_GCOV=yes, ENABLE_GCOV=no)
 AS_IF([test "x$HAVE_LIBCHECK" = "x1"], ENABLE_TESTS=yes, ENABLE_TESTS=no)
 AS_IF([test "x$enable_legacy_database_entry_format" != "xno"], ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=yes, ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=no)
+AS_IF([test "x$USE_PM_LOCK" = "x1"], ENABLE_PM_LOCK=yes, ENABLE_PM_LOCK=no)
 
 echo "
  ---{ $PACKAGE_NAME $VERSION }---
@@ -1540,6 +1553,9 @@ echo "
     Preopened modules:             ${PREOPEN_MODS}
 
     Legacy Database Entry Support: ${ENABLE_LEGACY_DATABASE_ENTRY_FORMAT}
+
+    Tizen
+      pmapi:                       ${ENABLE_PM_LOCK}
 "
 
 if test "${ENABLE_SPEEX}" = "no" && test "${ENABLE_WEBRTC}" = "no" && test "${ENABLE_ADRIAN_EC}" = "no" ; then
