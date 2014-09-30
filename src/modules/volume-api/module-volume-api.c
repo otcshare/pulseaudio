@@ -235,8 +235,12 @@ static void fill_volume_control_info(pa_tagstruct *tagstruct, pa_volume_control 
     pa_tagstruct_put_volume(tagstruct, control->volume.volume);
     pa_tagstruct_put_channel_map(tagstruct, &control->volume.channel_map);
 
-    for (i = 0; i < control->volume.channel_map.channels; i++)
-        pa_tagstruct_putu64(tagstruct, *((uint64_t *) &control->volume.balance[i]));
+    for (i = 0; i < control->volume.channel_map.channels; i++) {
+        uint64_t u;
+
+        memcpy(&u, &control->volume.balance[i], sizeof(uint64_t));
+        pa_tagstruct_putu64(tagstruct, u);
+    }
 
     pa_tagstruct_put_boolean(tagstruct, control->convertible_to_dB);
 }
@@ -404,7 +408,7 @@ static int command_set_volume_control_volume(struct userdata *u, pa_native_conne
             if (pa_tagstruct_getu64(tagstruct, &balance) < 0)
                 goto fail_parse;
 
-            bvolume.balance[i] = *((double *) &balance);
+            memcpy(&bvolume.balance[i], &balance, sizeof(double));
 
             if (!pa_balance_valid(bvolume.balance[i]))
                 goto fail_parse;

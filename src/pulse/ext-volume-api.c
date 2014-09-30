@@ -852,7 +852,7 @@ static void get_volume_control_info_cb(pa_pdispatch *pdispatch, uint32_t command
                 if (pa_tagstruct_getu64(tagstruct, &balance) < 0)
                     goto fail_parse;
 
-                info.volume.balance[channel] = *((double *) &balance);
+                memcpy(&info.volume.balance[channel], &balance, sizeof(double));
 
                 if (!pa_ext_volume_api_balance_valid(info.volume.balance[channel]))
                     goto fail_parse;
@@ -1021,8 +1021,12 @@ pa_operation *pa_ext_volume_api_set_volume_control_volume_by_index(pa_context *c
     pa_tagstruct_put_volume(tagstruct, v);
     pa_tagstruct_put_channel_map(tagstruct, &channel_map);
 
-    for (i = 0; i < channel_map.channels; i++)
-        pa_tagstruct_putu64(tagstruct, *((uint64_t *) &volume->balance[i]));
+    for (i = 0; i < channel_map.channels; i++) {
+        uint64_t balance;
+
+        memcpy(&balance, &volume->balance[i], sizeof(uint64_t));
+        pa_tagstruct_putu64(tagstruct, balance);
+    }
 
     pa_pstream_send_tagstruct(context->pstream, tagstruct);
     pa_pdispatch_register_reply(context->pdispatch, tag, DEFAULT_TIMEOUT, pa_context_simple_ack_callback,
@@ -1074,8 +1078,12 @@ pa_operation *pa_ext_volume_api_set_volume_control_volume_by_name(pa_context *co
     pa_tagstruct_put_volume(tagstruct, v);
     pa_tagstruct_put_channel_map(tagstruct, &channel_map);
 
-    for (i = 0; i < channel_map.channels; i++)
-        pa_tagstruct_putu64(tagstruct, *((uint64_t *) &volume->balance[i]));
+    for (i = 0; i < channel_map.channels; i++) {
+        uint64_t balance;
+
+        memcpy(&balance, &volume->balance[i], sizeof(uint64_t));
+        pa_tagstruct_putu64(tagstruct, balance);
+    }
 
     pa_pstream_send_tagstruct(context->pstream, tagstruct);
     pa_pdispatch_register_reply(context->pdispatch, tag, DEFAULT_TIMEOUT, pa_context_simple_ack_callback,
