@@ -1,0 +1,9 @@
+[Unit]
+Description = PulseAudio system instance
+
+[Service]
+ExecStart = @PA_BINARY@ --system --daemonize=no --disallow-exit
+Restart = on-failure
+
+[Install]
+Also = pulseaudio.socket

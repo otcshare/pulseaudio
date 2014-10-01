@@ -21,6 +21,7 @@ paplay
 pasuspender
 pax11publish
 pulseaudio
+pulseaudio.service
 start-pulseaudio-x11
 start-pulseaudio-kde
 *-symdef.h

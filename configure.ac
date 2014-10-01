@@ -1277,6 +1277,12 @@ AS_IF([test "x$HAVE_SYSTEMD" = "x1"],
         HAVE_SYSTEMD_JOURNAL=1
     ])
 
+AC_ARG_WITH([systemdsystemunitdir],
+        AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd system service files]),
+        [systemdsystemunitdir=$withval], [systemdsystemunitdir="${libdir}/systemd/system"])
+
+AC_SUBST(systemdsystemunitdir)
+
 AC_ARG_WITH([systemduserunitdir],
         AS_HELP_STRING([--with-systemduserunitdir=DIR], [Directory for systemd user service files]),
         [], [with_systemduserunitdir=$($PKG_CONFIG --variable=systemduserunitdir systemd)])
@@ -1542,6 +1548,7 @@ AC_CONFIG_FILES([src/system.pa:src/daemon/system.pa.in],
 AS_IF([test "x$HAVE_SYSTEMD_DAEMON" = "x1"],
     [
         AC_CONFIG_FILES([src/pulseaudio.service:src/daemon/systemd/user/pulseaudio.service.in])
+        AC_CONFIG_FILES([src/daemon/systemd/system/pulseaudio.service:src/daemon/systemd/system/pulseaudio.service.in])
     ])
 
 # CMake related ProjectConfig files
