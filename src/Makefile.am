@@ -1058,6 +1058,7 @@ modlibexec_LTLIBRARIES = \
 		libprotocol-simple.la \
 		libprotocol-http.la \
 		libprotocol-native.la \
+		libtunnel-manager.la \
 		libvolume-api.la
 
 if HAVE_WEBRTC
@@ -1110,6 +1111,14 @@ if HAVE_DBUS
 libprotocol_native_la_CFLAGS += $(DBUS_CFLAGS)
 libprotocol_native_la_LIBADD += $(DBUS_LIBS)
 endif
+
+libtunnel_manager_la_SOURCES = \
+		modules/tunnel-manager/remote-device.c modules/tunnel-manager/remote-device.h \
+		modules/tunnel-manager/remote-server.c modules/tunnel-manager/remote-server.h \
+		modules/tunnel-manager/tunnel-manager.c modules/tunnel-manager/tunnel-manager.h \
+		modules/tunnel-manager/tunnel-manager-config.c modules/tunnel-manager/tunnel-manager-config.h
+libtunnel_manager_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
+libtunnel_manager_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
 
 libvolume_api_la_SOURCES = \
 		modules/volume-api/audio-group.c modules/volume-api/audio-group.h \
@@ -1178,6 +1187,7 @@ modlibexec_LTLIBRARIES += \
 		module-cli-protocol-tcp.la \
 		module-main-volume-policy.la \
 		module-simple-protocol-tcp.la \
+		module-tunnel-manager.la \
 		module-volume-api.la \
 		module-null-sink.la \
 		module-null-source.la \
@@ -1475,6 +1485,7 @@ SYMDEF_FILES = \
 		module-pipe-source-symdef.h \
 		module-simple-protocol-tcp-symdef.h \
 		module-simple-protocol-unix-symdef.h \
+		module-tunnel-manager-symdef.h \
 		module-volume-api-symdef.h \
 		module-native-protocol-tcp-symdef.h \
 		module-native-protocol-unix-symdef.h \
@@ -1595,6 +1606,12 @@ module_simple_protocol_unix_la_SOURCES = modules/module-protocol-stub.c
 module_simple_protocol_unix_la_CFLAGS = -DUSE_UNIX_SOCKETS -DUSE_PROTOCOL_SIMPLE $(AM_CFLAGS)
 module_simple_protocol_unix_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_simple_protocol_unix_la_LIBADD = $(MODULE_LIBADD) libprotocol-simple.la
+
+# Tunnel manager
+
+module_tunnel_manager_la_SOURCES = modules/tunnel-manager/module-tunnel-manager.c
+module_tunnel_manager_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_tunnel_manager_la_LIBADD = $(MODULE_LIBADD) libtunnel-manager.la
 
 # Volume API
 
