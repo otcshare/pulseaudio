@@ -118,7 +118,7 @@ Headers and libraries for developing pulseaudio modules outside
 the source tree.
 
 %package config
-Summary: Default configuration for PulseAudio.
+Summary: PA default configuration
 Group: System Environment/Configuration
 
 %description config
@@ -129,49 +129,49 @@ Summary: PA module-raop
 Group:   Multimedia/Audio
 
 %description module-raop
-PA module-raop.
+PulseAudio module-raop.
 
 %package module-filter
 Summary: PA module-filter
 Group:   Multimedia/Audio
 
 %description module-filter
-PA module-filter.
+PulseAudio module-filter.
 
 %package module-combine-sink
 Summary: PA module-combine-sink
 Group:   Multimedia/Audio
 
 %description module-combine-sink
-PA module-combine-sink.
+PulseAudio module-combine-sink.
 
 %package module-augment-properties
 Summary: PA module-augment-properties
 Group:   Multimedia/Audio
 
 %description module-augment-properties
-PA module-augment-properties.
+PulseAudio module-augment-properties.
 
 %package module-dbus-protocol
 Summary: PA module-dbus-protocol
 Group:   Multimedia/Audio
 
 %description module-dbus-protocol
-PA module-dbus-protocol.
+PulseAudio module-dbus-protocol.
 
 %package module-null-source
 Summary: PA module-null-source
 Group:   Multimedia/Audio
 
 %description module-null-source
-PA module-null-source.
+PulseAudio module-null-source.
 
 %package module-switch-on-connect
 Summary: PA module-swich-on-connect
 Group:   Multimedia/Audio
 
 %description module-switch-on-connect
-PA module-swich-on-connect.
+PulseAudio module-swich-on-connect.
 
 %package vala-bindings
 Summary:    PA Vala bindings
@@ -179,7 +179,7 @@ Group:      Multimedia/Audio
 Requires:   %{name} = %{version}-%{release}
 
 %description vala-bindings
-PA Vala bindings.
+PulseAudio Vala bindings.
 
 %package realtime-scheduling
 Summary:    PA realtime scheduling
@@ -188,7 +188,7 @@ Requires:   %{name} = %{version}-%{release}
 Requires:   /usr/sbin/setcap
 
 %description realtime-scheduling
-PA realtime-scheduling.               .
+PulseAudio realtime-scheduling.
 
 %prep
 %setup -q -T -b0
@@ -198,8 +198,9 @@ cp %{SOURCE1001} .
 %build
 export CFLAGS="%{optflags} -fno-strict-aliasing"
 export LD_AS_NEEDED=0
-./bootstrap.sh
-%configure --disable-static \
+NOCONFIGURE=yes ./bootstrap.sh
+%configure --prefix=%{_prefix} \
+        --disable-static \
         --enable-alsa \
         --disable-ipv6 \
         --disable-oss-output \
@@ -236,13 +237,13 @@ export LD_AS_NEEDED=0
         --with-system-group=pulse \
         --with-access-group=pulse-access
 
-make %{?_smp_mflags} V=0
+%__make %{?_smp_mflags} V=0
 
 %install
 %make_install
 %find_lang %{name}
 
-pushd %{buildroot}/etc/pulse/filter
+pushd %{buildroot}%{_sysconfdir}/pulse/filter
 ln -sf filter_8000_44100.dat filter_11025_44100.dat
 ln -sf filter_8000_44100.dat filter_12000_44100.dat
 ln -sf filter_8000_44100.dat filter_16000_44100.dat
@@ -251,22 +252,22 @@ ln -sf filter_8000_44100.dat filter_24000_44100.dat
 ln -sf filter_8000_44100.dat filter_32000_44100.dat
 popd
 
-rm -rf  %{buildroot}/etc/xdg/autostart/pulseaudio-kde.desktop
-rm -rf  %{buildroot}/usr/bin/start-pulseaudio-kde
-rm -rf  %{buildroot}/usr/bin/start-pulseaudio-x11
-rm -rf %{buildroot}/%{_libdir}/pulse-%{version}/modules/module-device-manager.so
+rm -rf  %{buildroot}%{_sysconfdir}/xdg/autostart/pulseaudio-kde.desktop
+rm -rf  %{buildroot}%{_bindir}/start-pulseaudio-kde
+rm -rf  %{buildroot}%{_bindir}/start-pulseaudio-x11
+rm -rf %{buildroot}%{_libdir}/pulse-%{version}/modules/module-device-manager.so
 
-mkdir -p %{buildroot}/%{_includedir}/pulsemodule/pulse
-mkdir -p %{buildroot}/%{_includedir}/pulsemodule/pulsecore
+mkdir -p %{buildroot}%{_includedir}/pulsemodule/pulse
+mkdir -p %{buildroot}%{_includedir}/pulsemodule/pulsecore
 
-cp %{buildroot}/%{_includedir}/pulse/*.h %{buildroot}/%{_includedir}/pulsemodule/pulse
+cp %{buildroot}%{_includedir}/pulse/*.h %{buildroot}%{_includedir}/pulsemodule/pulse
 
-fdupes  %{buildroot}/%{_datadir}
-fdupes  %{buildroot}/%{_includedir}
+fdupes  %{buildroot}%{_datadir}
+fdupes  %{buildroot}%{_includedir}
 
 # get rid of *.la files
-rm -f %{buildroot}/%{_libdir}/*.la
-rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
+rm -f %{buildroot}%{_libdir}/*.la
+rm -f %{buildroot}%{_libdir}/pulseaudio/*.la
 
 %post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig
@@ -287,11 +288,10 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %files
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
-%doc LICENSE GPL LGPL
-%{_sysconfdir}/pulse/filter/*.dat
+%license LICENSE GPL LGPL
+%config %{_sysconfdir}/pulse/filter/*.dat
 %{_bindir}/esdcompat
 %{_bindir}/pulseaudio
-%dir %{_libexecdir}/pulse
 %{_libexecdir}/pulse/*
 %{_libdir}/libpulsecore-%{version}.so
 %{_libdir}/udev/rules.d/90-pulseaudio.rules
