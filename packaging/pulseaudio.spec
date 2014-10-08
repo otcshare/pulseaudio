@@ -374,6 +374,7 @@ rm -f %{buildroot}/%{_libdir}/pulseaudio/*.la
 %{_libdir}/pulse-%{version}/modules/module-audio-groups.so
 
 %config(noreplace) /etc/bash_completion.d/pulseaudio-bash-completion.sh
+%{_datadir}/zsh/site-functions/_pulseaudio
 
 %files -n libpulse
 %manifest %{name}.manifest
