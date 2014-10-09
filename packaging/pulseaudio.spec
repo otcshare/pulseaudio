@@ -185,7 +185,7 @@ PA Vala bindings.
 Summary:    PA realtime scheduling
 Group:      Multimedia/Audio
 Requires:   %{name} = %{version}-%{release}
-Requires:   /usr/sbin/setcap
+Requires:   libcap-tools
 
 %description realtime-scheduling
 PA realtime-scheduling.               .
