@@ -1,3 +1,6 @@
+* Fri Oct 10 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- spec file cleanup
+
 * Thu Oct 09 2014 John L. Whiteman <john.l.whiteman@intel.com> accepted/tizen/ivi/20141001.194551-1-gabc4c3a
 - Fixed TC-1588. Added libcap-tools requirement
 
