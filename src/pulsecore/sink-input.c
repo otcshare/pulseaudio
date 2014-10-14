@@ -1521,6 +1521,29 @@ pa_cvolume *pa_sink_input_get_volume(pa_sink_input *i, pa_cvolume *volume, bool 
     return volume;
 }
 
+void pa_sink_input_set_mute_really(pa_sink_input *i, bool mute) {
+    bool old_mute;
+
+    old_mute = i->muted;
+
+    if (i->muted_internal != mute)
+        i->muted = i->muted_internal;
+    else
+        i->muted = mute;
+
+    pa_log_debug("The mute of sink input %u changed from %s to %s.", i->index, pa_yes_no(old_mute), pa_yes_no(mute));
+
+    pa_assert_se(pa_asyncmsgq_send(i->sink->asyncmsgq, PA_MSGOBJECT(i), PA_SINK_INPUT_MESSAGE_SET_SOFT_MUTE, NULL, 0, NULL) == 0);
+
+    /* The mute status changed, let's tell people so */
+    if (i->mute_changed)
+        i->mute_changed(i);
+
+    pa_subscription_post(i->core, PA_SUBSCRIPTION_EVENT_SINK_INPUT|PA_SUBSCRIPTION_EVENT_CHANGE, i->index);
+    pa_hook_fire(&i->core->hooks[PA_CORE_HOOK_SINK_INPUT_MUTE_CHANGED], i);
+
+}
+
 /* Called from main context */
 void pa_sink_input_set_mute(pa_sink_input *i, bool mute, bool save) {
     bool old_mute;
@@ -1536,19 +1559,17 @@ void pa_sink_input_set_mute(pa_sink_input *i, bool mute, bool save) {
         return;
     }
 
-    i->muted = mute;
-    pa_log_debug("The mute of sink input %u changed from %s to %s.", i->index, pa_yes_no(old_mute), pa_yes_no(mute));
+    pa_sink_input_mute_really(i, mute);
+}
 
-    i->save_muted = save;
+void pa_sink_input_set_mute_internal(pa_sink_input *i, bool mute) {
+    pa_sink_input_assert_ref(i);
+    pa_assert_ctl_context();
+    pa_assert(PA_SINK_INPUT_IS_LINKED(i->state));
 
-    pa_assert_se(pa_asyncmsgq_send(i->sink->asyncmsgq, PA_MSGOBJECT(i), PA_SINK_INPUT_MESSAGE_SET_SOFT_MUTE, NULL, 0, NULL) == 0);
+    i->muted_internal = mute;
 
-    /* The mute status changed, let's tell people so */
-    if (i->mute_changed)
-        i->mute_changed(i);
-
-    pa_subscription_post(i->core, PA_SUBSCRIPTION_EVENT_SINK_INPUT|PA_SUBSCRIPTION_EVENT_CHANGE, i->index);
-    pa_hook_fire(&i->core->hooks[PA_CORE_HOOK_SINK_INPUT_MUTE_CHANGED], i);
+    pa_sink_input_set_mute_really(i, mute);
 }
 
 /* Called from main thread */
