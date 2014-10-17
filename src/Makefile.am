@@ -98,6 +98,8 @@ EXTRA_DIST = \
 		daemon/esdcompat.in \
 		daemon/start-pulseaudio-x11.in \
 		daemon/start-pulseaudio-kde.in \
+		daemon/systemd/user/pulseaudio.service.in \
+		daemon/systemd/user/pulseaudio.socket \
 		utils/padsp.in \
 		utils/qpaeq \
 		modules/module-defs.h.m4 \
@@ -244,6 +246,14 @@ pax11publish_SOURCES = utils/pax11publish.c
 pax11publish_CFLAGS = $(AM_CFLAGS) $(X11_CFLAGS)
 pax11publish_LDADD = $(AM_LDADD) libpulse.la libpulsecommon-@PA_MAJORMINOR@.la $(X11_LIBS)
 pax11publish_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS)
+
+if HAVE_SYSTEMD_DAEMON
+
+systemduserunit_DATA = \
+    pulseaudio.service \
+    daemon/systemd/user/pulseaudio.socket
+
+endif
 
 ###################################
 #         Test programs           #
@@ -2248,7 +2258,7 @@ endif
 ###################################
 
 CLEANFILES += daemon/pulseaudio.desktop daemon/pulseaudio-kde.desktop
-DISTCLEANFILES = esdcompat client.conf default.pa system.pa daemon.conf start-pulseaudio-x11 start-pulseaudio-kde
+DISTCLEANFILES = esdcompat client.conf default.pa system.pa daemon.conf start-pulseaudio-x11 start-pulseaudio-kde pulseaudio.service
 
 if OS_IS_WIN32
 SYMLINK_PROGRAM=cd $(DESTDIR)$(bindir) && cp
