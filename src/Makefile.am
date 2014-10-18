@@ -253,6 +253,13 @@ systemduserunit_DATA = \
     pulseaudio.service \
     daemon/systemd/user/pulseaudio.socket
 
+install-data-hook:
+	$(MKDIR_P) -m 0755 \
+		$(DESTDIR)$(systemduserunitdir)/sockets.target.wants
+	( cd $(DESTDIR)$(systemduserunitdir)/sockets.target.wants && \
+		rm -f pulseaudio.socket && \
+		$(LN_S) ../pulseaudio.socket pulseaudio.socket )
+
 endif
 
 ###################################

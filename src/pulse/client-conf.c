@@ -57,7 +57,11 @@ static const pa_client_conf default_conf = {
     .default_source = NULL,
     .default_server = NULL,
     .default_dbus_server = NULL,
+#ifdef HAVE_SYSTEMD_DAEMON
+    .autospawn = false,
+#else
     .autospawn = true,
+#endif
     .disable_shm = false,
     .cookie_file = NULL,
     .cookie_valid = false,
