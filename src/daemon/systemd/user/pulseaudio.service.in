@@ -1,0 +1,10 @@
+[Unit]
+Description=Sound Service
+
+[Service]
+ExecStart=@PA_BINARY@
+Restart=always
+
+[Install]
+Also=pulseaudio.socket
+WantedBy=default.target
