@@ -364,6 +364,9 @@ rm -f %{buildroot}%{_libdir}/pulseaudio/*.la
 %{_libdir}/pulse-%{version}/modules/module-virtual-surround-sink.so
 %{_libdir}/pulse-%{version}/modules/module-role-ducking.so
 %{_libdir}/pulse-%{version}/modules/module-systemd-login.so
+%{_unitdir_user}/pulseaudio.service
+%{_unitdir_user}/pulseaudio.socket
+%{_unitdir_user}/sockets.target.wants/pulseaudio.socket
 %if %{with pulseaudio_samsung_policy}
 %{_libdir}/pulse-%{version}/modules/module-policy.so
 %endif
