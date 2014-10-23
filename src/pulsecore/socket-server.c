@@ -54,10 +54,6 @@ int allow_severity = LOG_INFO;
 int deny_severity = LOG_WARNING;
 #endif
 
-#ifdef HAVE_SYSTEMD_DAEMON
-#include <systemd/sd-daemon.h>
-#endif
-
 #endif /* HAVE_LIBWRAP */
 
 #include <pulse/xmalloc.h>
@@ -73,6 +69,10 @@ int deny_severity = LOG_WARNING;
 #include <pulsecore/arpa-inet.h>
 
 #include "socket-server.h"
+
+#ifdef HAVE_SYSTEMD_DAEMON
+#include <systemd/sd-daemon.h>
+#endif
 
 struct pa_socket_server {
     PA_REFCNT_DECLARE;
