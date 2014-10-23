@@ -411,7 +411,7 @@ int main(int argc, char *argv[]) {
     int r = 0, retval = 1, d = 0;
     bool valid_pid_file = false;
     bool ltdl_init = false;
-    int n, *passed_fds = NULL;
+    int num_fds, *passed_fds = NULL;
     const char *e;
 #ifdef HAVE_FORK
     int daemon_pipe[2] = { -1, -1 };
@@ -473,19 +473,19 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef HAVE_SYSTEMD_DAEMON
-    n = sd_listen_fds(0);
-    if (n > 0) {
-        int i = n;
+    num_fds = sd_listen_fds(0);
+    if (num_fds > 0) {
+        int i = num_fds;
 
-        passed_fds = pa_xnew(int, n+2);
-        passed_fds[n] = passed_fds[n+1] = -1;
+        passed_fds = pa_xnew(int, num_fds+2);
+        passed_fds[num_fds] = passed_fds[num_fds+1] = -1;
         while (i--)
             passed_fds[i] = SD_LISTEN_FDS_START + i;
     }
 #endif
 
     if (!passed_fds) {
-        n = 0;
+        num_fds = 0;
         passed_fds = pa_xnew(int, 2);
         passed_fds[0] = passed_fds[1] = -1;
     }
@@ -493,7 +493,7 @@ int main(int argc, char *argv[]) {
     if ((e = getenv("PULSE_PASSED_FD"))) {
         int passed_fd = atoi(e);
         if (passed_fd > 2)
-            passed_fds[n] = passed_fd;
+            passed_fds[num_fds] = passed_fd;
     }
 
     /* We might be autospawned, in which case have no idea in which
