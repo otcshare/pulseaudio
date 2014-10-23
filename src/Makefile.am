@@ -87,6 +87,7 @@ MODULE_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_
 ###################################
 
 EXTRA_DIST = \
+		daemon/cascaded.pa \
 		pulse/client.conf.in \
 		pulse/version.h.in \
 		tizen-ivi/audio-groups.conf \
@@ -110,6 +111,8 @@ EXTRA_DIST = \
 		modules/echo-cancel/adrian-license.txt
 
 pulseconf_DATA = \
+		daemon/cascaded.pa \
+		daemon/tunnel-manager.conf \
 		default.pa \
 		system.pa \
 		daemon.conf \

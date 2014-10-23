@@ -1,0 +1,5 @@
+# This configuration file is included from default.pa to enable access to
+# hardware from the user instance via the system instance (i.e. "cascaded"
+# setup).
+
+load-module module-tunnel-manager
