@@ -1,4 +1,16 @@
-* Thu Sep 29 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+* Fri Nov 5 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- Bring in systemd socket activation - fixes partly TC-1742 (xwalk doesn't autospawn pulse)
+- add tcp sockets to systemd socket activation
+- don't load esound protocol module
+- disable msbc from bluetooth, because the implementation is missing
+
+* Fri Oct 10 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- spec file cleanup
+
+* Thu Oct 09 2014 John L. Whiteman <john.l.whiteman@intel.com> accepted/tizen/ivi/20141001.194551-1-gabc4c3a
+- Fixed TC-1588. Added libcap-tools requirement
+
+* Mon Sep 29 2014 Jaska Uimonen <jaska.uimonen@intel.com> None
 - fix P1 bug with pulseaudio network queries causing delay in startup
 
 * Thu Aug 28 2014 Jaska Uimonen <jaska.uimonen@intel.com>
