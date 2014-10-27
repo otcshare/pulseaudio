@@ -82,9 +82,9 @@ load-module module-bluetooth-discover
 
 ifelse(@HAVE_AF_UNIX@, 1, [dnl
 ### Load several protocols
-.ifexists module-esound-protocol-unix@PA_SOEXT@
-load-module module-esound-protocol-unix
-.endif
+#.ifexists module-esound-protocol-unix@PA_SOEXT@
+#load-module module-esound-protocol-unix
+#.endif
 load-module module-native-protocol-unix
 ])dnl
 
