@@ -124,6 +124,16 @@ Group: System Environment/Configuration
 %description config
 Default configuration for PulseAudio.
 
+%package cascaded-setup
+Summary: Configuration for enabling the "cascaded" PulseAudio setup
+Group: Multimedia/Audio
+
+%description cascaded-setup
+This package enables the system PulseAudio instance, and changes the user
+instance configuration so that user instances access the hardware via the
+system instance instead of accessing the hardware directly. This allows
+multiple users to use the hardware simultaneously.
+
 %package module-raop
 Summary: PA module-raop
 Group:   Multimedia/Audio
@@ -294,6 +304,29 @@ fi
 /usr/sbin/setcap cap_sys_nice+ep /usr/bin/pulseaudio
 %postun realtime-scheduling
 /usr/sbin/setcap -r /usr/bin/pulseaudio
+
+%post cascaded-setup
+# TODO: Check if there's a macro in Tizen for doing this.
+if [ $1 -eq 1 ] ; then
+        # Initial installation
+        systemctl preset pulseaudio.service >/dev/null 2>&1 || :
+fi
+
+%preun cascaded-setup
+# TODO: Check if there's a macro in Tizen for doing this.
+if [ $1 -eq 0 ] ; then
+        # Package removal, not upgrade
+        systemctl --no-reload disable pulseaudio.service >/dev/null 2>&1 || :
+        systemctl stop pulseaudio.service >/dev/null 2>&1 || :
+fi
+
+%postun cascaded-setup
+# TODO: Check if there's a macro in Tizen for doing this.
+/bin/systemctl daemon-reload >/dev/null 2>&1 || :
+if [ $1 -ge 1 ] ; then
+        # Package upgrade, not uninstall
+        systemctl try-restart pulseaudio.service >/dev/null 2>&1 || :
+fi
 
 %lang_package
 
@@ -488,6 +521,12 @@ fi
 
 %{_datadir}/pulseaudio/alsa-mixer/paths/*
 %{_datadir}/pulseaudio/alsa-mixer/profile-sets/*
+
+%files cascaded-setup
+%config(noreplace) %{_sysconfdir}/pulse/cascaded.pa
+%config(noreplace) %{_sysconfdir}/pulse/tunnel-manager.conf
+%{_libdir}/systemd/system/pulseaudio.service
+%{_libdir}/systemd/system/pulseaudio.socket
 
 %files module-devel
 %manifest %{name}.manifest
