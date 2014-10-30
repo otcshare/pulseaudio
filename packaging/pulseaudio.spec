@@ -311,17 +311,20 @@ fi
 # list all modules
 %{_libdir}/pulse-%{version}/modules/libalsa-util.so
 %{_libdir}/pulse-%{version}/modules/libcli.so
+%{_libdir}/pulse-%{version}/modules/liblogind.so
 %{_libdir}/pulse-%{version}/modules/libprotocol-cli.so
 %{_libdir}/pulse-%{version}/modules/libprotocol-http.so
 %{_libdir}/pulse-%{version}/modules/libprotocol-native.so
 %{_libdir}/pulse-%{version}/modules/libprotocol-simple.so
 %{_libdir}/pulse-%{version}/modules/librtp.so
+%{_libdir}/pulse-%{version}/modules/libtunnel-manager.so
 %{_libdir}/pulse-%{version}/modules/module-alsa-sink.so
 %{_libdir}/pulse-%{version}/modules/module-alsa-source.so
 %{_libdir}/pulse-%{version}/modules/module-always-sink.so
 %{_libdir}/pulse-%{version}/modules/module-console-kit.so
 %{_libdir}/pulse-%{version}/modules/module-device-restore.so
 %{_libdir}/pulse-%{version}/modules/module-stream-restore.so
+%{_libdir}/pulse-%{version}/modules/module-tunnel-manager.so
 %{_libdir}/pulse-%{version}/modules/module-cli-protocol-tcp.so
 %{_libdir}/pulse-%{version}/modules/module-cli-protocol-unix.so
 %{_libdir}/pulse-%{version}/modules/module-cli.so
