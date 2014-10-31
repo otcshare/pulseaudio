@@ -5,3 +5,5 @@ Description=Sound System
 Priority=6
 Backlog=5
 ListenStream=%t/pulse/native
+ListenStream=[::1]:4713
+ListenStream=127.0.0.1:4713
