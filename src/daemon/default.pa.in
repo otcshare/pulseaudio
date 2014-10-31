@@ -175,7 +175,7 @@ ifelse(@HAVE_X11@, 1, [dnl
 .ifexists module-murphy-ivi@PA_SOEXT@
 load-module module-murphy-ivi
 load-module module-stream-restore restore_device=false on_hotplug=false on_rescue=false restore_volume=true preferred_stream_group=media.role.within.application.name
-load-module module-native-protocol-tcp
+load-module module-native-protocol-tcp listen=127.0.0.1
 load-module module-volume-api
 load-module module-audio-groups
 load-module module-main-volume-policy
