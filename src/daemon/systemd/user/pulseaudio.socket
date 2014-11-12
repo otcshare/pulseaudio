@@ -5,7 +5,6 @@ Description=Sound System
 Priority=6
 Backlog=5
 ListenStream=%t/pulse/native
-ListenStream=127.0.0.1:4713
 
 [Install]
 WantedBy=sockets.target
