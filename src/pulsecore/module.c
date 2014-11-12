@@ -223,6 +223,8 @@ static void pa_module_free(pa_module *m) {
 
     pa_log_info("Unloading \"%s\" (index: #%u).", m->name, m->index);
 
+    pa_hook_fire(&m->core->hooks[PA_CORE_HOOK_MODULE_UNLOAD], m);
+
     if (m->done)
         m->done(m);
 
