@@ -387,7 +387,8 @@ fi
 %{_libdir}/pulse-%{version}/modules/module-main-volume-policy.so
 %{_libdir}/pulse-%{version}/modules/module-audio-groups.so
 
-%config(noreplace) /etc/bash_completion.d/pulseaudio-bash-completion.sh
+%config(noreplace) %{_sysconfdir}/bash_completion.d/*
+%config(noreplace) %{_datadir}/zsh/site-functions/_pulseaudio
 
 %files -n libpulse
 %manifest %{name}.manifest
