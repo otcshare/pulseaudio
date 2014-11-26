@@ -672,6 +672,23 @@ fi
 AM_CONDITIONAL(USE_SAMSUNG_POLICY, test "x$USE_SAMSUNG_POLICY" = "xyes")
 dnl end --------------------------------------------------------------------
 
+### murphy interface (optional)
+AC_ARG_WITH([murphyif],
+            [ AS_HELP_STRING([--with-murphyif],
+                             [Enable murphy domain-controller interface])
+            ],
+            [ build_with_murphyif="yes" ;
+              PKG_CHECK_MODULES(MURPHYIF,
+                                [murphy-domain-controller murphy-pulse])
+              AC_SUBST(MURPHYIF_CFLAGS)
+              AC_SUBST(MURPHYIF_LIBS)
+              AC_DEFINE([WITH_MURPHYIF], 1, [Enable Murphy interface ?])
+            ],
+            [ build_with_murphyif="no" ]
+)
+
+AM_CONDITIONAL(BUILD_WITH_MURPHYIF,  [ test "x$build_with_murphyif" = "xyes" ])
+
 dnl use dlog --------------------------------------------------------------------------
 AC_ARG_ENABLE(dlog, AC_HELP_STRING([--enable-dlog], [using dlog]),
 [
@@ -1349,6 +1366,52 @@ AC_SUBST(HAVE_SYSTEMD_JOURNAL)
 AM_CONDITIONAL([HAVE_SYSTEMD_JOURNAL], [test "x$HAVE_SYSTEMD_JOURNAL" = x1])
 AS_IF([test "x$HAVE_SYSTEMD_JOURNAL" = "x1"], AC_DEFINE([HAVE_SYSTEMD_JOURNAL], 1, [Have SYSTEMDJOURNAL?]))
 
+# murphy interface
+AC_ARG_WITH([murphyif],
+            [ AS_HELP_STRING([--with-murphyif],
+                             [Enable murphy domain-controller interface])
+            ],
+            [ build_with_murphyif="yes" ;
+              PKG_CHECK_MODULES(MURPHYIF,
+                                [murphy-domain-controller murphy-pulse])
+              AC_SUBST(MURPHYIF_CFLAGS)
+              AC_SUBST(MURPHYIF_LIBS)
+              AC_DEFINE([WITH_MURPHYIF], 1, [Enable Murphy interface ?])
+            ],
+            [ build_with_murphyif="no" ]
+)
+
+AM_CONDITIONAL(BUILD_WITH_MURPHYIF,  [ test "x$build_with_murphyif" = "xyes" ])
+
+#### murphy support (optional) ####
+
+if test "$build_with_murphyif" = "yes" ; then
+   PKG_CHECK_MODULES(MURPHYCOMMON, [murphy-common])
+   AC_SUBST(MURPHYCOMMON_CFLAGS)
+   AC_SUBST(MURPHYCOMMON_LIBS)
+
+   PKG_CHECK_MODULES(LUAUTILS, [murphy-lua-utils])
+   AC_SUBST(LUAUTILS_CFLAGS)
+   AC_SUBST(LUAUTILS_LIBS)
+
+   PKG_CHECK_MODULES(LUA, lua >= 5.1.1)
+   AC_SUBST(LUA_CFLAGS)
+   AC_SUBST(LUA_LIBS)
+
+   PKG_CHECK_MODULES(AUL, aul, [have_aul=yes], [have_aul=no])
+   if test "$have_aul" = "no" -a "$enable_aul" = "yes"; then
+      AC_MSG_ERROR([AUL development headers not found.])
+   fi
+   AC_SUBST(AUL_CFLAGS)
+   AC_SUBST(AUL_LIBS)
+
+   PKG_CHECK_MODULES(MURPHYDOMCTL, [murphy-domain-controller murphy-pulse])
+   AC_SUBST(MURPHYDOMCTL_CFLAGS)
+   AC_SUBST(MURPHYDOMCTL_LIBS)
+fi
+
+AM_CONDITIONAL(HAVE_AUL,  [ test x$have_aul = "xyes" ])
+
 #### Build and Install man pages ####
 
 AC_ARG_ENABLE([manpages],
@@ -1702,6 +1765,8 @@ echo "
     Preopened modules:             ${PREOPEN_MODS}
 
     Legacy Database Entry Support: ${ENABLE_LEGACY_DATABASE_ENTRY_FORMAT}
+
+    murphyif enabled:              $build_with_murphyif
 
     Tizen
       pmapi:                       ${ENABLE_PM_LOCK}

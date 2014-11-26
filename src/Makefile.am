@@ -132,9 +132,17 @@ pulseconf_DATA += \
 		tizen-ivi/audio-groups.conf \
 		tizen-ivi/main-volume-policy.conf
 
+pulseconf_DATA += \
+		modules/murphy/murphy-ivi.lua
+
 if HAVE_DBUS
 dbuspolicy_DATA = \
 		daemon/pulseaudio-system.conf
+endif
+
+if HAVE_DBUS
+dbuspolicy_DATA += \
+        modules/murphy/pulseaudio-murphy-ivi.conf
 endif
 
 if HAVE_X11
@@ -1551,6 +1559,8 @@ SYMDEF_FILES = \
 		module-alsa-sink-symdef.h \
 		module-alsa-source-symdef.h \
 		module-alsa-card-symdef.h \
+		module-murphy-ivi-symdef.h \
+		module-combine-sink-new-symdef.h \
 		module-coreaudio-detect-symdef.h \
 		module-coreaudio-device-symdef.h \
 		module-solaris-symdef.h \
@@ -1914,6 +1924,71 @@ libalsa_util_la_SOURCES = \
 libalsa_util_la_LDFLAGS = -avoid-version
 libalsa_util_la_LIBADD = $(MODULE_LIBADD) $(ASOUNDLIB_LIBS)
 libalsa_util_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) $(ASOUNDLIB_CFLAGS)
+
+module_combine_sink_new_la_SOURCES = modules/murphy/combine/module-combine-sink-new.c \
+                                     modules/murphy/combine/userdata.h
+module_combine_sink_new_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_combine_sink_new_la_LIBADD = $(MODULE_LIBADD)
+
+if BUILD_WITH_MURPHYIF
+modlibexec_LTLIBRARIES += \
+		module-murphy-ivi.la \
+		module-combine-sink-new.la
+endif
+
+module_murphy_ivi_la_SOURCES = \
+			modules/murphy/module-murphy-ivi.c \
+			modules/murphy/tracker.c modules/murphy/tracker.h \
+			modules/murphy/zone.c modules/murphy/zone.h \
+			modules/murphy/node.c modules/murphy/node.h \
+			modules/murphy/discover.c modules/murphy/discover.h \
+			modules/murphy/constrain.c modules/murphy/constrain.h \
+			modules/murphy/router.c modules/murphy/router.h \
+			modules/murphy/switch.c modules/murphy/switch.h \
+			modules/murphy/fader.c modules/murphy/fader.h \
+			modules/murphy/stream-state.c modules/murphy/stream-state.h \
+			modules/murphy/multiplex.c modules/murphy/multiplex.h \
+			modules/murphy/loopback.c modules/murphy/loopback.h \
+			modules/murphy/volume.c modules/murphy/volume.h \
+			modules/murphy/audiomgr.c modules/murphy/audiomgr.h \
+			modules/murphy/dbusif.c modules/murphy/routerif.h \
+			modules/murphy/murphy-config.c modules/murphy/murphy-config.h \
+			modules/murphy/classify.c modules/murphy/classify.h \
+			modules/murphy/utils.c modules/murphy/utils.h \
+			modules/murphy/scripting.c modules/murphy/scripting.h \
+			modules/murphy/extapi.c modules/murphy/extapi.h \
+			modules/murphy/murphyif.c modules/murphy/murphyif.h
+
+CONDITIONAL_MURPHY_CFLAGS =
+CONDITIONAL_MURPHY_LIBS =
+
+if BUILD_WITH_MURPHYIF
+CONDITIONAL_MURPHY_CFLAGS += -DWITH_MURPHYIF
+
+if HAVE_AUL
+CONDITIONAL_MURPHY_CFLAGS += -DWITH_AUL
+endif
+
+if HAVE_DBUS
+CONDITIONAL_MURPHY_CFLAGS += $(DBUS_CFLAGS)
+CONDITIONAL_MURPHY_LIBS += $(DBUS_LIBS)
+endif
+
+endif
+
+module_murphy_ivi_la_LIBADD = $(MODULE_LIBADD) \
+                              $(MURPHYCOMMON_LIBS) $(MURPHYDOMCTL_LIBS)     \
+                              $(LUAUTILS_LIBS) $(LUA_LIBS) \
+                              libprotocol-native.la \
+                              libmain-volume-policy.la libvolume-api.la \
+                              $(CONDITIONAL_MURPHY_LIBS)
+module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) \
+                              $(MURPHYCOMMON_CFLAGS) $(MURPHYDOMCTL_CFLAGS) \
+                              $(LUAUTILS_CFLAGS) $(LUA_CFLAGS) \
+                              -I$(top_srcdir)/src/modules/murphy \
+                              -I$(top_srcdir)/src/modules/murphy/combine \
+                              $(CONDITIONAL_MURPHY_CFLAGS)
+module_murphy_ivi_la_LDFLAGS = $(MODULE_LDFLAGS)
 
 if HAVE_UDEV
 libalsa_util_la_SOURCES += modules/udev-util.h modules/udev-util.c
