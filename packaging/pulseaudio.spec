@@ -41,6 +41,10 @@ BuildRequires:    libcap-devel
 %if %{with pulseaudio_dlog}
 BuildRequires:    pkgconfig(dlog)
 %endif
+BuildRequires: pkgconfig(murphy-common)
+BuildRequires: pkgconfig(murphy-lua-utils)
+BuildRequires: pkgconfig(lua)
+BuildRequires: pkgconfig(murphy-pulse)
 Requires:         udev
 Requires(post):   /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
@@ -152,6 +156,13 @@ Group:   Multimedia/Audio
 %description module-augment-properties
 PA module-augment-properties.
 
+%package module-murphy-ivi
+Summary: PA module-murphy-ivi
+Group:   Multimedia/Audio
+
+%description module-murphy-ivi
+PA module-murphy-ivi.
+
 %package module-dbus-protocol
 Summary: PA module-dbus-protocol
 Group:   Multimedia/Audio
@@ -231,6 +242,7 @@ export LD_AS_NEEDED=0
 %if %{with pulseaudio_samsung_policy}
         --enable-samsung-policy \
 %endif
+        --with-murphyif \
         --with-udev-rules-dir=%{_libdir}/udev/rules.d \
         --with-system-user=pulse \
         --with-system-group=pulse \
@@ -453,6 +465,14 @@ fi
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pulse-%{version}/modules/module-combine-sink.so
+
+%files module-murphy-ivi
+%manifest %{name}.manifest
+%defattr(-,root,root,-)
+%{_libdir}/pulse-%{version}/modules/module-murphy-ivi.so
+%config(noreplace) %{_sysconfdir}/dbus-1/system.d/pulseaudio-murphy-ivi.conf
+%config(noreplace) %{_sysconfdir}/pulse/murphy-ivi.lua
+%{_libdir}/pulse-%{version}/modules/module-combine-sink-new.so
 
 %files module-augment-properties
 %manifest %{name}.manifest
