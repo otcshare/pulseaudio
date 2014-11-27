@@ -41,9 +41,12 @@ struct pa_tunnel_manager_remote_device {
     pa_sample_spec sample_spec;
     pa_channel_map channel_map;
     bool is_monitor;
+    bool tunnel_enabled;
     pa_hook hooks[PA_TUNNEL_MANAGER_REMOTE_DEVICE_HOOK_MAX];
 
     pa_operation *get_info_operation;
+    pa_module *tunnel_module;
+    pa_hook_slot *module_unload_slot;
 
     /* These are a workaround for the problem that the introspection API's info
      * callbacks are called multiple times, which means that if the userdata
