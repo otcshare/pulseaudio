@@ -23,6 +23,8 @@
 #include <config.h>
 #endif
 
+#include <modules/tunnel-manager/remote-device.h>
+
 #include <pulse/context.h>
 #include <pulse/timeval.h>
 #include <pulse/xmalloc.h>
@@ -85,7 +87,19 @@ struct userdata {
     char *cookie_file;
     char *remote_server;
     char *remote_source_name;
+    pa_proplist *user_proplist;
+
+    struct remote_device_data *remote_device_data;
 };
+
+struct remote_device_data {
+    struct userdata *userdata;
+    pa_tunnel_manager_remote_device *device;
+    pa_hook_slot *unlinked_slot;
+    pa_hook_slot *proplist_changed_slot;
+};
+
+static void remote_device_data_free(struct remote_device_data *data);
 
 static const char* const valid_modargs[] = {
     "source_name",
@@ -100,6 +114,68 @@ static const char* const valid_modargs[] = {
    /* "reconnect", reconnect if server comes back again - unimplemented */
     NULL,
 };
+
+static pa_hook_result_t remote_device_unlinked_cb(void *hook_data, void *call_data, void *userdata) {
+    struct remote_device_data *data = userdata;
+
+    pa_assert(data);
+
+    remote_device_data_free(data);
+
+    return PA_HOOK_OK;
+}
+
+static pa_hook_result_t remote_device_proplist_changed_cb(void *hook_data, void *call_data, void *userdata) {
+    pa_tunnel_manager_remote_device *device = hook_data;
+    struct remote_device_data *data = userdata;
+    pa_proplist *proplist;
+
+    pa_assert(device);
+    pa_assert(data);
+
+    proplist = pa_proplist_copy(device->proplist);
+
+    if (data->userdata->user_proplist)
+        pa_proplist_update(proplist, PA_UPDATE_REPLACE, data->userdata->user_proplist);
+
+    pa_source_update_proplist(data->userdata->source, PA_UPDATE_SET, proplist);
+    pa_proplist_free(proplist);
+
+    return PA_HOOK_OK;
+}
+
+static void remote_device_data_new(struct userdata *u, pa_tunnel_manager_remote_device *device) {
+    struct remote_device_data *data;
+
+    pa_assert(u);
+    pa_assert(device);
+
+    data = pa_xnew0(struct remote_device_data, 1);
+    data->userdata = u;
+    data->device = device;
+    data->unlinked_slot = pa_hook_connect(&device->hooks[PA_TUNNEL_MANAGER_REMOTE_DEVICE_HOOK_UNLINKED], PA_HOOK_NORMAL,
+                                          remote_device_unlinked_cb, data);
+    data->proplist_changed_slot = pa_hook_connect(&device->hooks[PA_TUNNEL_MANAGER_REMOTE_DEVICE_HOOK_PROPLIST_CHANGED],
+                                                  PA_HOOK_NORMAL, remote_device_proplist_changed_cb, data);
+
+    pa_assert(!u->remote_device_data);
+    u->remote_device_data = data;
+}
+
+static void remote_device_data_free(struct remote_device_data *data) {
+    pa_assert(data);
+
+    if (data->userdata)
+        data->userdata->remote_device_data = NULL;
+
+    if (data->proplist_changed_slot)
+        pa_hook_slot_free(data->proplist_changed_slot);
+
+    if (data->unlinked_slot)
+        pa_hook_slot_free(data->unlinked_slot);
+
+    pa_xfree(data);
+}
 
 static void reset_bufferattr(pa_buffer_attr *bufferattr) {
     pa_assert(bufferattr);
@@ -438,13 +514,6 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
-    ss = m->core->default_sample_spec;
-    map = m->core->default_channel_map;
-    if (pa_modargs_get_sample_spec_and_channel_map(ma, &ss, &map, PA_CHANNEL_MAP_DEFAULT) < 0) {
-        pa_log("Invalid sample format specification or channel map");
-        goto fail;
-    }
-
     remote_server = pa_modargs_get_value(ma, "server", NULL);
     if (!remote_server) {
         pa_log("No server given!");
@@ -464,6 +533,41 @@ int pa__init(pa_module *m) {
     u->cookie_file = pa_xstrdup(pa_modargs_get_value(ma, "cookie", NULL));
     u->remote_source_name = pa_xstrdup(pa_modargs_get_value(ma, "source", NULL));
 
+    if (u->remote_source_name) {
+        pa_tunnel_manager *manager;
+
+        manager = pa_tunnel_manager_get(m->core, false);
+        if (manager) {
+            pa_tunnel_manager_remote_server *server;
+            void *state;
+
+            PA_HASHMAP_FOREACH(server, manager->remote_servers, state) {
+                if (pa_streq(server->address, u->remote_server)) {
+                    pa_tunnel_manager_remote_device *device;
+
+                    device = pa_hashmap_get(server->devices, u->remote_source_name);
+                    if (device)
+                        remote_device_data_new(u, device);
+
+                    break;
+                }
+            }
+        }
+    }
+
+    if (u->remote_device_data) {
+        ss = u->remote_device_data->device->sample_spec;
+        map = u->remote_device_data->device->channel_map;
+    } else {
+        ss = m->core->default_sample_spec;
+        map = m->core->default_channel_map;
+    }
+
+    if (pa_modargs_get_sample_spec_and_channel_map(ma, &ss, &map, PA_CHANNEL_MAP_DEFAULT) < 0) {
+        pa_log("Invalid sample format specification or channel map");
+        goto fail;
+    }
+
     u->thread_mq = pa_xnew0(pa_thread_mq, 1);
     pa_thread_mq_init_thread_mainloop(u->thread_mq, m->core->mainloop, u->thread_mainloop_api);
 
@@ -479,18 +583,29 @@ int pa__init(pa_module *m) {
     pa_source_new_data_set_sample_spec(&source_data, &ss);
     pa_source_new_data_set_channel_map(&source_data, &map);
 
-    pa_proplist_sets(source_data.proplist, PA_PROP_DEVICE_CLASS, "sound");
-    pa_proplist_setf(source_data.proplist,
-                     PA_PROP_DEVICE_DESCRIPTION,
-                     _("Tunnel to %s/%s"),
-                     remote_server,
-                     pa_strempty(u->remote_source_name));
-
-    if (pa_modargs_get_proplist(ma, "source_properties", source_data.proplist, PA_UPDATE_REPLACE) < 0) {
-        pa_log("Invalid properties");
-        pa_source_new_data_done(&source_data);
-        goto fail;
+    if (u->remote_device_data)
+        pa_proplist_update(source_data.proplist, PA_UPDATE_SET, u->remote_device_data->device->proplist);
+    else {
+        pa_proplist_sets(source_data.proplist, PA_PROP_DEVICE_CLASS, "sound");
+        pa_proplist_setf(source_data.proplist,
+                         PA_PROP_DEVICE_DESCRIPTION,
+                         _("Tunnel to %s/%s"),
+                         remote_server,
+                         pa_strempty(u->remote_source_name));
     }
+
+    if (pa_modargs_get_value(ma, "source_properties", NULL)) {
+        u->user_proplist = pa_proplist_new();
+
+        if (pa_modargs_get_proplist(ma, "source_properties", u->user_proplist, PA_UPDATE_SET) < 0) {
+            pa_log("Invalid properties");
+            pa_source_new_data_done(&source_data);
+            goto fail;
+        }
+
+        pa_proplist_update(source_data.proplist, PA_UPDATE_REPLACE, u->user_proplist);
+    }
+
     if (!(u->source = pa_source_new(m->core, &source_data, PA_SOURCE_LATENCY | PA_SOURCE_DYNAMIC_LATENCY | PA_SOURCE_NETWORK))) {
         pa_log("Failed to create source.");
         pa_source_new_data_done(&source_data);
@@ -537,6 +652,12 @@ void pa__done(pa_module *m) {
 
     if (u->source)
         pa_source_unlink(u->source);
+
+    if (u->remote_device_data)
+        remote_device_data_free(u->remote_device_data);
+
+    if (u->user_proplist)
+        pa_proplist_free(u->user_proplist);
 
     if (u->thread) {
         pa_asyncmsgq_send(u->thread_mq->inq, NULL, PA_MESSAGE_SHUTDOWN, NULL, 0, NULL);

@@ -1799,11 +1799,11 @@ module_match_la_LIBADD = $(MODULE_LIBADD)
 
 module_tunnel_sink_new_la_SOURCES = modules/module-tunnel-sink-new.c
 module_tunnel_sink_new_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_tunnel_sink_new_la_LIBADD = $(MODULE_LIBADD)
+module_tunnel_sink_new_la_LIBADD = $(MODULE_LIBADD) libtunnel-manager.la
 
 module_tunnel_source_new_la_SOURCES = modules/module-tunnel-source-new.c
 module_tunnel_source_new_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_tunnel_source_new_la_LIBADD = $(MODULE_LIBADD)
+module_tunnel_source_new_la_LIBADD = $(MODULE_LIBADD) libtunnel-manager.la
 
 module_tunnel_sink_la_SOURCES = modules/module-tunnel.c
 module_tunnel_sink_la_CFLAGS = -DTUNNEL_SINK=1 $(AM_CFLAGS) $(X11_CFLAGS)
