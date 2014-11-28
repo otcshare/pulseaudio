@@ -326,6 +326,7 @@ static void save(pa_inidb *db) {
     }
 
     r = fclose(f);
+    f = NULL;
     if (r < 0) {
         pa_log("fclose() failed: %s", pa_cstrerror(errno));
         goto fail;
