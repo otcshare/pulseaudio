@@ -1061,6 +1061,11 @@ modlibexec_LTLIBRARIES = \
 		libtunnel-manager.la \
 		libvolume-api.la
 
+if HAVE_SYSTEMD_LOGIN
+modlibexec_LTLIBRARIES += \
+		liblogind.la
+endif
+
 if HAVE_WEBRTC
 modlibexec_LTLIBRARIES += libwebrtc-util.la
 endif
@@ -1088,6 +1093,10 @@ libprotocol_simple_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libp
 libcli_la_SOURCES = pulsecore/cli.c pulsecore/cli.h
 libcli_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
 libcli_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
+
+liblogind_la_SOURCES = modules/logind/logind.c modules/logind/logind.h
+liblogind_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
+liblogind_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
 
 libmain_volume_policy_la_SOURCES = \
 		modules/main-volume-policy/main-volume-context.c modules/main-volume-policy/main-volume-context.h \
@@ -2161,7 +2170,7 @@ module_console_kit_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
 
 module_systemd_login_la_SOURCES = modules/module-systemd-login.c
 module_systemd_login_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_systemd_login_la_LIBADD = $(MODULE_LIBADD) $(SYSTEMD_LIBS) $(SYSTEMDLOGIN_LIBS)
+module_systemd_login_la_LIBADD = $(MODULE_LIBADD) $(SYSTEMD_LIBS) $(SYSTEMDLOGIN_LIBS) liblogind.la
 module_systemd_login_la_CFLAGS = $(AM_CFLAGS) $(SYSTEMD_CFLAGS) $(SYSTEMDLOGIN_CFLAGS)
 
 # GConf support

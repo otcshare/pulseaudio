@@ -23,24 +23,13 @@
 #include <config.h>
 #endif
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <sys/types.h>
+#include "module-systemd-login-symdef.h"
 
-#include <systemd/sd-login.h>
+#include <modules/logind/logind.h>
 
 #include <pulse/xmalloc.h>
 
-#include <pulsecore/module.h>
-#include <pulsecore/log.h>
-#include <pulsecore/hashmap.h>
-#include <pulsecore/idxset.h>
 #include <pulsecore/modargs.h>
-
-#include "module-systemd-login-symdef.h"
 
 PA_MODULE_AUTHOR("Lennart Poettering");
 PA_MODULE_DESCRIPTION("Create a client for each login session of this user");
@@ -51,126 +40,99 @@ static const char* const valid_modargs[] = {
     NULL
 };
 
-struct session {
-    char *id;
+struct session_client {
+    struct userdata *userdata;
+    pa_logind_session *session;
     pa_client *client;
 };
+
+static void session_client_free(struct session_client *client);
 
 struct userdata {
     pa_module *module;
     pa_core *core;
-    pa_hashmap *sessions, *previous_sessions;
-    sd_login_monitor *monitor;
-    pa_io_event *io;
+    pa_logind *logind;
+    pa_hashmap *session_clients; /* pa_logind_session -> struct session_client */
+    pa_hook_slot *session_added_slot;
+    pa_hook_slot *session_removed_slot;
 };
 
-static int add_session(struct userdata *u, const char *id) {
-    struct session *session;
+static void session_client_new(struct userdata *u, pa_logind_session *session) {
+    struct session_client *client;
     pa_client_new_data data;
 
-    session = pa_xnew(struct session, 1);
-    session->id = pa_xstrdup(id);
+    pa_assert(u);
+    pa_assert(session);
+
+    client = pa_xnew0(struct session_client, 1);
+    client->userdata = u;
+    client->session = session;
 
     pa_client_new_data_init(&data);
     data.module = u->module;
     data.driver = __FILE__;
-    pa_proplist_setf(data.proplist, PA_PROP_APPLICATION_NAME, "Login Session %s", id);
-    pa_proplist_sets(data.proplist, "systemd-login.session", id);
-    session->client = pa_client_new(u->core, &data);
+    pa_proplist_setf(data.proplist, PA_PROP_APPLICATION_NAME, "Login Session %s", session->id);
+    pa_proplist_sets(data.proplist, "systemd-login.session", session->id);
+    client->client = pa_client_new(u->core, &data);
     pa_client_new_data_done(&data);
 
-    if (!session->client) {
-        pa_xfree(session->id);
-        pa_xfree(session);
-        return -1;
-    }
+    if (!client->client)
+        goto fail;
 
-    pa_hashmap_put(u->sessions, session->id, session);
+    pa_assert_se(pa_hashmap_put(u->session_clients, client->session, client) >= 0);
 
-    pa_log_debug("Added new session %s", id);
-    return 0;
+    return;
+
+fail:
+    if (client)
+        session_client_free(client);
 }
 
-static void free_session(struct session *session) {
-    pa_assert(session);
+static void session_client_free(struct session_client *client) {
+    pa_assert(client);
 
-    pa_log_debug("Removing session %s", session->id);
+    pa_hashmap_remove(client->userdata->session_clients, client->session);
 
-    pa_client_free(session->client);
-    pa_xfree(session->id);
-    pa_xfree(session);
+    if (client->client)
+        pa_client_free(client->client);
+
+    pa_xfree(client);
 }
 
-static int get_session_list(struct userdata *u) {
-    int r;
-    char **sessions;
-    pa_hashmap *h;
-    struct session *o;
-
-    pa_assert(u);
-
-    r = sd_uid_get_sessions(getuid(), 0, &sessions);
-    if (r < 0)
-        return -1;
-
-    /* We copy all sessions that still exist from one hashmap to the
-     * other and then flush the remaining ones */
-
-    h = u->previous_sessions;
-    u->previous_sessions = u->sessions;
-    u->sessions = h;
-
-    if (sessions) {
-        char **s;
-
-        /* Note that the sessions array is allocated with libc's
-         * malloc()/free() calls, hence do not use pa_xfree() to free
-         * this here. */
-
-        for (s = sessions; *s; s++) {
-            o = pa_hashmap_remove(u->previous_sessions, *s);
-            if (o)
-                pa_hashmap_put(u->sessions, o->id, o);
-            else
-                add_session(u, *s);
-
-            free(*s);
-        }
-
-        free(sessions);
-    }
-
-    pa_hashmap_remove_all(u->previous_sessions);
-
-    return 0;
-}
-
-static void monitor_cb(
-        pa_mainloop_api*a,
-        pa_io_event* e,
-        int fd,
-        pa_io_event_flags_t events,
-        void *userdata) {
-
+static pa_hook_result_t session_added_cb(void *hook_data, void *call_data, void *userdata) {
+    pa_logind_session *session = call_data;
     struct userdata *u = userdata;
 
+    pa_assert(session);
     pa_assert(u);
 
-    sd_login_monitor_flush(u->monitor);
-    get_session_list(u);
+    session_client_new(u, session);
+
+    return PA_HOOK_OK;
+}
+
+static pa_hook_result_t session_removed_cb(void *hook_data, void *call_data, void *userdata) {
+    pa_logind_session *session = call_data;
+    struct userdata *u = userdata;
+    struct session_client *client;
+
+    pa_assert(session);
+    pa_assert(u);
+
+    client = pa_hashmap_get(u->session_clients, session);
+    if (client)
+        session_client_free(client);
+
+    return PA_HOOK_OK;
 }
 
 int pa__init(pa_module *m) {
     struct userdata *u = NULL;
     pa_modargs *ma;
-    sd_login_monitor *monitor = NULL;
-    int r;
+    pa_logind_session *session;
+    void *state;
 
     pa_assert(m);
-
-    /* If we are not actually running logind become a NOP */
-    if (access("/run/systemd/seats/", F_OK) < 0)
-        return 0;
 
     ma = pa_modargs_new(m->argument, valid_modargs);
     if (!ma) {
@@ -178,23 +140,18 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
-    r = sd_login_monitor_new("session", &monitor);
-    if (r < 0) {
-        pa_log("Failed to create session monitor: %s", strerror(-r));
-        goto fail;
-    }
-
     m->userdata = u = pa_xnew0(struct userdata, 1);
-    u->core = m->core;
     u->module = m;
-    u->sessions = pa_hashmap_new_full(pa_idxset_string_hash_func, pa_idxset_string_compare_func, NULL, (pa_free_cb_t) free_session);
-    u->previous_sessions = pa_hashmap_new_full(pa_idxset_string_hash_func, pa_idxset_string_compare_func, NULL, (pa_free_cb_t) free_session);
-    u->monitor = monitor;
+    u->core = m->core;
+    u->logind = pa_logind_get(m->core);
+    u->session_clients = pa_hashmap_new(NULL, NULL);
+    u->session_added_slot = pa_hook_connect(&u->logind->hooks[PA_LOGIND_HOOK_SESSION_ADDED], PA_HOOK_NORMAL,
+                                            session_added_cb, u);
+    u->session_removed_slot = pa_hook_connect(&u->logind->hooks[PA_LOGIND_HOOK_SESSION_REMOVED], PA_HOOK_NORMAL,
+                                              session_removed_cb, u);
 
-    u->io = u->core->mainloop->io_new(u->core->mainloop, sd_login_monitor_get_fd(monitor), PA_IO_EVENT_INPUT, monitor_cb, u);
-
-    if (get_session_list(u) < 0)
-        goto fail;
+    PA_HASHMAP_FOREACH(session, u->logind->sessions, state)
+        session_client_new(u, session);
 
     pa_modargs_free(ma);
 
@@ -218,16 +175,26 @@ void pa__done(pa_module *m) {
     if (!u)
         return;
 
-    if (u->sessions) {
-        pa_hashmap_free(u->sessions);
-        pa_hashmap_free(u->previous_sessions);
+    if (u->session_clients) {
+        struct session_client *client;
+
+        while ((client = pa_hashmap_first(u->session_clients)))
+            session_client_free(client);
     }
 
-    if (u->io)
-        m->core->mainloop->io_free(u->io);
+    if (u->session_removed_slot)
+        pa_hook_slot_free(u->session_removed_slot);
 
-    if (u->monitor)
-        sd_login_monitor_unref(u->monitor);
+    if (u->session_added_slot)
+        pa_hook_slot_free(u->session_added_slot);
+
+    if (u->session_clients) {
+        pa_assert(pa_hashmap_isempty(u->session_clients));
+        pa_hashmap_free(u->session_clients);
+    }
+
+    if (u->logind)
+        pa_logind_unref(u->logind);
 
     pa_xfree(u);
 }
