@@ -253,14 +253,15 @@ NOCONFIGURE=yes ./bootstrap.sh
 %make_install
 %find_lang %{name}
 
-pushd %{buildroot}%{_sysconfdir}/pulse/filter
+CURDIR=$(pwd)
+cd %{buildroot}%{_sysconfdir}/pulse/filter
 ln -sf filter_8000_44100.dat filter_11025_44100.dat
 ln -sf filter_8000_44100.dat filter_12000_44100.dat
 ln -sf filter_8000_44100.dat filter_16000_44100.dat
 ln -sf filter_8000_44100.dat filter_22050_44100.dat
 ln -sf filter_8000_44100.dat filter_24000_44100.dat
 ln -sf filter_8000_44100.dat filter_32000_44100.dat
-popd
+cd ${CURDIR}
 
 rm -rf  %{buildroot}%{_sysconfdir}/xdg/autostart/pulseaudio-kde.desktop
 rm -rf  %{buildroot}%{_bindir}/start-pulseaudio-kde
@@ -301,9 +302,10 @@ fi
 %postun -n libpulse-mainloop-glib -p /sbin/ldconfig
 
 %post   realtime-scheduling
-/usr/sbin/setcap cap_sys_nice+ep /usr/bin/pulseaudio
+setcap cap_sys_nice+ep /usr/bin/pulseaudio
+
 %postun realtime-scheduling
-/usr/sbin/setcap -r /usr/bin/pulseaudio
+setcap -r /usr/bin/pulseaudio
 
 %post cascaded-setup
 # TODO: Check if there's a macro in Tizen for doing this.
