@@ -28,8 +28,18 @@
 
 typedef struct pa_tunnel_manager pa_tunnel_manager;
 
+typedef enum {
+    PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR,
+} pa_tunnel_manager_remote_device_tunnel_enabled_condition_t;
+
+const char *pa_tunnel_manager_remote_device_tunnel_enabled_condition_to_string(
+        pa_tunnel_manager_remote_device_tunnel_enabled_condition_t condition);
+int pa_tunnel_manager_remote_device_tunnel_enabled_condition_from_string(
+        const char *str, pa_tunnel_manager_remote_device_tunnel_enabled_condition_t *_r);
+
 struct pa_tunnel_manager {
     pa_core *core;
+    pa_tunnel_manager_remote_device_tunnel_enabled_condition_t remote_device_tunnel_enabled_condition;
     pa_hashmap *remote_servers; /* name -> pa_tunnel_manager_remote_server */
 
     unsigned refcnt;

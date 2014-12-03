@@ -31,6 +31,7 @@
 #include <pulsecore/core-util.h>
 #include <pulsecore/namereg.h>
 
+#define GENERAL_SECTION_NAME "General"
 #define REMOTE_SERVER_SECTION_NAME "RemoteServer"
 #define REMOTE_SERVER_SECTION_PREFIX REMOTE_SERVER_SECTION_NAME " "
 
@@ -100,12 +101,17 @@ static int parse_config_value(pa_config_parser_state *state) {
 
     manager_config = state->userdata;
 
-    if (!state->section) {
-        pa_log("[%s:%u] \"%s\" is not valid in the General section.", state->filename, state->lineno, state->lvalue);
-        return 0;
-    }
+    if (!state->section || pa_streq(state->section, GENERAL_SECTION_NAME)) {
+        if (pa_streq(state->lvalue, "remote_device_tunnel_enabled_condition")) {
+            if (manager_config->remote_device_tunnel_enabled_condition)
+                config_value_free(manager_config->remote_device_tunnel_enabled_condition);
 
-    if (pa_startswith(state->section, REMOTE_SERVER_SECTION_PREFIX)) {
+            manager_config->remote_device_tunnel_enabled_condition = config_value_new(state->rvalue, state->filename,
+                                                                                      state->lineno);
+        } else
+            pa_log("[%s:%u] \"%s\" is not valid in the " GENERAL_SECTION_NAME " section.", state->filename,
+                   state->lineno, state->lvalue);
+    } else if (pa_startswith(state->section, REMOTE_SERVER_SECTION_PREFIX)) {
         int r;
         pa_tunnel_manager_remote_server_config *server_config;
 
@@ -165,6 +171,9 @@ void pa_tunnel_manager_config_free(pa_tunnel_manager_config *manager_config) {
 
         pa_hashmap_free(manager_config->remote_servers);
     }
+
+    if (manager_config->remote_device_tunnel_enabled_condition)
+        config_value_free(manager_config->remote_device_tunnel_enabled_condition);
 
     pa_xfree(manager_config);
 }

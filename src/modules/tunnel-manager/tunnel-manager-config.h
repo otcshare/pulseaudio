@@ -35,6 +35,7 @@ struct pa_tunnel_manager_config_value {
 };
 
 struct pa_tunnel_manager_config {
+    pa_tunnel_manager_config_value *remote_device_tunnel_enabled_condition;
     pa_hashmap *remote_servers; /* name -> pa_tunnel_manager_remote_server_config */
 };
 

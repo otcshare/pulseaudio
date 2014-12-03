@@ -343,6 +343,13 @@ static void apply_tunnel_enabled_policy(pa_tunnel_manager_remote_device *device)
 
     pa_assert(device);
 
-    enabled = !device->is_monitor;
+    enabled = device->tunnel_enabled;
+
+    switch (device->server->manager->remote_device_tunnel_enabled_condition) {
+        case PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR:
+            enabled = !device->is_monitor;
+            break;
+    }
+
     set_tunnel_enabled(device, enabled);
 }
