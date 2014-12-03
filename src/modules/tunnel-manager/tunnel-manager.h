@@ -22,6 +22,10 @@
   USA.
 ***/
 
+#ifdef HAVE_SYSTEMD_LOGIN
+#include <modules/logind/logind.h>
+#endif
+
 #include <pulsecore/core.h>
 
 #define PA_TUNNEL_MANAGER_MAX_DEVICES_PER_SERVER 50
@@ -30,6 +34,7 @@ typedef struct pa_tunnel_manager pa_tunnel_manager;
 
 typedef enum {
     PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR,
+    PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR_AND_SEAT_IS_OK,
 } pa_tunnel_manager_remote_device_tunnel_enabled_condition_t;
 
 const char *pa_tunnel_manager_remote_device_tunnel_enabled_condition_to_string(
@@ -43,6 +48,9 @@ struct pa_tunnel_manager {
     pa_hashmap *remote_servers; /* name -> pa_tunnel_manager_remote_server */
 
     unsigned refcnt;
+#ifdef HAVE_SYSTEMD_LOGIN
+    pa_logind *logind;
+#endif
 };
 
 /* If ref is true, the reference count of the manager is incremented, and also

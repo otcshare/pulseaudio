@@ -1058,13 +1058,17 @@ modlibexec_LTLIBRARIES = \
 		libprotocol-simple.la \
 		libprotocol-http.la \
 		libprotocol-native.la \
-		libtunnel-manager.la \
 		libvolume-api.la
 
 if HAVE_SYSTEMD_LOGIN
 modlibexec_LTLIBRARIES += \
 		liblogind.la
 endif
+
+# Note the ordering: liblogind is listed first, because libtunnel-manager has
+# an optional dependency on liblogind.
+modlibexec_LTLIBRARIES += \
+		libtunnel-manager.la
 
 if HAVE_WEBRTC
 modlibexec_LTLIBRARIES += libwebrtc-util.la
@@ -1128,6 +1132,9 @@ libtunnel_manager_la_SOURCES = \
 		modules/tunnel-manager/tunnel-manager-config.c modules/tunnel-manager/tunnel-manager-config.h
 libtunnel_manager_la_LDFLAGS = $(AM_LDFLAGS) -avoid-version
 libtunnel_manager_la_LIBADD = $(AM_LIBADD) libpulsecore-@PA_MAJORMINOR@.la libpulsecommon-@PA_MAJORMINOR@.la libpulse.la
+if HAVE_SYSTEMD_LOGIN
+libtunnel_manager_la_LIBADD += liblogind.la
+endif
 
 libvolume_api_la_SOURCES = \
 		modules/volume-api/audio-group.c modules/volume-api/audio-group.h \

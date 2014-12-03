@@ -45,6 +45,10 @@ struct pa_tunnel_manager_remote_device {
     pa_hook hooks[PA_TUNNEL_MANAGER_REMOTE_DEVICE_HOOK_MAX];
 
     pa_operation *get_info_operation;
+#ifdef HAVE_SYSTEMD_LOGIN
+    pa_hook_slot *seat_added_slot;
+    pa_hook_slot *seat_removed_slot;
+#endif
     pa_module *tunnel_module;
     pa_hook_slot *module_unload_slot;
 

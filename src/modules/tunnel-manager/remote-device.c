@@ -25,6 +25,8 @@
 
 #include "remote-device.h"
 
+#include <modules/udev-util.h>
+
 #include <pulse/error.h>
 #include <pulse/introspect.h>
 
@@ -34,6 +36,18 @@
 
 static void tear_down_tunnel_module(pa_tunnel_manager_remote_device *device);
 static void apply_tunnel_enabled_policy(pa_tunnel_manager_remote_device *device);
+
+#ifdef HAVE_SYSTEMD_LOGIN
+static pa_hook_result_t seat_added_or_removed_cb(void *hook_data, void *call_data, void *userdata) {
+    pa_tunnel_manager_remote_device *device = userdata;
+
+    pa_assert(device);
+
+    apply_tunnel_enabled_policy(device);
+
+    return PA_HOOK_OK;
+}
+#endif
 
 void pa_tunnel_manager_remote_device_new(pa_tunnel_manager_remote_server *server, pa_device_type_t type, const void *info) {
     const char *name = NULL;
@@ -121,6 +135,13 @@ void pa_tunnel_manager_remote_device_new(pa_tunnel_manager_remote_server *server
 
     for (i = 0; i < PA_TUNNEL_MANAGER_REMOTE_DEVICE_HOOK_MAX; i++)
         pa_hook_init(&device->hooks[i], device);
+
+#ifdef HAVE_SYSTEMD_LOGIN
+    device->seat_added_slot = pa_hook_connect(&device->server->manager->logind->hooks[PA_LOGIND_HOOK_SEAT_ADDED],
+                                                  PA_HOOK_NORMAL, seat_added_or_removed_cb, device);
+    device->seat_removed_slot = pa_hook_connect(&device->server->manager->logind->hooks[PA_LOGIND_HOOK_SEAT_REMOVED],
+                                                    PA_HOOK_NORMAL, seat_added_or_removed_cb, device);
+#endif
 
     device->can_free = true;
 
@@ -216,6 +237,14 @@ void pa_tunnel_manager_remote_device_free(pa_tunnel_manager_remote_device *devic
 
     tear_down_tunnel_module(device);
 
+#ifdef HAVE_SYSTEMD_LOGIN
+    if (device->seat_removed_slot)
+        pa_hook_slot_free(device->seat_removed_slot);
+
+    if (device->seat_added_slot)
+        pa_hook_slot_free(device->seat_added_slot);
+#endif
+
     if (device->get_info_operation) {
         pa_operation_cancel(device->get_info_operation);
         pa_operation_unref(device->get_info_operation);
@@ -249,6 +278,10 @@ static void set_proplist(pa_tunnel_manager_remote_device *device, pa_proplist *p
     pa_log_debug("[%s %s] Proplist changed.", device->server->name, device->name);
 
     pa_hook_fire(&device->hooks[PA_TUNNEL_MANAGER_REMOTE_DEVICE_HOOK_PROPLIST_CHANGED], NULL);
+
+    /* Re-evaluate the tunnel enabled policy in case the udev.seat property
+     * changed. */
+    apply_tunnel_enabled_policy(device);
 }
 
 static void set_tunnel_enabled(pa_tunnel_manager_remote_device *device, bool enabled) {
@@ -349,6 +382,22 @@ static void apply_tunnel_enabled_policy(pa_tunnel_manager_remote_device *device)
         case PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR:
             enabled = !device->is_monitor;
             break;
+
+        case PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR_AND_SEAT_IS_OK: {
+#ifdef HAVE_SYSTEMD_LOGIN
+            const char *seat_id;
+            pa_logind_seat *seat = NULL;
+
+            seat_id = pa_proplist_gets(device->proplist, PA_PROP_UDEV_SEAT);
+            if (seat_id)
+                seat = pa_hashmap_get(device->server->manager->logind->seats, seat_id);
+
+            enabled = !device->is_monitor && (!seat_id || seat);
+#else
+            enabled = !device->is_monitor;
+#endif
+            break;
+        }
     }
 
     set_tunnel_enabled(device, enabled);

@@ -36,6 +36,9 @@ const char *pa_tunnel_manager_remote_device_tunnel_enabled_condition_to_string(
     switch (condition) {
         case PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR:
             return "!device.is_monitor";
+
+        case PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR_AND_SEAT_IS_OK:
+            return "!device.is_monitor && (!device.seat || seats.contains(device.seat))";
     }
 
     pa_assert_not_reached();
@@ -50,6 +53,8 @@ int pa_tunnel_manager_remote_device_tunnel_enabled_condition_from_string(
 
     if (pa_streq(str, "!device.is_monitor"))
         condition = PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR;
+    else if (pa_streq(str, "!device.is_monitor && (!device.seat || seats.contains(device.seat))"))
+        condition = PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR_AND_SEAT_IS_OK;
     else
         return -PA_ERR_INVALID;
 
@@ -71,6 +76,9 @@ static pa_tunnel_manager *tunnel_manager_new(pa_core *core) {
     manager->remote_device_tunnel_enabled_condition = PA_TUNNEL_MANAGER_REMOTE_DEVICE_TUNNEL_ENABLED_CONDITION_NOT_MONITOR;
     manager->remote_servers = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     manager->refcnt = 1;
+#ifdef HAVE_SYSTEMD_LOGIN
+    manager->logind = pa_logind_get(core);
+#endif
 
     manager_config = pa_tunnel_manager_config_new();
 
@@ -114,7 +122,15 @@ static void tunnel_manager_free(pa_tunnel_manager *manager) {
 
         while ((server = pa_hashmap_first(manager->remote_servers)))
             pa_tunnel_manager_remote_server_free(server);
+    }
 
+#ifdef HAVE_SYSTEMD_LOGIN
+    if (manager->logind)
+        pa_logind_unref(manager->logind);
+#endif
+
+    if (manager->remote_servers) {
+        pa_assert(pa_hashmap_isempty(manager->remote_servers));
         pa_hashmap_free(manager->remote_servers);
     }
 
