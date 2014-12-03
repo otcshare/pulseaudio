@@ -27,18 +27,22 @@
 #include <systemd/sd-login.h>
 
 typedef struct pa_logind pa_logind;
+typedef struct pa_logind_seat pa_logind_seat;
 typedef struct pa_logind_session pa_logind_session;
 
 enum {
+    PA_LOGIND_HOOK_SEAT_ADDED,
+    PA_LOGIND_HOOK_SEAT_REMOVED,
     PA_LOGIND_HOOK_SESSION_ADDED,
     PA_LOGIND_HOOK_SESSION_REMOVED,
     PA_LOGIND_HOOK_MAX,
 };
 
-/* Currently pa_logind doesn't track all sessions in the system, only those
- * that belong to the current user. */
+/* Currently pa_logind doesn't track all seats and sessions in the system, only
+ * those that belong to the current user. */
 struct pa_logind {
     pa_core *core;
+    pa_hashmap *seats; /* id -> pa_logind_seat */
     pa_hashmap *sessions; /* id -> pa_logind_session */
     pa_hook hooks[PA_LOGIND_HOOK_MAX];
 
@@ -49,6 +53,11 @@ struct pa_logind {
 
 pa_logind *pa_logind_get(pa_core *core);
 void pa_logind_unref(pa_logind *logind);
+
+struct pa_logind_seat {
+    pa_logind *logind;
+    char *id;
+};
 
 struct pa_logind_session {
     pa_logind *logind;

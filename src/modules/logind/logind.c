@@ -30,8 +30,70 @@
 #include <pulsecore/dynarray.h>
 #include <pulsecore/shared.h>
 
+static void seat_new(pa_logind *logind, const char *id);
+static void seat_free(pa_logind_seat *seat);
+
 static void session_new(pa_logind *logind, const char *id);
 static void session_free(pa_logind_session *session);
+
+static void get_seats(pa_logind *logind) {
+    int r;
+    char **seats;
+    pa_hashmap *old_seats;
+    pa_logind_seat *seat;
+    void *state;
+    pa_dynarray *new_ids;
+    char *id;
+
+    pa_assert(logind);
+
+    r = sd_uid_get_seats(getuid(), 0, &seats);
+    if (r < 0) {
+        pa_log("sd_uid_get_seats() failed: %s", pa_cstrerror(r));
+        return;
+    }
+
+    /* When we iterate over the new seats, we drop the encountered seats from
+     * old_seats. The seats that remain in old_seats in the end will be
+     * removed. */
+    old_seats = pa_hashmap_new_full(pa_idxset_string_hash_func, pa_idxset_string_compare_func, NULL, (pa_free_cb_t) seat_free);
+    PA_HASHMAP_FOREACH(seat, logind->seats, state)
+        pa_hashmap_put(old_seats, seat->id, seat);
+
+    new_ids = pa_dynarray_new(NULL);
+
+    if (seats) {
+        char **s;
+
+        /* Note that the seats array is allocated with libc's malloc()/free()
+         * calls, hence do not use pa_xfree() to free this here. */
+
+        for (s = seats; *s; s++) {
+            seat = pa_hashmap_remove(old_seats, *s);
+            if (seat)
+                pa_hashmap_put(logind->seats, seat->id, seat);
+            else {
+                /* We don't create the seat yet, because creating the seat
+                 * fires a hook, and we want to postpone firing any hooks until
+                 * the seats hashmap is fully updated. */
+                pa_dynarray_append(new_ids, pa_xstrdup(*s));
+            }
+
+            free(*s);
+        }
+
+        free(seats);
+    }
+
+    pa_hashmap_free(old_seats);
+
+    while ((id = pa_dynarray_steal_last(new_ids))) {
+        seat_new(logind, id);
+        pa_xfree(id);
+    }
+
+    pa_dynarray_free(new_ids);
+}
 
 static void get_sessions(pa_logind *logind) {
     int r;
@@ -100,6 +162,7 @@ static void monitor_cb(pa_mainloop_api *api, pa_io_event* event, int fd, pa_io_e
     pa_assert(logind);
 
     sd_login_monitor_flush(logind->monitor);
+    get_seats(logind);
     get_sessions(logind);
 }
 
@@ -115,6 +178,7 @@ static void set_up_monitor(pa_logind *logind) {
         pa_log("sd_login_monitor_new() failed: %s", pa_cstrerror(r));
         return;
     }
+    logind->monitor = monitor;
 
     logind->monitor_event = logind->core->mainloop->io_new(logind->core->mainloop, sd_login_monitor_get_fd(monitor),
                                                            PA_IO_EVENT_INPUT, monitor_cb, logind);
@@ -142,6 +206,7 @@ static pa_logind *logind_new(pa_core *core) {
 
     logind = pa_xnew0(pa_logind, 1);
     logind->core = core;
+    logind->seats = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     logind->sessions = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     logind->refcnt = 1;
 
@@ -153,6 +218,7 @@ static pa_logind *logind_new(pa_core *core) {
         goto finish;
 
     set_up_monitor(logind);
+    get_seats(logind);
     get_sessions(logind);
 
 finish:
@@ -175,6 +241,13 @@ static void logind_free(pa_logind *logind) {
             session_free(session);
     }
 
+    if (logind->seats) {
+        pa_logind_seat *seat;
+
+        while ((seat = pa_hashmap_first(logind->seats)))
+            seat_free(seat);
+    }
+
     tear_down_monitor(logind);
 
     for (i = 0; i < PA_LOGIND_HOOK_MAX; i++)
@@ -183,6 +256,11 @@ static void logind_free(pa_logind *logind) {
     if (logind->sessions) {
         pa_assert(pa_hashmap_isempty(logind->sessions));
         pa_hashmap_free(logind->sessions);
+    }
+
+    if (logind->seats) {
+        pa_assert(pa_hashmap_isempty(logind->seats));
+        pa_hashmap_free(logind->seats);
     }
 
     pa_xfree(logind);
@@ -210,6 +288,35 @@ void pa_logind_unref(pa_logind *logind) {
 
     if (logind->refcnt == 0)
         logind_free(logind);
+}
+
+static void seat_new(pa_logind *logind, const char *id) {
+    pa_logind_seat *seat;
+
+    pa_assert(logind);
+    pa_assert(id);
+
+    seat = pa_xnew0(pa_logind_seat, 1);
+    seat->logind = logind;
+    seat->id = pa_xstrdup(id);
+
+    pa_assert_se(pa_hashmap_put(logind->seats, seat->id, seat) >= 0);
+
+    pa_log_debug("Created seat %s.", seat->id);
+
+    pa_hook_fire(&logind->hooks[PA_LOGIND_HOOK_SEAT_ADDED], seat);
+}
+
+static void seat_free(pa_logind_seat *seat) {
+    pa_assert(seat);
+
+    pa_log_debug("Freeing seat %s.", seat->id);
+
+    if (pa_hashmap_remove(seat->logind->seats, seat->id))
+        pa_hook_fire(&seat->logind->hooks[PA_LOGIND_HOOK_SEAT_REMOVED], seat);
+
+    pa_xfree(seat->id);
+    pa_xfree(seat);
 }
 
 static void session_new(pa_logind *logind, const char *id) {
