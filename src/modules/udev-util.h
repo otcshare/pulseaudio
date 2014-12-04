@@ -24,6 +24,8 @@
 
 #include <pulse/proplist.h>
 
+#define PA_PROP_UDEV_SEAT "udev.seat"
+
 int pa_udev_get_info(int card_idx, pa_proplist *p);
 char* pa_udev_get_property(int card_idx, const char *name);
 

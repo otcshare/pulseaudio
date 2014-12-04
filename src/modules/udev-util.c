@@ -250,6 +250,15 @@ int pa_udev_get_info(int card_idx, pa_proplist *p) {
         if ((v = udev_device_get_property_value(card, "SOUND_DESCRIPTION")) && *v)
             pa_proplist_sets(p, PA_PROP_DEVICE_DESCRIPTION, v);
 
+    if (!pa_proplist_contains(p, PA_PROP_UDEV_SEAT)) {
+        if ((udev_device_has_tag(card, "seat"))) {
+            if ((v = udev_device_get_property_value(card, "ID_SEAT")) && *v)
+                pa_proplist_sets(p, PA_PROP_UDEV_SEAT, v);
+            else
+                pa_proplist_sets(p, PA_PROP_UDEV_SEAT, "seat0");
+        }
+    }
+
     r = 0;
 
 finish:
