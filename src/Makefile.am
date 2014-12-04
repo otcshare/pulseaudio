@@ -944,6 +944,7 @@ libpulsecore_@PA_MAJORMINOR@_la_SOURCES = \
 		pulsecore/core-scache.c pulsecore/core-scache.h \
 		pulsecore/core-subscribe.c pulsecore/core-subscribe.h \
 		pulsecore/core.c pulsecore/core.h \
+		pulsecore/device-type.c pulsecore/device-type.h \
 		pulsecore/fdsem.c pulsecore/fdsem.h \
 		pulsecore/hook-list.c pulsecore/hook-list.h \
 		pulsecore/ltdl-helper.c pulsecore/ltdl-helper.h \
