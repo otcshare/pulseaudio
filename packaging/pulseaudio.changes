@@ -1,3 +1,11 @@
+* Fri Dec 12 2014 Jaska Uimonen <jaska.uimonen@intel.com>
+- New cascaded setup for true multiuser audio
+- It is applied only if cascaded setup package is installed
+- Otherwise should not alter previous behavior
+- Fix issue of muting the hdmi
+- Fix crash in volume-api with bluetooth
+- Various small fixes
+
 * Fri Nov 5 2014 Jaska Uimonen <jaska.uimonen@intel.com>
 - Bring in systemd socket activation - fixes partly TC-1742 (xwalk doesn't autospawn pulse)
 - add tcp sockets to systemd socket activation
