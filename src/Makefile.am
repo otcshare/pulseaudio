@@ -1254,7 +1254,9 @@ modlibexec_LTLIBRARIES += \
 		module-filter-heuristics.la \
 		module-role-ducking.la \
 		module-audio-groups.la \
-		module-expose-environment.la
+		module-expose-environment.la \
+		module-tag-environment.la
+
 
 if HAVE_ESOUND
 modlibexec_LTLIBRARIES += \
@@ -1595,7 +1597,8 @@ SYMDEF_FILES = \
 		module-filter-apply-symdef.h \
 		module-filter-heuristics-symdef.h \
 		module-audio-groups-symdef.h \
-		module-expose-environment-symdef.h
+		module-expose-environment-symdef.h \
+		module-tag-environment-symdef.h
 
 if USE_SAMSUNG_POLICY
 SYMDEF_FILES += \
@@ -2028,6 +2031,12 @@ module_expose_environment_la_SOURCES = modules/module-expose-environment.c
 module_expose_environment_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_expose_environment_la_LIBADD = $(MODULE_LIBADD)
 module_expose_environment_la_CFLAGS = $(AM_CFLAGS)
+
+# Tag streams with select variables from the clients environment.
+module_tag_environment_la_SOURCES = modules/module-tag-environment.c
+module_tag_environment_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_tag_environment_la_LIBADD = $(MODULE_LIBADD)
+module_tag_environment_la_CFLAGS = $(AM_CFLAGS)
 
 # Augment properties from XDG .desktop files
 module_augment_properties_la_SOURCES = modules/module-augment-properties.c
