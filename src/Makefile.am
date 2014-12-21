@@ -1253,7 +1253,8 @@ modlibexec_LTLIBRARIES += \
 		module-filter-apply.la \
 		module-filter-heuristics.la \
 		module-role-ducking.la \
-		module-audio-groups.la
+		module-audio-groups.la \
+		module-expose-environment.la
 
 if HAVE_ESOUND
 modlibexec_LTLIBRARIES += \
@@ -1593,7 +1594,8 @@ SYMDEF_FILES = \
 		module-switch-on-port-available-symdef.h \
 		module-filter-apply-symdef.h \
 		module-filter-heuristics-symdef.h \
-		module-audio-groups-symdef.h
+		module-audio-groups-symdef.h \
+		module-expose-environment-symdef.h
 
 if USE_SAMSUNG_POLICY
 SYMDEF_FILES += \
@@ -2020,6 +2022,12 @@ module_role_ducking_la_SOURCES = modules/module-role-ducking.c
 module_role_ducking_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_role_ducking_la_LIBADD = $(MODULE_LIBADD)
 module_role_ducking_la_CFLAGS = $(AM_CFLAGS)
+
+# Expose selected environment variables as properties on client objects.
+module_expose_environment_la_SOURCES = modules/module-expose-environment.c
+module_expose_environment_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_expose_environment_la_LIBADD = $(MODULE_LIBADD)
+module_expose_environment_la_CFLAGS = $(AM_CFLAGS)
 
 # Augment properties from XDG .desktop files
 module_augment_properties_la_SOURCES = modules/module-augment-properties.c

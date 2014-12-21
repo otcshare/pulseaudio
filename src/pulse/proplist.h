@@ -183,6 +183,9 @@ PA_C_DECL_BEGIN
 /** For clients/streams: an id for the login session the application runs in. On Unix the value of $XDG_SESSION_ID. E.g. "5" */
 #define PA_PROP_APPLICATION_PROCESS_SESSION_ID "application.process.session_id"
 
+/** For clients: a variable from the client environment (read from /proc). */
+#define  PA_PROP_APPLICATION_PROCESS_ENVIRONMENT "application.process.environment"
+
 /** For devices: device string in the underlying audio layer's format. E.g. "surround51:0" */
 #define PA_PROP_DEVICE_STRING                  "device.string"
 
