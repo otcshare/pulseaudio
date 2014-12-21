@@ -37,6 +37,7 @@ typedef struct pa_creds pa_creds;
 #define HAVE_CREDS 1
 
 struct pa_creds {
+    pid_t pid;
     gid_t gid;
     uid_t uid;
 };

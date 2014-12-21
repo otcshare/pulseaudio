@@ -4888,6 +4888,9 @@ static void pstream_packet_callback(pa_pstream *p, pa_packet *packet, const pa_c
     pa_assert(packet);
     pa_native_connection_assert_ref(c);
 
+    if (creds)
+        pa_client_set_creds(c->client, creds);
+
     if (pa_pdispatch_run(c->pdispatch, packet, creds, c) < 0) {
         pa_log("invalid packet.");
         native_connection_unlink(c);

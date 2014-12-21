@@ -23,12 +23,14 @@
 ***/
 
 #include <inttypes.h>
+#include <sys/types.h>
 
 typedef struct pa_client pa_client;
 
 #include <pulse/proplist.h>
 #include <pulsecore/core.h>
 #include <pulsecore/module.h>
+#include <pulsecore/creds.h>
 
 /* Every connection to the server should have a pa_client
  * attached. That way the user may generate a listing of all connected
@@ -46,6 +48,11 @@ struct pa_client {
     pa_idxset *source_outputs;
 
     void *userdata;
+
+#ifdef HAVE_CREDS
+    pa_creds creds;
+    bool creds_set;
+    #endif
 
     void (*kill)(pa_client *c);
 
@@ -82,5 +89,26 @@ typedef struct pa_client_send_event_hook_data {
     const char *event;
     pa_proplist *data;
 } pa_client_send_event_hook_data;
+
+static inline void pa_client_set_creds(pa_client *c, const pa_creds *creds) {
+    if (c) {
+#ifdef HAVE_CREDS
+        c->creds = *creds;
+        c->creds_set = true;
+#else
+        (void)c;
+        (void)creds;
+#endif
+    }
+}
+
+/* Get reliable client pid obtained from credentials if known. */
+pid_t pa_client_pid(pa_client *c);
+
+/* Get reliable client user id obtained from credentials if known. */
+bool pa_client_get_uid(pa_client *c, uid_t *uid);
+
+/* Get reliable client group id obtained from credentials if known. */
+bool pa_client_get_gid(pa_client *c, gid_t *gid);
 
 #endif

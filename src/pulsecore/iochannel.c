@@ -387,6 +387,7 @@ ssize_t pa_iochannel_read_with_creds(pa_iochannel*io, void*data, size_t l, pa_cr
                 pa_assert(cmh->cmsg_len == CMSG_LEN(sizeof(struct ucred)));
                 memcpy(&u, CMSG_DATA(cmh), sizeof(struct ucred));
 
+                creds->pid = u.pid;
                 creds->gid = u.gid;
                 creds->uid = u.uid;
                 *creds_valid = true;

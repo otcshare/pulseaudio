@@ -72,6 +72,8 @@ pa_client *pa_client_new(pa_core *core, pa_client_new_data *data) {
     c->source_outputs = pa_idxset_new(NULL, NULL);
 
     c->userdata = NULL;
+    c->creds_set = false;
+
     c->kill = NULL;
     c->send_event = NULL;
 
@@ -171,4 +173,47 @@ finish:
 
     if (pl)
         pa_proplist_free(pl);
+}
+
+pid_t pa_client_pid(pa_client *c) {
+#ifdef HAVE_CREDS
+    pa_assert(c);
+
+    if (!c->creds_set)
+        return 0;
+
+    return c->creds.pid;
+#else
+    return 0;
+#endif
+}
+
+bool pa_client_get_uid(pa_client *c, uid_t *uid) {
+#ifdef HAVE_CREDS
+    pa_assert(c);
+    pa_assert(uid);
+
+    if (!c->creds_set)
+        return false;
+
+    *uid = c->creds.uid;
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool pa_client_get_gid(pa_client *c, gid_t *gid) {
+#ifdef HAVE_CREDS
+    pa_assert(c);
+    pa_assert(gid);
+
+    if (!c->creds_set)
+        return false;
+
+    *gid = c->creds.gid;
+    return true;
+#else
+    return false;
+#endif
 }
