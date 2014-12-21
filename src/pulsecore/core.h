@@ -197,6 +197,8 @@ struct pa_core {
     pa_server_type_t server_type;
     pa_cpu_info cpu_info;
 
+    const char *(*client_getenv)(pa_client *c, const char *name);
+
     /* hooks */
     pa_hook hooks[PA_CORE_HOOK_MAX];
 };

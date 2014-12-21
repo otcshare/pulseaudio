@@ -155,6 +155,8 @@ pa_core* pa_core_new(pa_mainloop_api *m, bool shared, size_t shm_size) {
     c->deferred_volume = true;
     c->resample_method = PA_RESAMPLER_SPEEX_FLOAT_BASE + 1;
 
+    c->client_getenv = NULL;
+
     for (j = 0; j < PA_CORE_HOOK_MAX; j++)
         pa_hook_init(&c->hooks[j], c);
 

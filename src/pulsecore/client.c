@@ -217,3 +217,20 @@ bool pa_client_get_gid(pa_client *c, gid_t *gid) {
     return false;
 #endif
 }
+
+
+const char *pa_client_getenv(pa_client *c, const char *name) {
+    static bool module_requested = false;
+
+    pa_assert(c && c->core);
+
+    if (!c->core->client_getenv && !module_requested) {
+        pa_module_load(c->core, "module-expose-environment", "variables=\"*\"");
+        module_requested = true;
+    }
+
+    if (c->core->client_getenv)
+        return c->core->client_getenv(c, name);
+    else
+        return NULL;
+}

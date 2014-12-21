@@ -111,4 +111,7 @@ bool pa_client_get_uid(pa_client *c, uid_t *uid);
 /* Get reliable client group id obtained from credentials if known. */
 bool pa_client_get_gid(pa_client *c, gid_t *gid);
 
+/* Get the value of the given variable from the clients envrionment. */
+const char *pa_client_getenv(pa_client *c, const char *name);
+
 #endif
