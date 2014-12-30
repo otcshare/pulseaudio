@@ -25,7 +25,9 @@
 #include <sys/types.h>
 #include <limits.h>
 
+#include <pulse/mainloop-api.h>
 #include <pulse/sample.h>
+
 #include <pulsecore/asyncmsgq.h>
 #include <pulsecore/fdsem.h>
 #include <pulsecore/macro.h>
@@ -55,6 +57,8 @@ typedef enum pa_rtpoll_priority {
 
 pa_rtpoll *pa_rtpoll_new(void);
 void pa_rtpoll_free(pa_rtpoll *p);
+
+pa_mainloop_api *pa_rtpoll_get_mainloop_api(pa_rtpoll *rtpoll);
 
 /* Sleep on the rtpoll until the time event, or any of the fd events
  * is triggered. Returns negative on error, positive if the loop
