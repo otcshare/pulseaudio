@@ -1125,6 +1125,23 @@ AS_IF([test "x$enable_ipv6" != "xno"], [HAVE_IPV6=1], [HAVE_IPV6=0])
 
 AS_IF([test "x$HAVE_IPV6" = "x1"], AC_DEFINE([HAVE_IPV6], 1, [Define this to enable IPv6 connection support]))
 
+#### murphy policy module (optional) ####
+AC_ARG_ENABLE([murphy],
+    AS_HELP_STRING([--enable-murphy], [Enable optional murphy policy module]), [enable_murphy=yes], [enable_murphy=no])
+
+AS_IF([test x$enable_murphy != xno],
+    [PKG_CHECK_MODULES(MURPHY, [murphy-domain-controller murphy-pulse, murphy-common murphy-lua-utils lua >= 5.1.1 json-c], HAVE_MURPHY=1, HAVE_MURPHY=0)],
+    HAVE_MURPHY=0)
+
+AS_IF([test x$enable_murphy = xyes && test x$HAVE_MURPHY = "x0"],
+    [AC_MSG_ERROR([*** Murphy support not found])])
+
+AC_SUBST(HAVE_MURPHY)
+AC_SUBST(MURPHY_CFLAGS)
+AC_SUBST(MURPHY_LIBS)
+AM_CONDITIONAL(HAVE_MURPHY, [test "x$HAVE_MURPHY" = x1])
+AS_IF([test "x$HAVE_MURPHY" = "x1"], AC_DEFINE([HAVE_MURPHY], 1, [Have Murphy policy module]))
+
 #### OpenSSL support (optional) ####
 
 AC_ARG_ENABLE([openssl],
@@ -1588,6 +1605,7 @@ AS_IF([test "x$HAVE_ESOUND" = "x1" -a "x$USE_PER_USER_ESOUND_SOCKET" = "x1"], EN
 AS_IF([test "x$HAVE_GCOV" = "x1"], ENABLE_GCOV=yes, ENABLE_GCOV=no)
 AS_IF([test "x$HAVE_LIBCHECK" = "x1"], ENABLE_TESTS=yes, ENABLE_TESTS=no)
 AS_IF([test "x$enable_legacy_database_entry_format" != "xno"], ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=yes, ENABLE_LEGACY_DATABASE_ENTRY_FORMAT=no)
+AS_IF([test "x$HAVE_MURPHY" = "x1"], ENABLE_MURPHY=yes, ENABLE_MURPHY=no)
 
 echo "
  ---{ $PACKAGE_NAME $VERSION }---
@@ -1658,6 +1676,7 @@ echo "
     Preopened modules:             ${PREOPEN_MODS}
 
     Legacy Database Entry Support: ${ENABLE_LEGACY_DATABASE_ENTRY_FORMAT}
+    Enable Murphy policy module:   ${ENABLE_MURPHY}
 "
 
 if test "${ENABLE_SPEEX}" = "no" && test "${ENABLE_WEBRTC}" = "no" && test "${ENABLE_ADRIAN_EC}" = "no" ; then
