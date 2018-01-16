@@ -159,6 +159,10 @@ struct userdata {
         pa_smoother *smoother;
         uint64_t counter;
     } thread_info;
+
+    pa_sink_input *  (*add_slave)(struct userdata *, pa_sink *);
+    void             (*remove_slave)(struct userdata *, pa_sink_input *, pa_sink *);
+    int              (*move_slave)(struct userdata *, pa_sink_input *, pa_sink *);
 };
 
 enum {
@@ -179,6 +183,9 @@ static void output_disable(struct output *o);
 static void output_enable(struct output *o);
 static void output_free(struct output *o);
 static int output_create_sink_input(struct output *o);
+static pa_sink_input *add_slave(struct userdata *u, pa_sink *sink);
+static void remove_slave(struct userdata *u, pa_sink_input *i, pa_sink *s);
+static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s);
 
 static void adjust_rates(struct userdata *u) {
     struct output *o;
@@ -1314,6 +1321,10 @@ int pa__init(pa_module*m) {
             pa_rtclock_now(),
             true);
 
+    u->add_slave = add_slave;
+    u->remove_slave = remove_slave;
+    u->move_slave = move_slave;
+
     adjust_time_sec = DEFAULT_ADJUST_TIME_USEC / PA_USEC_PER_SEC;
     if (pa_modargs_get_value_u32(ma, "adjust_time", &adjust_time_sec) < 0) {
         pa_log("Failed to parse adjust_time value");
@@ -1560,4 +1571,77 @@ void pa__done(pa_module*m) {
         pa_smoother_free(u->thread_info.smoother);
 
     pa_xfree(u);
+}
+
+static pa_sink_input *add_slave(struct userdata *u, pa_sink *sink) {
+    struct output *o;
+
+    pa_assert(u);
+    pa_assert(sink);
+
+    pa_log_debug("Adding a slave to module combine");
+
+    if (!(o = output_new(u, sink))) {
+        pa_log("Failed to create slave sink input on sink '%s'.", sink->name);
+        return NULL;
+    }
+
+    output_verify(o);
+
+    return o->sink_input;
+}
+
+static void remove_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
+    struct output *o;
+
+    pa_assert(u);
+    pa_assert(i || s);
+
+    if (s == NULL)
+	s = i->sink;
+
+    o = find_output(u, s);
+
+    if (o == NULL) {
+	pa_log_debug("Couldn't find output in module combine");
+        return;
+    }
+
+    output_disable(o);
+    output_free(o);
+}
+
+static int move_slave(struct userdata *u, pa_sink_input *i, pa_sink *s) {
+    struct output *o;
+    int sts;
+
+    pa_assert(u);
+    pa_assert(i);
+    pa_assert(s);
+
+    pa_assert(i->sink);
+
+    o = find_output(u, i->sink);
+
+    if (o == NULL) {
+	pa_log_debug("Could not find output with sink %s for moving", s->name);
+	return -1;
+    }
+
+    if (i->sink == s)
+	return 0;
+
+    i->flags &= ~(pa_sink_input_flags_t)PA_SINK_INPUT_DONT_MOVE;
+
+    sts = pa_sink_input_move_to(i, s, false);
+
+    i->flags |= (pa_sink_input_flags_t)PA_SINK_INPUT_DONT_MOVE;
+
+
+    if (sts < 0)
+	return -1;
+
+    o->sink = s;
+
+    return 0;
 }
