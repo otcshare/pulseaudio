@@ -1476,6 +1476,8 @@ bin_SCRIPTS += utils/qpaeq
 endif
 endif
 
+modlibexec_LTLIBRARIES += \
+		module-murphy-ivi.la
 # Simple protocol
 
 module_simple_protocol_tcp_la_SOURCES = modules/module-protocol-stub.c
@@ -2144,6 +2146,39 @@ module_allow_passthrough_la_SOURCES = modules/module-allow-passthrough.c
 module_allow_passthrough_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_allow_passthrough_la_LIBADD = $(MODULE_LIBADD)
 module_allow_passthrough_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_allow_passthrough
+
+module_murphy_ivi_la_SOURCES = \
+			modules/murphy/module-murphy-ivi.c \
+			modules/murphy/tracker.c \
+			modules/murphy/zone.c \
+			modules/murphy/node.c \
+			modules/murphy/discover.c \
+			modules/murphy/constrain.c \
+			modules/murphy/router.c \
+			modules/murphy/switch.c \
+			modules/murphy/fader.c \
+			modules/murphy/stream-state.c \
+			modules/murphy/multiplex.c \
+			modules/murphy/loopback.c \
+			modules/murphy/volume.c \
+			modules/murphy/murphy-config.c \
+			modules/murphy/classify.c \
+			modules/murphy/utils.c \
+			modules/murphy/scripting.c \
+			modules/murphy/extapi.c \
+			modules/murphy/resource.c \
+			modules/murphy/murphyif.c
+
+module_murphy_ivi_la_LIBADD = $(MODULE_LIBADD) \
+                              $(MURPHYCOMMON_LIBS) $(MURPHYDOMCTL_LIBS)     \
+                              $(LUAUTILS_LIBS) $(LUA_LIBS) libprotocol-native.la
+
+module_murphy_ivi_la_CFLAGS = $(AM_CFLAGS) \
+                              $(MURPHYCOMMON_CFLAGS) $(MURPHYDOMCTL_CFLAGS) \
+                              $(LUAUTILS_CFLAGS) $(LUA_CFLAGS)              \
+                              $(JSONC_CFLAGS)
+
+module_murphy_ivi_la_LDFLAGS = $(MODULE_LDFLAGS)
 
 ###################################
 #        Some minor stuff         #

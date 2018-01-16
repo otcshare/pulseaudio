@@ -1125,6 +1125,43 @@ AS_IF([test "x$enable_ipv6" != "xno"], [HAVE_IPV6=1], [HAVE_IPV6=0])
 
 AS_IF([test "x$HAVE_IPV6" = "x1"], AC_DEFINE([HAVE_IPV6], 1, [Define this to enable IPv6 connection support]))
 
+# murphy interface
+AC_ARG_WITH([murphyif],
+            [ AS_HELP_STRING([--with-murphyif],
+                             [Enable murphy domain-controller interface])
+            ],
+            [ build_with_murphyif="yes" ;
+              PKG_CHECK_MODULES(MURPHYIF,
+                                [murphy-domain-controller murphy-pulse])
+              AC_SUBST(MURPHYIF_CFLAGS)
+              AC_SUBST(MURPHYIF_LIBS)
+              AC_DEFINE([WITH_MURPHYIF], 1, [Enable Murphy interface ?])
+            ],
+            [ build_with_murphyif="no" ]
+)
+
+AM_CONDITIONAL(BUILD_WITH_MURPHYIF,  [ test "x$build_with_murphyif" = "xyes" ])
+
+PKG_CHECK_MODULES(MURPHYCOMMON, [murphy-common])
+AC_SUBST(MURPHYCOMMON_CFLAGS)
+AC_SUBST(MURPHYCOMMON_LIBS)
+
+PKG_CHECK_MODULES(LUAUTILS, [murphy-lua-utils])
+AC_SUBST(LUAUTILS_CFLAGS)
+AC_SUBST(LUAUTILS_LIBS)
+
+PKG_CHECK_MODULES(LUA, lua >= 5.1.1)
+AC_SUBST(LUA_CFLAGS)
+AC_SUBST(LUA_LIBS)
+
+PKG_CHECK_MODULES(JSONC, [json-c])
+AC_SUBST(JSONC_CFLAGS)
+AC_SUBST(JSONC_LIBS)
+
+PKG_CHECK_MODULES(MURPHYDOMCTL, [murphy-domain-controller murphy-pulse])
+AC_SUBST(MURPHYDOMCTL_CFLAGS)
+AC_SUBST(MURPHYDOMCTL_LIBS)
+
 #### OpenSSL support (optional) ####
 
 AC_ARG_ENABLE([openssl],
